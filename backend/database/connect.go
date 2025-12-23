@@ -3,12 +3,13 @@ package database
 import (
 	"database/sql"
 	"fmt"
+	_ "github.com/lib/pq"
 	"log"
 	"zubly/backend/utils/env"
 )
 
 func connect() *sql.DB {
-	dsn := fmt.Sprintf("%s:%s@tcp(%s:%s)/%s",
+	dsn := fmt.Sprintf("postgres://%s:%s@%s:%s/%s?sslmode=disable",
 		env.Backend["DB_USER"],
 		env.Backend["DB_PASS"],
 		env.Backend["DB_HOST"],
