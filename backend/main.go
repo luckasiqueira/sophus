@@ -1,7 +1,10 @@
 package main
 
-import "zubly/backend/http"
+import (
+	"zubly/backend/http"
+	"zubly/backend/utils/env"
+)
 
 func main() {
-	http.Start("8080")
+	http.Start(env.Backend["HTTP_PORT"])
 }
