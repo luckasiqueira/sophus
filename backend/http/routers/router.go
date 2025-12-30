@@ -13,7 +13,7 @@ func Router(r *iris.Application) {
 
 	message := r.Party("/message")
 	{
-		message.Post("/received", controllers.MessageReceived)
+		message.Post("/in", controllers.MessageIncoming)
 	}
 
 }

@@ -6,10 +6,10 @@ import (
 	"github.com/kataras/iris/v12"
 )
 
-func MessageReceived(ctx iris.Context) {
-	database.MessageReceived()
+func MessageIncoming(ctx iris.Context) {
+	database.MessageIncoming()
 }
 
-func MessageSent(ctx iris.Context) {
+func MessageOutgoing(ctx iris.Context) {
 
 }

@@ -10,16 +10,16 @@ type Message struct {
 	Content   string
 }
 
-func (m *Message) Received() error {
+func (m *Message) incoming() error {
 	query := `INSERT INTO public.messages (id, content) VALUES (DEFAULT, $1);`
 	return insert(query, m.Content)
 }
 
-func MessageReceived() {
+func MessageIncoming() {
 	m := Message{
 		Content: "Hello World!",
 	}
-	err := m.Received()
+	err := m.incoming()
 	if err != nil {
 		fmt.Println(err)
 	}
