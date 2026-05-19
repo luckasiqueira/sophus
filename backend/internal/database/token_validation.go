@@ -6,7 +6,7 @@ import (
 	"github.com/kataras/iris/v12"
 )
 
-func CheckValidToken(apiToken string) bool {
+func IsValidAPIToken(apiToken string) bool {
 	stmt, err := db.Prepare("SELECT COUNT(*) FROM tokens WHERE apitoken = $1")
 	if err != nil {
 		fmt.Println(err)
@@ -19,7 +19,7 @@ func CheckValidToken(apiToken string) bool {
 	return err == nil && count == 1
 }
 
-func CheckAPIToken(apiToken string) (string, int) {
+func GetConnectionKeyByToken(apiToken string) (string, int) {
 	stmt, err := db.Prepare(`SELECT "connectionkey" FROM tokens WHERE apitoken = $1`)
 	defer stmt.Close()
 	if err != nil {

@@ -18,7 +18,7 @@ func SendMessage(ctx iris.Context) {
 		ctx.StopWithStatus(iris.StatusBadRequest)
 	}
 	m := wpp.TextMessage{}
-	apiToken, status := database.CheckAPIToken(ctx.GetHeader("apitoken"))
+	apiToken, status := database.GetConnectionKeyByToken(ctx.GetHeader("apitoken"))
 	if status != iris.StatusOK {
 		ctx.StopWithStatus(status)
 	}
