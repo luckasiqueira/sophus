@@ -1,6 +1,6 @@
+.env
 .env-backend
 .env-frontend
-.env-backend
 backend/backend.yaml
 frontend/frontend.yaml
 
