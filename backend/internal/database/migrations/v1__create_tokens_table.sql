@@ -5,4 +5,5 @@ create table tokens
             primary key,
     apiToken  VARCHAR(24) NOT NULL,
     connectionKey VARCHAR(36) NOT NULL
+
 );
