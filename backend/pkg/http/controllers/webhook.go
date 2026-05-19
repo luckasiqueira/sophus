@@ -28,6 +28,13 @@ func Webhook(ctx iris.Context) {
 			ctx.StopWithStatus(iris.StatusBadRequest)
 		}
 		fmt.Println(qrcode)
+	case "Message":
+		message := wpp.EventMessage{}
+		err = json.Unmarshal(body, &message)
+		if err != nil {
+			ctx.StopWithStatus(iris.StatusBadRequest)
+		}
+		fmt.Println(message)
 	}
 	fmt.Println(err)
 }
