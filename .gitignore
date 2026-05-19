@@ -1,0 +1,14 @@
+.env-backend
+.env-frontend
+.env-backend
+backend/backend.yaml
+frontend/frontend.yaml
+
+.idea/
+builds/
+
+*.iml
+*.zip
+*.mod
+*.sum
+*.exe
