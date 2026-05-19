@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"zubly/backend/internal/database"
 	"zubly/backend/pkg/wpp"
 
 	"github.com/google/uuid"
@@ -17,16 +18,18 @@ func SendMessage(ctx iris.Context) {
 		ctx.StopWithStatus(iris.StatusBadRequest)
 	}
 	m := wpp.TextMessage{}
-	apiToken := ctx.GetHeader("apitoken")
+	apiToken, status := database.CheckAPIToken(ctx.GetHeader("apitoken"))
+	if status != iris.StatusOK {
+		ctx.StopWithStatus(status)
+	}
 	err = json.Unmarshal(body, &m)
 	if err != nil {
 		ctx.StopWithStatus(iris.StatusBadRequest)
 	}
 	m.MessageBase.Id = uuid.NewString()
-	m.Send(apiToken)
-	fmt.Println(apiToken)
+	status, err = m.Send(apiToken)
 	if err != nil {
-		ctx.StopWithStatus(iris.StatusBadRequest)
+		ctx.StopWithStatus(status)
 	}
 	fmt.Println(m)
 }

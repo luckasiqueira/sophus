@@ -7,7 +7,7 @@ type TextMessage struct {
 	Text string `json:"text"`
 }
 
-func (m *TextMessage) Send(apiKey string) error {
+func (m *TextMessage) Send(apiKey string) (int, error) {
 	r := requests.Request{
 		URL:     apiBaseURL + `/send/text`,
 		Payload: m,
@@ -17,5 +17,6 @@ func (m *TextMessage) Send(apiKey string) error {
 		},
 		Response: requests.Response{},
 	}
-	return r.Do()
+	err := r.Do()
+	return r.StatusCode, err
 }
