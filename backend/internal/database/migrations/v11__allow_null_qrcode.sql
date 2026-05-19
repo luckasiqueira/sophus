@@ -1,0 +1,2 @@
+ALTER TABLE IF EXISTS public.connections
+    ALTER COLUMN qrcode DROP NOT NULL;
