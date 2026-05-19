@@ -10,7 +10,7 @@ import (
 	_ "github.com/lib/pq"
 )
 
-var DB = connect()
+var db = connect()
 
 func connect() *sql.DB {
 	dsn := fmt.Sprintf("postgres://%s:%s@%s:%s/%s?sslmode=disable",
@@ -20,13 +20,13 @@ func connect() *sql.DB {
 		env.Backend["DB_PORT"],
 		env.Backend["DB_NAME"],
 	)
-	db, err := sql.Open("postgres", dsn)
+	sdb, err := sql.Open("postgres", dsn)
 	if err != nil {
 		log.Panic(err)
 	}
-	db.SetMaxOpenConns(30)
-	db.SetMaxIdleConns(15)
-	db.SetConnMaxLifetime(30 * time.Minute)
-	db.SetConnMaxIdleTime(5 * time.Minute)
-	return db
+	sdb.SetMaxOpenConns(30)
+	sdb.SetMaxIdleConns(15)
+	sdb.SetConnMaxLifetime(30 * time.Minute)
+	sdb.SetConnMaxIdleTime(5 * time.Minute)
+	return sdb
 }

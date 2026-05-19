@@ -1,7 +1,7 @@
 package database
 
 func insert(query string, args ...interface{}) error {
-	stmt, err := DB.Prepare(query)
+	stmt, err := db.Prepare(query)
 	if err != nil {
 		return err
 	}

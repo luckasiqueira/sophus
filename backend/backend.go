@@ -1,7 +1,7 @@
 package main
 
 import (
-	"zubly/backend/http"
+	"zubly/backend/pkg/http"
 	"zubly/backend/utils/env"
 )
 
