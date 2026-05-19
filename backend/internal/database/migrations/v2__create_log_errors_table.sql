@@ -6,6 +6,6 @@ create table logs_errors
     level     varchar,
     error     varchar,
     details   varchar,
-    details_2 timestamp
+    createdAt timestamp
 );
 
