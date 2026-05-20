@@ -4,7 +4,7 @@ import (
 	"fmt"
 )
 
-func IsValidAPIToken(apiToken string) bool {
+func IsValidAPITokenEVO(apiToken string) bool {
 	stmt, err := db.Prepare(`SELECT COUNT(*) FROM connections WHERE "apiToken" = $1`)
 	if err != nil {
 		fmt.Println(err)

@@ -2,13 +2,13 @@ package repo
 
 import "github.com/google/uuid"
 
-type Event []struct {
+type EventEVO []struct {
 	Body struct {
-		EventData
+		EventDataEVO
 	} `json:"body"`
 }
 
-type EventData struct {
+type EventDataEVO struct {
 	EventType     string    `json:"event"`
 	InstanceID    uuid.UUID `json:"instanceId"`
 	InstanceName  string    `json:"instanceName"`
@@ -23,11 +23,11 @@ type EventQRCode []struct {
 			Count    int    `json:"count"`
 			MaxCount int    `json:"maxCount"`
 		} `json:"data"`
-		EventData
+		EventDataEVO
 	} `json:"body"`
 }
 
-type EventMessage []struct {
+type EventMessageEVO []struct {
 	Body struct {
 		Data struct {
 			Info struct {
@@ -56,6 +56,6 @@ type EventMessage []struct {
 				} `json:"extendedTextMessage"`
 			} `json:"Message"`
 		} `json:"data"`
-		EventData
+		EventDataEVO
 	} `json:"body"`
 }

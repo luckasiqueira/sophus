@@ -4,31 +4,31 @@ import (
 	"zubly/backend/pkg/http/requests"
 )
 
-type MessageBase struct {
+type Message interface {
+	Save() error
+}
+
+type MessageBaseEVO struct {
 	Id           string   `json:"id"` //uuid
 	Delay        int      `json:"delay"`
 	MentionAll   bool     `json:"mentionAll"`
 	MentionedJid []string `json:"mentionedJid,omitempty"`
 	Number       string   `json:"number"`
-	Quoted       `json:"quoted"`
+	QuotedEVO    `json:"quoted"`
 }
 
-type Message interface {
-	Save() error
-}
-
-type Quoted struct {
+type QuotedEVO struct {
 	MessageID          string `json:"messageId"`
 	MessageParticipant string `json:"messageParticipant"`
 }
 
-type TextMessage struct {
-	MessageBase
+type TextMessageEVO struct {
+	MessageBaseEVO
 	Text string `json:"text"`
 }
 
 // func (m *TextMessage) Send(connectionKey string) (int, error) {
-func (m *TextMessage) Send(connectionKey string) (int, error) {
+func (m *TextMessageEVO) Send(connectionKey string) (int, error) {
 	r := requests.Request{
 		URL:     apiBaseURL + `/send/text`,
 		Payload: m,

@@ -7,7 +7,7 @@ import (
 )
 
 func IsValidAPIToken(ctx iris.Context) {
-	if repo.IsValidAPIToken(ctx.GetHeader("apitoken")) {
+	if repo.IsValidAPITokenEVO(ctx.GetHeader("apitoken")) {
 		ctx.Next()
 	} else {
 		ctx.StopWithStatus(iris.StatusUnauthorized)

@@ -6,7 +6,7 @@ import (
 	"time"
 )
 
-func MessageSaveAPI(apiToken string, msg TextMessage) error {
+func MessageSaveAPI(apiToken string, msg TextMessageEVO) error {
 	connection, err := GetConnectionByToken(apiToken)
 	if err != nil {
 		return err
@@ -36,7 +36,7 @@ func MessageSaveAPI(apiToken string, msg TextMessage) error {
 		msg.MessageID,
 		msg.Text,
 		conversationId,
-		msg.Quoted.MessageID,
+		msg.QuotedEVO.MessageID,
 		"mediatype_fix",
 		fullData,
 		time.Now(),
@@ -48,7 +48,7 @@ func MessageSaveAPI(apiToken string, msg TextMessage) error {
 	).Err()
 }
 
-func MessageSave(connection Connection, msg EventMessage) error {
+func MessageSave(connection ConnectionEVO, msg EventMessageEVO) error {
 	contact := Contact{
 		Name:         msg[0].Body.Data.Info.PushName,
 		Number:       strings.Split(msg[0].Body.Data.Info.Sender, "@")[0],

@@ -2,7 +2,7 @@ package repo
 
 import "github.com/google/uuid"
 
-type Instance struct {
+type InstanceEVO struct {
 	ID         int
 	Name       string
 	Connected  bool

@@ -16,7 +16,7 @@ func SendMessage(ctx iris.Context) {
 		fmt.Println(err)
 		ctx.StopWithStatus(iris.StatusBadRequest)
 	}
-	msg := repo.TextMessage{}
+	msg := repo.TextMessageEVO{}
 	apiToken := ctx.GetHeader("apitoken")
 	err = json.Unmarshal(body, &msg)
 	if err != nil {
@@ -26,7 +26,7 @@ func SendMessage(ctx iris.Context) {
 	if err != nil {
 		ctx.StopWithStatus(iris.StatusBadRequest)
 	}
-	msg.MessageBase.Id = uuid.NewString()
+	msg.MessageBaseEVO.Id = uuid.NewString()
 	status, err := msg.Send(connection.ConnectionKey.String()) // coletar a resposta, pra puxar o data e o messageid e salvar corretamente no banco de dados
 	if err != nil || status != 200 {
 		ctx.StopWithStatus(status)
