@@ -7,7 +7,7 @@ import (
 )
 
 func IsValidAPIToken(apiToken string) bool {
-	stmt, err := db.Prepare("SELECT COUNT(*) FROM connections WHERE apitoken = $1")
+	stmt, err := db.Prepare(`SELECT COUNT(*) FROM connections WHERE "apiToken" = $1`)
 	if err != nil {
 		fmt.Println(err)
 		return false
@@ -20,7 +20,7 @@ func IsValidAPIToken(apiToken string) bool {
 }
 
 func GetConnectionKeyByToken(apiToken string) (string, int) {
-	stmt, err := db.Prepare(`SELECT "connectionkey" FROM tokens WHERE apitoken = $1`)
+	stmt, err := db.Prepare(`SELECT "connectionKey" FROM connections WHERE "apiToken" = $1`)
 	defer stmt.Close()
 	if err != nil {
 		return "", iris.StatusBadRequest
