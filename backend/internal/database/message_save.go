@@ -2,22 +2,66 @@ package database
 
 import (
 	"encoding/json"
-	"fmt"
 	"time"
 
 	"strings"
 	"zubly/backend/pkg/wpp"
-
-	"github.com/google/uuid"
 )
 
-func MessageSave(connection Connection, msg wpp.EventMessage) error {
-	// Listar conversation mais recente e se ele está aberto. Se estiver fechado, criar um novo
-	conversationId, err := checkExistentConversation(connection.Id, msg)
+func MessageSaveAPI(apiToken string, msg wpp.TextMessage) error {
+	connection, err := GetConnectionByToken(apiToken)
 	if err != nil {
 		return err
 	}
-	fmt.Println("Starting message creation")
+	contact := Contact{
+		Name:         "Contato salvo automaticamente",
+		Number:       msg.Number,
+		ConnectionId: connection.Id,
+		JID:          msg.Number + "@s.whatsapp.net",
+	}
+	conversationId, err := setConversation(connection.Id, contact)
+	if err != nil {
+		return err
+	}
+	stmt, err := db.Prepare(`INSERT INTO public.messages (id, "messageId", text, "conversationId", "quotedId", "mediaType", "fullData", "createdAt", "updatedAt", 
+     "isFromMe", "isGroup", "isRead", "isDeleted") VALUES (DEFAULT, $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12 );`)
+	if err != nil {
+		return err
+	}
+	fullData, err := json.Marshal(contact)
+	if err != nil {
+		return err
+	}
+	defer stmt.Close()
+	return stmt.QueryRow(
+		msg.MessageID,
+		msg.Text,
+		conversationId,
+		msg.Quoted.MessageID,
+		"mediatype_fix",
+		fullData,
+		time.Now(),
+		time.Now(),
+		true,
+		false,
+		false,
+		false,
+	).Err()
+}
+
+func MessageSave(connection Connection, msg wpp.EventMessage) error {
+	contact := Contact{
+		Name:         msg[0].Body.Data.Info.PushName,
+		Number:       strings.Split(msg[0].Body.Data.Info.Sender, "@")[0],
+		JID:          msg[0].Body.Data.Info.Sender,
+		LID:          msg[0].Body.Data.Info.SenderAlt,
+		ConnectionId: connection.Id,
+		IsGroup:      msg[0].Body.Data.Info.IsGroup,
+	}
+	conversationId, err := setConversation(connection.Id, contact)
+	if err != nil {
+		return err
+	}
 	stmt, err := db.Prepare(`INSERT INTO public.messages (id, "messageId", text, "conversationId", "quotedId", "mediaType", "fullData", "createdAt", "updatedAt", 
      "isFromMe", "isGroup", "isRead", "isDeleted") VALUES (DEFAULT, $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12 );`)
 	if err != nil {
@@ -50,56 +94,4 @@ func MessageSave(connection Connection, msg wpp.EventMessage) error {
 		return err
 	}
 	return nil
-}
-
-func checkExistentConversation(connectionId int, msg wpp.EventMessage) (int, error) {
-	stmt, err := db.Prepare(`SELECT "id" FROM "contacts" WHERE "number" = $1 OR "lid" = $2`)
-	if err != nil {
-		return 0, err
-	}
-	var contactId int
-	err = stmt.QueryRow(msg[0].Body.Data.Info.Sender, msg[0].Body.Data.Info.SenderAlt).Scan(&contactId)
-	if err != nil {
-		if !strings.Contains(err.Error(), "no rows in result set") {
-			return 0, err
-		}
-		contact := Contact{
-			Name:         msg[0].Body.Data.Info.PushName,
-			Number:       strings.Split(msg[0].Body.Data.Info.Sender, "@")[0],
-			JID:          msg[0].Body.Data.Info.Sender,
-			LID:          msg[0].Body.Data.Info.SenderAlt,
-			ConnectionId: connectionId,
-			IsGroup:      msg[0].Body.Data.Info.IsGroup,
-		}
-		contactId, err = CreateContact(contact)
-		if err != nil {
-			return 0, err
-		}
-	}
-	defer stmt.Close()
-	stmtt, err := db.Prepare(`SELECT "id" FROM "conversations" WHERE "contactId" = $1 AND "status" = 'open'`)
-	if err != nil {
-		return 0, err
-	}
-	var conversationId int
-	err = stmtt.QueryRow(contactId).Scan(&conversationId)
-	if err != nil {
-		if !strings.Contains(err.Error(), "no rows in result set") {
-			return 0, err
-		}
-		conversation := Conversation{
-			Status:       "open",
-			ContactID:    contactId,
-			ConnectionID: connectionId,
-			URL:          uuid.New(),
-			CreatedAt:    time.Now(),
-			UpdatedAt:    time.Now(),
-		}
-		conversationId, err = CreateConversation(conversation)
-		if err != nil {
-			return 0, err
-		}
-	}
-
-	return conversationId, nil
 }

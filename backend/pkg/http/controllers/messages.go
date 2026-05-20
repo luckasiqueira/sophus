@@ -17,19 +17,24 @@ func SendMessage(ctx iris.Context) {
 		fmt.Println(err)
 		ctx.StopWithStatus(iris.StatusBadRequest)
 	}
-	m := wpp.TextMessage{}
-	apiToken, status := database.GetConnectionKeyByToken(ctx.GetHeader("apitoken"))
-	if status != iris.StatusOK {
-		ctx.StopWithStatus(status)
-	}
-	err = json.Unmarshal(body, &m)
+	msg := wpp.TextMessage{}
+	apiToken := ctx.GetHeader("apitoken")
+	err = json.Unmarshal(body, &msg)
 	if err != nil {
 		ctx.StopWithStatus(iris.StatusBadRequest)
 	}
-	m.MessageBase.Id = uuid.NewString()
-	status, err = m.Send(apiToken)
+	connection, err := database.GetConnectionByToken(apiToken)
 	if err != nil {
+		ctx.StopWithStatus(iris.StatusBadRequest)
+	}
+	msg.MessageBase.Id = uuid.NewString()
+	status, err := msg.Send(connection.ConnectionKey.String()) // coletar a resposta, pra puxar o data e o messageid e salvar corretamente no banco de dados
+	if err != nil || status != 200 {
 		ctx.StopWithStatus(status)
 	}
-	fmt.Println(m)
+	err = database.MessageSaveAPI(apiToken, msg)
+	if err != nil {
+		fmt.Println("MSGSAVE API", err)
+		ctx.StopWithStatus(iris.StatusInternalServerError)
+	}
 }

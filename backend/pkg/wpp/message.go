@@ -1,7 +1,7 @@
 package wpp
 
 type Message interface {
-	Send(apiKey string) error
+	Save() error
 }
 
 type MessageBase struct {

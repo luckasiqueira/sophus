@@ -28,13 +28,14 @@ func (r *Request) Do() error {
 	for k, v := range r.Headers {
 		req.Header.Set(k, v)
 	}
-
 	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
 		return err
 	}
 	defer resp.Body.Close()
 	r.Response.StatusCode = resp.StatusCode
-	fmt.Println("Status:", r.Response.StatusCode)
+	if r.Response.StatusCode != 200 {
+		return err
+	}
 	return nil
 }
