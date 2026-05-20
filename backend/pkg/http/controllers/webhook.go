@@ -2,6 +2,8 @@ package controllers
 
 import (
 	"encoding/json"
+	"fmt"
+	"zubly/backend/internal/database"
 	"zubly/backend/pkg/http/middlewares"
 	"zubly/backend/pkg/wpp"
 
@@ -34,6 +36,11 @@ func Webhook(ctx iris.Context) {
 		err = json.Unmarshal(body, &message)
 		if err != nil {
 			ctx.StopWithStatus(iris.StatusBadRequest)
+		}
+		err = database.MessageSave(connection, message)
+		if err != nil {
+			fmt.Println(err)
+			ctx.StopWithStatus(iris.StatusInternalServerError)
 		}
 	}
 }
