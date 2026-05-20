@@ -12,7 +12,7 @@ func Router(r *iris.Application) {
 		ctx.HTML("<h1>Hello World</h1>")
 	})
 
-	r.Post("/webhook/{id:uuid}", middlewares.ValidateWebhook, controllers.Webhook)
+	r.Post("/webhook/{webhookId:uuid}", middlewares.ValidateWebhook, controllers.Webhook)
 	message := r.Party("/message")
 	message.Use(middlewares.IsValidAPIToken)
 	{

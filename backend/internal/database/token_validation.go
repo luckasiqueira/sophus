@@ -7,7 +7,7 @@ import (
 )
 
 func IsValidAPIToken(apiToken string) bool {
-	stmt, err := db.Prepare("SELECT COUNT(*) FROM tokens WHERE apitoken = $1")
+	stmt, err := db.Prepare("SELECT COUNT(*) FROM connections WHERE apitoken = $1")
 	if err != nil {
 		fmt.Println(err)
 		return false
