@@ -3,7 +3,7 @@ package requests
 import (
 	"bytes"
 	"encoding/json"
-	"fmt"
+	"io"
 	"net/http"
 )
 
@@ -15,7 +15,8 @@ type Request struct {
 }
 
 type Response struct {
-	StatusCode int `json:"status_code"`
+	StatusCode int    `json:"status_code"`
+	Body       []byte `json:"body"`
 }
 
 func (r *Request) Do() error {
@@ -24,7 +25,6 @@ func (r *Request) Do() error {
 	if err != nil {
 		return err
 	}
-	fmt.Println(req.Body)
 	for k, v := range r.Headers {
 		req.Header.Set(k, v)
 	}
@@ -34,6 +34,10 @@ func (r *Request) Do() error {
 	}
 	defer resp.Body.Close()
 	r.Response.StatusCode = resp.StatusCode
+	r.Response.Body, err = io.ReadAll(resp.Body)
+	if err != nil {
+		return err
+	}
 	if r.Response.StatusCode != 200 {
 		return err
 	}

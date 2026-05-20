@@ -22,10 +22,10 @@ func (msg TextMessageEVO) Save(connection ConnectionEVO) error {
 	if err != nil {
 		return err
 	}
-	fullJson, err := json.Marshal(contact)
-	if err != nil {
-		return err
-	}
+	//fullJson, err := json.Marshal(contact)
+	//if err != nil {
+	//	return err
+	//}
 	stmt, err := db.Prepare(`INSERT INTO public.messages (id, "messageId", text, "conversationId", "quotedId", "mediaType", "fullData", "createdAt", "updatedAt", 
      "isFromMe", "isGroup", "isRead", "isDeleted") VALUES (DEFAULT, $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12 );`)
 	if err != nil {
@@ -38,7 +38,7 @@ func (msg TextMessageEVO) Save(connection ConnectionEVO) error {
 		conversationId,
 		msg.QuotedEVO.MessageID,
 		"mediatype_fix",
-		fullJson,
+		msg.JSON,
 		time.Now(),
 		time.Now(),
 		true,
@@ -93,7 +93,7 @@ func (msg EventMessageEVO) Save(connection ConnectionEVO) error {
 	return err
 }
 
-func (msg TextMessageEVO) Send(connectionKey string) (int, error) {
+func (msg TextMessageEVO) Send(connectionKey string) (int, []byte, error) {
 	r := requests.Request{
 		URL:     apiBaseURL + `/send/text`,
 		Payload: msg,
@@ -104,5 +104,5 @@ func (msg TextMessageEVO) Send(connectionKey string) (int, error) {
 		Response: requests.Response{},
 	}
 	err := r.Do()
-	return r.StatusCode, err
+	return r.StatusCode, r.Response.Body, err
 }

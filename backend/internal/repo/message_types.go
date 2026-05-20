@@ -21,4 +21,5 @@ type QuotedEVO struct {
 type TextMessageEVO struct {
 	MessageBaseEVO
 	Text string `json:"text"`
+	JSON []byte
 }

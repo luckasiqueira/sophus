@@ -1,7 +1,6 @@
 package repo
 
 import (
-	"fmt"
 	"time"
 
 	"github.com/google/uuid"
@@ -24,7 +23,6 @@ type ConnectionEVO struct {
 func GetConnectionByToken(apiToken string) (ConnectionEVO, error) {
 	stmt, err := db.Prepare(`SELECT "id", "status", "instanceId", "connectionKey" FROM connections WHERE "apiToken" = $1`)
 	if err != nil {
-		fmt.Println("GetConnectionByToken", err)
 		return ConnectionEVO{}, err
 	}
 	defer stmt.Close()
@@ -36,7 +34,6 @@ func GetConnectionByToken(apiToken string) (ConnectionEVO, error) {
 func GetConnectionByWebhook(webhookId string) (ConnectionEVO, error) {
 	stmt, err := db.Prepare(`SELECT "id", "status", "instanceId", "connectionKey" FROM connections WHERE "webhook" = $1`)
 	if err != nil {
-		fmt.Println(err)
 		return ConnectionEVO{}, err
 	}
 	defer stmt.Close()

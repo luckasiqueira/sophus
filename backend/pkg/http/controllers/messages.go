@@ -2,7 +2,6 @@ package controllers
 
 import (
 	"encoding/json"
-	"fmt"
 	"io"
 	"zubly/backend/internal/repo"
 
@@ -13,7 +12,6 @@ import (
 func SendMessage(ctx iris.Context) {
 	body, err := io.ReadAll(ctx.Request().Body)
 	if err != nil {
-		fmt.Println(err)
 		ctx.StopWithStatus(iris.StatusBadRequest)
 	}
 	msg := repo.TextMessageEVO{}
@@ -27,10 +25,11 @@ func SendMessage(ctx iris.Context) {
 		ctx.StopWithStatus(iris.StatusBadRequest)
 	}
 	msg.MessageBaseEVO.Id = uuid.NewString()
-	status, err := msg.Send(connection.ConnectionKey.String()) // coletar a resposta, pra puxar o data e o messageid e salvar corretamente no banco de dados
+	status, fullJson, err := msg.Send(connection.ConnectionKey.String()) // coletar a resposta, pra puxar o data e o messageid e salvar corretamente no banco de dados
 	if err != nil || status != 200 {
 		ctx.StopWithStatus(status)
 	}
+	msg.JSON = fullJson
 	err = repo.SaveEvoMessage(msg, connection)
 	if err != nil {
 		ctx.StopWithStatus(iris.StatusInternalServerError)
