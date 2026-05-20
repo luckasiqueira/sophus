@@ -10,15 +10,6 @@ import (
 )
 
 func Webhook(ctx iris.Context) {
-	//body, err := io.ReadAll(ctx.Request().Body)
-	//if err != nil {
-	//	ctx.StopWithStatus(iris.StatusInternalServerError)
-	//}
-	//e := wpp.EventEVO{}
-	//err = json.Unmarshal(body, &e)
-	//if err != nil {
-	//	ctx.StopWithStatus(iris.StatusBadRequest)
-	//}
 	connection, event, body, err := middlewares.ValidateWebhook(ctx)
 	if err != nil {
 		ctx.StopWithStatus(iris.StatusBadRequest)
@@ -31,12 +22,12 @@ func Webhook(ctx iris.Context) {
 			ctx.StopWithStatus(iris.StatusBadRequest)
 		}
 	case "Message":
-		message := repo.EventMessageEVO{}
-		err = json.Unmarshal(body, &message)
+		msg := repo.EventMessageEVO{}
+		err = json.Unmarshal(body, &msg)
 		if err != nil {
 			ctx.StopWithStatus(iris.StatusBadRequest)
 		}
-		err = repo.MessageSave(connection, message)
+		err = repo.SaveEvoMessage(msg, connection)
 		if err != nil {
 			fmt.Println(err)
 			ctx.StopWithStatus(iris.StatusInternalServerError)

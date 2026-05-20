@@ -31,7 +31,7 @@ func SendMessage(ctx iris.Context) {
 	if err != nil || status != 200 {
 		ctx.StopWithStatus(status)
 	}
-	err = repo.MessageSaveAPI(apiToken, msg)
+	err = repo.SaveEvoMessage(msg, connection)
 	if err != nil {
 		ctx.StopWithStatus(iris.StatusInternalServerError)
 	}
