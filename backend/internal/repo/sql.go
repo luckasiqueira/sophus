@@ -1,4 +1,4 @@
-package database
+package repo
 
 func insert(query string, args ...interface{}) error {
 	stmt, err := db.Prepare(query)

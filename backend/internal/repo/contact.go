@@ -1,4 +1,4 @@
-package database
+package repo
 
 type Contact struct {
 	Id           int

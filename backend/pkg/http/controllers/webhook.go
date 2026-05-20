@@ -3,9 +3,8 @@ package controllers
 import (
 	"encoding/json"
 	"fmt"
-	"zubly/backend/internal/database"
+	"zubly/backend/internal/repo"
 	"zubly/backend/pkg/http/middlewares"
-	"zubly/backend/pkg/wpp"
 
 	"github.com/kataras/iris/v12"
 )
@@ -26,18 +25,18 @@ func Webhook(ctx iris.Context) {
 	}
 	switch event[0].Body.EventType {
 	case "QRCode":
-		qrcode := wpp.EventQRCode{}
+		qrcode := repo.EventQRCode{}
 		err = json.Unmarshal(body, &qrcode)
 		if err != nil {
 			ctx.StopWithStatus(iris.StatusBadRequest)
 		}
 	case "Message":
-		message := wpp.EventMessage{}
+		message := repo.EventMessage{}
 		err = json.Unmarshal(body, &message)
 		if err != nil {
 			ctx.StopWithStatus(iris.StatusBadRequest)
 		}
-		err = database.MessageSave(connection, message)
+		err = repo.MessageSave(connection, message)
 		if err != nil {
 			fmt.Println(err)
 			ctx.StopWithStatus(iris.StatusInternalServerError)

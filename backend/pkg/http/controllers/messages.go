@@ -4,8 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"zubly/backend/internal/database"
-	"zubly/backend/pkg/wpp"
+	"zubly/backend/internal/repo"
 
 	"github.com/google/uuid"
 	"github.com/kataras/iris/v12"
@@ -17,13 +16,13 @@ func SendMessage(ctx iris.Context) {
 		fmt.Println(err)
 		ctx.StopWithStatus(iris.StatusBadRequest)
 	}
-	msg := wpp.TextMessage{}
+	msg := repo.TextMessage{}
 	apiToken := ctx.GetHeader("apitoken")
 	err = json.Unmarshal(body, &msg)
 	if err != nil {
 		ctx.StopWithStatus(iris.StatusBadRequest)
 	}
-	connection, err := database.GetConnectionByToken(apiToken)
+	connection, err := repo.GetConnectionByToken(apiToken)
 	if err != nil {
 		ctx.StopWithStatus(iris.StatusBadRequest)
 	}
@@ -32,9 +31,8 @@ func SendMessage(ctx iris.Context) {
 	if err != nil || status != 200 {
 		ctx.StopWithStatus(status)
 	}
-	err = database.MessageSaveAPI(apiToken, msg)
+	err = repo.MessageSaveAPI(apiToken, msg)
 	if err != nil {
-		fmt.Println("MSGSAVE API", err)
 		ctx.StopWithStatus(iris.StatusInternalServerError)
 	}
 }

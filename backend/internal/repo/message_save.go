@@ -1,14 +1,12 @@
-package database
+package repo
 
 import (
 	"encoding/json"
-	"time"
-
 	"strings"
-	"zubly/backend/pkg/wpp"
+	"time"
 )
 
-func MessageSaveAPI(apiToken string, msg wpp.TextMessage) error {
+func MessageSaveAPI(apiToken string, msg TextMessage) error {
 	connection, err := GetConnectionByToken(apiToken)
 	if err != nil {
 		return err
@@ -32,6 +30,7 @@ func MessageSaveAPI(apiToken string, msg wpp.TextMessage) error {
 	if err != nil {
 		return err
 	}
+
 	defer stmt.Close()
 	return stmt.QueryRow(
 		msg.MessageID,
@@ -49,7 +48,7 @@ func MessageSaveAPI(apiToken string, msg wpp.TextMessage) error {
 	).Err()
 }
 
-func MessageSave(connection Connection, msg wpp.EventMessage) error {
+func MessageSave(connection Connection, msg EventMessage) error {
 	contact := Contact{
 		Name:         msg[0].Body.Data.Info.PushName,
 		Number:       strings.Split(msg[0].Body.Data.Info.Sender, "@")[0],
