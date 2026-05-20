@@ -1,5 +1,7 @@
 package wpp
 
+import "github.com/google/uuid"
+
 type Event []struct {
 	Body struct {
 		EventData
@@ -7,10 +9,10 @@ type Event []struct {
 }
 
 type EventData struct {
-	EventType     string `json:"event"`
-	InstanceID    string `json:"instanceId"`
-	InstanceName  string `json:"instanceName"`
-	InstanceToken string `json:"instanceToken"`
+	EventType     string    `json:"event"`
+	InstanceID    uuid.UUID `json:"instanceId"`
+	InstanceName  string    `json:"instanceName"`
+	InstanceToken uuid.UUID `json:"instanceToken"`
 }
 
 type EventQRCode []struct {
