@@ -1,3 +1,4 @@
+-- +goose Up
 create table webhooks
 (
     id           serial  not null

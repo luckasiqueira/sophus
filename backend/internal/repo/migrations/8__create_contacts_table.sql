@@ -1,3 +1,6 @@
+-- +goose Up
+CREATE SEQUENCE IF NOT EXISTS contacts_id_seq;
+
 CREATE TABLE IF NOT EXISTS public.contacts
 (
     id integer NOT NULL DEFAULT nextval('contacts_id_seq'::regclass),
@@ -9,4 +12,8 @@ CREATE TABLE IF NOT EXISTS public.contacts
     "isGroup" boolean,
     "isBlocked" boolean,
     CONSTRAINT contacts_pkey PRIMARY KEY (id)
-)
+);
+
+-- +goose Down
+DROP TABLE IF EXISTS public.contacts;
+DROP SEQUENCE IF EXISTS contacts_id_seq;

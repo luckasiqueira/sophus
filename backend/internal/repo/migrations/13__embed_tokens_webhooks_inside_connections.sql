@@ -1,3 +1,4 @@
+-- +goose Up
 ALTER TABLE IF EXISTS public.connections
     ADD COLUMN webhook uuid NOT NULL;
 

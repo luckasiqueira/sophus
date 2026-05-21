@@ -1,3 +1,4 @@
+-- +goose Up
 CREATE TABLE public.messages
 (
     id serial NOT NULL,

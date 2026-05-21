@@ -1,3 +1,4 @@
+-- +goose Up
 create table logs_errors
 (
     id        serial

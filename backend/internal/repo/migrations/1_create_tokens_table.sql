@@ -1,3 +1,4 @@
+-- +goose Up
 create table tokens
 (
     id     SERIAL

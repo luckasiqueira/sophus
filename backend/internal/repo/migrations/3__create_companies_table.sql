@@ -1,3 +1,4 @@
+-- +goose Up
 create table companies
 (
     id        serial                              not null

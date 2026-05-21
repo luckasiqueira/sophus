@@ -1,3 +1,4 @@
+-- +goose Up
 ALTER TABLE IF EXISTS public.webhooks
     ADD CONSTRAINT connection FOREIGN KEY (connectionid)
         REFERENCES public.connections (id) MATCH SIMPLE

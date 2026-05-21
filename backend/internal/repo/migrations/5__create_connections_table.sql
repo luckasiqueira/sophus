@@ -1,3 +1,4 @@
+-- +goose Up
 create table connections
 (
     id        serial                              not null

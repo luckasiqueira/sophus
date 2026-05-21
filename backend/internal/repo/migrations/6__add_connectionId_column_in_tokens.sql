@@ -1,3 +1,4 @@
+-- +goose Up
 ALTER TABLE IF EXISTS public.tokens
     ADD COLUMN "connectionId" integer NOT NULL;
 ALTER TABLE IF EXISTS public.tokens
