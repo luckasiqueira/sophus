@@ -1,8 +1,8 @@
 package routers
 
 import (
-	"zubly/backend/pkg/http/controllers"
-	"zubly/backend/pkg/http/middlewares"
+	"sophus/backend/pkg/http/controllers"
+	"sophus/backend/pkg/http/middlewares"
 
 	"github.com/kataras/iris/v12"
 )

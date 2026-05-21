@@ -1,7 +1,7 @@
 package http
 
 import (
-	"zubly/backend/pkg/http/routers"
+	"sophus/backend/pkg/http/routers"
 
 	"github.com/kataras/iris/v12"
 )

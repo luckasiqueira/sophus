@@ -4,8 +4,8 @@ import (
 	"database/sql"
 	"fmt"
 	"log"
+	"sophus/backend/utils/env"
 	"time"
-	"zubly/backend/utils/env"
 
 	_ "github.com/lib/pq"
 )

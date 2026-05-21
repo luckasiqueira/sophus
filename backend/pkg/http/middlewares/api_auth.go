@@ -1,7 +1,7 @@
 package middlewares
 
 import (
-	"zubly/backend/internal/repo"
+	"sophus/backend/internal/repo"
 
 	"github.com/kataras/iris/v12"
 )

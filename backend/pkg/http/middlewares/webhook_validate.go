@@ -3,7 +3,7 @@ package middlewares
 import (
 	"encoding/json"
 	"io"
-	"zubly/backend/internal/repo"
+	"sophus/backend/internal/repo"
 
 	"github.com/google/uuid"
 	"github.com/kataras/iris/v12"

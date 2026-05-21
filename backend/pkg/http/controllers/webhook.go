@@ -2,8 +2,8 @@ package controllers
 
 import (
 	"encoding/json"
-	"zubly/backend/internal/repo"
-	"zubly/backend/pkg/http/middlewares"
+	"sophus/backend/internal/repo"
+	"sophus/backend/pkg/http/middlewares"
 
 	"github.com/kataras/iris/v12"
 )
