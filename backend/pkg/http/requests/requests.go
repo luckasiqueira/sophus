@@ -3,6 +3,7 @@ package requests
 import (
 	"bytes"
 	"encoding/json"
+	"fmt"
 	"io"
 	"net/http"
 )
@@ -38,6 +39,7 @@ func (r *Request) Do() error {
 	if err != nil {
 		return err
 	}
+	fmt.Println(string(r.Response.Body), "\n\n")
 	if r.Response.StatusCode != 200 {
 		return err
 	}

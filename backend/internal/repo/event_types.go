@@ -40,13 +40,14 @@ type EventMessageEVO []struct {
 				SenderAlt   string `json:"SenderAlt"` // lid
 				Timestamp   string `json:"Timestamp"`
 				Type        string `json:"Type"`      // text, media
-				Mediatype   string `json:"Mediatype"` // "", image, audio, video, document
+				Mediatype   string `json:"MediaType"` // "", image, audio, video, document
 				IsEdit      bool   `json:"IsEdit"`
 				IsEphemeral bool   `json:"IsEphemeral"`
 			} `json:"Info"`
 			Message struct {
 				Text                string `json:"conversation"`
 				ExtendedTextMessage struct {
+					Text        string `json:"text"`
 					ContextInfo struct {
 						QuotedMessageID string `json:"stanzaID"`
 						QuotedMessage   struct {

@@ -2,6 +2,7 @@ package controllers
 
 import (
 	"encoding/json"
+	"fmt"
 	"io"
 	"zubly/backend/internal/repo"
 
@@ -32,6 +33,7 @@ func SendMessage(ctx iris.Context) {
 	msg.JSON = fullJson
 	err = repo.SaveEvoMessage(msg, connection)
 	if err != nil {
+		fmt.Println("AQUI", err)
 		ctx.StopWithStatus(iris.StatusInternalServerError)
 	}
 }
