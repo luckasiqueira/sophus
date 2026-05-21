@@ -1,8 +1,8 @@
 package main
 
 import (
-	"zubly/backend/pkg/http"
-	"zubly/backend/utils/env"
+	"sophus/backend/pkg/http"
+	"sophus/backend/utils/env"
 )
 
 func main() {
