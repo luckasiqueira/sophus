@@ -14,11 +14,11 @@ var db = connect()
 
 func connect() *sql.DB {
 	dsn := fmt.Sprintf("postgres://%s:%s@%s:%s/%s?sslmode=disable",
-		env.Backend["DB_USER"],
-		env.Backend["DB_PASS"],
-		env.Backend["DB_HOST"],
-		env.Backend["DB_PORT"],
-		env.Backend["DB_NAME"],
+		env.Backend["POSTGRES_USER"],
+		env.Backend["POSTGRES_PASSWORD"],
+		env.Backend["POSTGRES_HOST"],
+		env.Backend["POSTGRES_PORT"],
+		env.Backend["POSTGRES_DB"],
 	)
 	sdb, err := sql.Open("postgres", dsn)
 	if err != nil {
