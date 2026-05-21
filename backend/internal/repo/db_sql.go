@@ -7,9 +7,9 @@ func insert(query string, args ...interface{}) error {
 	}
 	defer stmt.Close()
 	if args == nil {
-		_, err = stmt.Exec()
+		err = stmt.QueryRow().Err()
 	} else {
-		_, err = stmt.Exec(args...)
+		err = stmt.QueryRow(args...).Err()
 	}
 	if err != nil {
 		return err
