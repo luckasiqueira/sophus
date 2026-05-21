@@ -6,7 +6,6 @@ import (
 	"io"
 	"sophus/backend/internal/repo"
 
-	"github.com/google/uuid"
 	"github.com/kataras/iris/v12"
 )
 
@@ -25,7 +24,7 @@ func SendMessage(ctx iris.Context) {
 	if err != nil {
 		ctx.StopWithStatus(iris.StatusBadRequest)
 	}
-	msg.MessageBaseEVO.Id = uuid.NewString()
+	//msg.MessageBaseEVO.Id = uuid.NewString()
 	status, fullJson, err := msg.Send(connection.ConnectionKey.String()) // coletar a resposta, pra puxar o data e o messageid e salvar corretamente no banco de dados
 	if err != nil || status != 200 {
 		ctx.StopWithStatus(status)
