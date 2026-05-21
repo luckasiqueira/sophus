@@ -31,9 +31,9 @@ func (msg EventMessageEVO) Save(connection ConnectionEVO) error {
 	m := msg[0]
 	contact := Contact{
 		Name:         m.Body.Data.Info.PushName,
-		Number:       strings.Split(m.Body.Data.Info.Sender, "@")[0],
-		JID:          m.Body.Data.Info.Sender,
-		LID:          m.Body.Data.Info.SenderAlt,
+		Number:       strings.Split(m.Body.Data.Info.RecipientAlt, "@")[0],
+		JID:          m.Body.Data.Info.RecipientAlt,
+		LID:          m.Body.Data.Info.Sender,
 		ConnectionId: connection.Id,
 		IsGroup:      m.Body.Data.Info.IsGroup,
 	}
