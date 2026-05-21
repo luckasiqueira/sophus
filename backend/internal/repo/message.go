@@ -64,17 +64,13 @@ func saveMessageEvo(msg EventMessageEVO, fullJson []byte, contact Contact, conne
 		return err
 	}
 	m := msg[0]
-	stmt, err := db.Prepare(`INSERT INTO public.messages (id, "messageId", text, "conversationId", "quotedId", "mediaType", "fullData", "createdAt", "updatedAt", 
-     "isFromMe", "isGroup", "isRead", "isDeleted") VALUES (DEFAULT, $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12 );`)
-	if err != nil {
-		return err
-	}
+	query := `INSERT INTO public.messages (id, "messageId", text, "conversationId", "quotedId", "mediaType", "fullData", "createdAt", "updatedAt", 
+     "isFromMe", "isGroup", "isRead", "isDeleted") VALUES (DEFAULT, $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12 );`
 	text := m.Body.Data.Message.Text
 	if text == "" {
 		text = m.Body.Data.Message.ExtendedTextMessage.Text // text = m.Body.Data.Message.ExtendedTextMessage.ContextInfo.QuotedMessage.Text
 	}
-	defer stmt.Close()
-	return stmt.QueryRow(
+	return insert(query,
 		m.Body.Data.Info.ID,
 		text,
 		conversationId,
@@ -86,6 +82,5 @@ func saveMessageEvo(msg EventMessageEVO, fullJson []byte, contact Contact, conne
 		m.Body.Data.Info.IsFromMe,
 		m.Body.Data.Info.IsGroup,
 		false,
-		false,
-	).Err()
+		false)
 }

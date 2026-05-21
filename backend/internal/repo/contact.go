@@ -12,13 +12,9 @@ type Contact struct {
 }
 
 func CreateContact(contact Contact) (int, error) {
-	stmt, err := db.Prepare(`INSERT INTO public.contacts (id, name, number, "connectionId", jid, lid, "isGroup", "isBlocked")
-	VALUES (DEFAULT, $1, $2, $3, $4, $5, $6, $7) RETURNING id;`)
-	if err != nil {
-		return 0, err
-	}
-	var contactId int
-	err = stmt.QueryRow(
+	query := `INSERT INTO public.contacts (id, name, number, "connectionId", jid, lid, "isGroup", "isBlocked")
+	VALUES (DEFAULT, $1, $2, $3, $4, $5, $6, $7) RETURNING id;`
+	contactId, err := insertInt(query,
 		contact.Name,
 		contact.Number,
 		contact.ConnectionId,
@@ -26,9 +22,6 @@ func CreateContact(contact Contact) (int, error) {
 		contact.LID,
 		contact.IsGroup,
 		contact.IsBlocked,
-	).Scan(&contactId)
-	if err != nil {
-		return 0, err
-	}
-	return contactId, nil
+	)
+	return contactId, err
 }
