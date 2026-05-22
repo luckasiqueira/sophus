@@ -1,7 +1,7 @@
 .env
-.env-backend
+backend/.env
 .env-frontend
-backend/backend.yaml
+backend/docker-compose.yaml
 frontend/frontend.yaml
 
 .idea/
