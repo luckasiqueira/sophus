@@ -6,5 +6,13 @@ import (
 )
 
 func main() {
-	http.Start(env.Backend["HTTP_PORT"])
+	//err := repo.RunMigrations()
+	//if err != nil {
+	//	fmt.Println(err)
+	//	os.Exit(1)
+	//}
+	err := http.Start(env.Backend["SERVER_PORT"])
+	if err != nil {
+		panic(err)
+	}
 }

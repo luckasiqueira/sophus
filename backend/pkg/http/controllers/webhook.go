@@ -13,7 +13,7 @@ func Webhook(ctx iris.Context) {
 	if err != nil {
 		ctx.StopWithStatus(iris.StatusBadRequest)
 	}
-	switch event[0].Body.EventType {
+	switch event.EventType {
 	case "QRCode":
 		qrcode := repo.EventQRCode{}
 		err = json.Unmarshal(body, &qrcode)

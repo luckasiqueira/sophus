@@ -2,7 +2,6 @@ package repo
 
 import (
 	"encoding/json"
-	"fmt"
 	"sophus/backend/pkg/http/requests"
 	"strings"
 )
@@ -18,26 +17,24 @@ func (msg TextMessageEVO) Save(connection ConnectionEVO) error {
 		ConnectionId: connection.Id,
 		JID:          msg.Number + "@s.whatsapp.net",
 	}
-	m := make(EventMessageEVO, 1)
-	err := json.Unmarshal(msg.JSON, &m[0].Body)
+	m := EventMessageEVO{}
+	err := json.Unmarshal(msg.JSON, &m.Data)
 	if err != nil {
 		return err
 	}
-	fmt.Println(m[0])
 	return saveMessageEvo(m, msg.JSON, contact, connection.Id)
 }
 
 func (msg EventMessageEVO) Save(connection ConnectionEVO) error {
-	m := msg[0]
 	contact := Contact{
-		Name:         m.Body.Data.Info.PushName,
-		Number:       strings.Split(m.Body.Data.Info.RecipientAlt, "@")[0],
-		JID:          m.Body.Data.Info.RecipientAlt,
-		LID:          m.Body.Data.Info.Sender,
+		Name:         msg.Data.Info.PushName,
+		Number:       strings.Split(msg.Data.Info.RecipientAlt, "@")[0],
+		JID:          msg.Data.Info.RecipientAlt,
+		LID:          msg.Data.Info.Sender,
 		ConnectionId: connection.Id,
-		IsGroup:      m.Body.Data.Info.IsGroup,
+		IsGroup:      msg.Data.Info.IsGroup,
 	}
-	fullJson, err := json.Marshal(m.Body)
+	fullJson, err := json.Marshal(msg.Data)
 	if err != nil {
 		return err
 	}
@@ -63,24 +60,23 @@ func saveMessageEvo(msg EventMessageEVO, fullJson []byte, contact Contact, conne
 	if err != nil {
 		return err
 	}
-	m := msg[0]
 	query := `INSERT INTO public.messages (id, "messageId", text, "conversationId", "quotedId", "mediaType", "fullData", "createdAt", "updatedAt", 
      "isFromMe", "isGroup", "isRead", "isDeleted") VALUES (DEFAULT, $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12 );`
-	text := m.Body.Data.Message.Text
+	text := msg.Data.Message.Text
 	if text == "" {
-		text = m.Body.Data.Message.ExtendedTextMessage.Text // text = m.Body.Data.Message.ExtendedTextMessage.ContextInfo.QuotedMessage.Text
+		text = msg.Data.Message.ExtendedTextMessage.Text // text = m.Body.Data.Message.ExtendedTextMessage.ContextInfo.QuotedMessage.Text
 	}
 	return insert(query,
-		m.Body.Data.Info.ID,
+		msg.Data.Info.ID,
 		text,
 		conversationId,
-		m.Body.Data.Message.ExtendedTextMessage.ContextInfo.QuotedMessageID,
-		m.Body.Data.Info.Mediatype,
+		msg.Data.Message.ExtendedTextMessage.ContextInfo.QuotedMessageID,
+		msg.Data.Info.Mediatype,
 		fullJson,
-		m.Body.Data.Info.Timestamp,
-		m.Body.Data.Info.Timestamp,
-		m.Body.Data.Info.IsFromMe,
-		m.Body.Data.Info.IsGroup,
+		msg.Data.Info.Timestamp,
+		msg.Data.Info.Timestamp,
+		msg.Data.Info.IsFromMe,
+		msg.Data.Info.IsGroup,
 		false,
 		false)
 }

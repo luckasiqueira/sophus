@@ -2,6 +2,7 @@ package middlewares
 
 import (
 	"encoding/json"
+	"fmt"
 	"io"
 	"sophus/backend/internal/repo"
 
@@ -29,13 +30,16 @@ func ValidateWebhook(ctx iris.Context) (repo.ConnectionEVO, repo.EventEVO, []byt
 		ctx.StopWithStatus(iris.StatusInternalServerError)
 		return repo.ConnectionEVO{}, repo.EventEVO{}, nil, err
 	}
+	fmt.Println("\n\nBODY\n")
+	fmt.Println(string(body))
+	fmt.Println("\n\n")
 	var event repo.EventEVO
 	err = json.Unmarshal(body, &event)
 	if err != nil {
 		ctx.StopWithStatus(iris.StatusInternalServerError)
 		return repo.ConnectionEVO{}, repo.EventEVO{}, nil, err
 	}
-	if event[0].Body.InstanceID != connection.InstanceID {
+	if event.InstanceID != connection.InstanceID {
 		//fmt.Println(e[0].Body.InstanceToken, connection.InstanceID)
 		ctx.StopWithStatus(iris.StatusUnauthorized)
 		return repo.ConnectionEVO{}, repo.EventEVO{}, nil, err

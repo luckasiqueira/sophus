@@ -6,8 +6,8 @@ import (
 	"github.com/kataras/iris/v12"
 )
 
-func Start(port string) {
+func Start(port string) error {
 	srv := iris.Default()
 	routers.Router(srv)
-	srv.Listen(":" + port)
+	return srv.Listen(":" + port)
 }
