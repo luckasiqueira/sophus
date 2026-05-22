@@ -2,6 +2,7 @@ package repo
 
 import (
 	"encoding/json"
+	"fmt"
 	"sophus/backend/pkg/http/requests"
 	"strings"
 )
@@ -18,8 +19,9 @@ func (msg TextMessageEVO) Save(connection ConnectionEVO) error {
 		JID:          msg.Number + "@s.whatsapp.net",
 	}
 	m := EventMessageEVO{}
-	err := json.Unmarshal(msg.JSON, &m.Data)
+	err := json.Unmarshal(msg.JSON, &m)
 	if err != nil {
+		fmt.Println("ACHOOO", err)
 		return err
 	}
 	return saveMessageEvo(m, msg.JSON, contact, connection.Id)
