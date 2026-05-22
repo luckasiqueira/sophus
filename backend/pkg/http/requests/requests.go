@@ -11,6 +11,7 @@ type Request struct {
 	URL     string            `json:"url"`
 	Payload interface{}       `json:"payload"` //map[string]any
 	Headers map[string]string `json:"headers"`
+	Method  string            `json:"method"`
 	Response
 }
 
@@ -21,7 +22,7 @@ type Response struct {
 
 func (r *Request) Do() error {
 	body, _ := json.Marshal(r.Payload)
-	req, err := http.NewRequest("POST", r.URL, bytes.NewBuffer(body))
+	req, err := http.NewRequest(r.Method, r.URL, bytes.NewBuffer(body))
 	if err != nil {
 		return err
 	}

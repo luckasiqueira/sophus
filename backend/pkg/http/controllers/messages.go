@@ -2,7 +2,6 @@ package controllers
 
 import (
 	"encoding/json"
-	"fmt"
 	"io"
 	"sophus/backend/internal/repo"
 
@@ -30,9 +29,6 @@ func SendMessage(ctx iris.Context) {
 		ctx.StopWithStatus(status)
 	}
 	msg.JSON = fullJson
-	fmt.Println("\n\nBODY\n")
-	fmt.Println(string(msg.JSON))
-	fmt.Println("\n\n")
 	err = repo.SaveEvoMessage(msg, connection)
 	if err != nil {
 		ctx.StopWithStatus(iris.StatusInternalServerError)

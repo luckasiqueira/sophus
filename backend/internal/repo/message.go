@@ -2,7 +2,6 @@ package repo
 
 import (
 	"encoding/json"
-	"fmt"
 	"sophus/backend/pkg/http/requests"
 	"strings"
 )
@@ -21,7 +20,6 @@ func (msg TextMessageEVO) Save(connection ConnectionEVO) error {
 	m := EventMessageEVO{}
 	err := json.Unmarshal(msg.JSON, &m)
 	if err != nil {
-		fmt.Println("ACHOOO", err)
 		return err
 	}
 	return saveMessageEvo(m, msg.JSON, contact, connection.Id)
@@ -30,9 +28,9 @@ func (msg TextMessageEVO) Save(connection ConnectionEVO) error {
 func (msg EventMessageEVO) Save(connection ConnectionEVO) error {
 	contact := Contact{
 		Name:         msg.Data.Info.PushName,
-		Number:       strings.Split(msg.Data.Info.RecipientAlt, "@")[0],
-		JID:          msg.Data.Info.RecipientAlt,
-		LID:          msg.Data.Info.Sender,
+		Number:       strings.Split(msg.Data.Info.Sender, "@")[0],
+		JID:          msg.Data.Info.Sender,
+		LID:          msg.Data.Info.RecipientAlt,
 		ConnectionId: connection.Id,
 		IsGroup:      msg.Data.Info.IsGroup,
 	}
@@ -46,6 +44,7 @@ func (msg EventMessageEVO) Save(connection ConnectionEVO) error {
 func (msg TextMessageEVO) Send(connectionKey string) (int, []byte, error) {
 	r := requests.Request{
 		URL:     apiBaseURL + `/send/text`,
+		Method:  "POST",
 		Payload: msg,
 		Headers: map[string]string{
 			"Content-Type": "application/json",
