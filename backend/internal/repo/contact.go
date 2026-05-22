@@ -1,5 +1,11 @@
 package repo
 
+import (
+	"encoding/json"
+	"fmt"
+	"sophus/backend/pkg/http/requests"
+)
+
 type Contact struct {
 	Id           int
 	Name         string
@@ -9,6 +15,24 @@ type Contact struct {
 	LID          string
 	IsGroup      bool
 	IsBlocked    bool
+}
+
+type ContactEVO struct {
+	Data struct {
+		Users []struct {
+			Name      string
+			JID       string `json:"JID"`
+			RemoteJID string `json:"RemoteJID"`
+			LID       string `json:"LID"`
+		} `json:"users"`
+	} `json:"data"`
+}
+
+type ContactGroupEVO struct {
+	Data struct {
+		JID  string `json:"JID"`
+		Name string `json:"Name"`
+	} `json:"data"`
 }
 
 func CreateContact(contact Contact) (int, error) {
@@ -24,4 +48,68 @@ func CreateContact(contact Contact) (int, error) {
 		contact.IsBlocked,
 	)
 	return contactId, err
+}
+
+func getGroupInfo(jid, connectionKey string) (Contact, error) {
+	var contact Contact
+	type g struct {
+		GroupJID string
+	}
+	payload := g{
+		GroupJID: jid,
+	}
+	r := requests.Request{
+		URL:     apiBaseURL + "/group/info",
+		Payload: payload,
+		Headers: map[string]string{
+			"Content-Type": "application/json",
+			"apikey":       connectionKey,
+		},
+		Method:   "POST",
+		Response: requests.Response{},
+	}
+	err := r.Do()
+	if err != nil {
+		return contact, err
+	}
+	group := ContactGroupEVO{}
+	err = json.Unmarshal(r.Body, &group)
+	if err != nil {
+		return contact, err
+	}
+	contact.Name = group.Data.Name
+	contact.JID = group.Data.JID
+	contact.IsGroup = true
+	return contact, nil
+}
+
+func GetContactEvo(number, connectionKey string) (ContactEVO, error) {
+	c := ContactEVO{}
+	type p struct {
+		Number string
+	}
+	payload := p{
+		Number: number,
+	}
+	r := requests.Request{
+		URL:     apiBaseURL + "/user/check",
+		Method:  "POST",
+		Payload: payload,
+		Headers: map[string]string{
+			"Content-Type": "application/json",
+			"apikey":       connectionKey,
+		},
+		Response: requests.Response{},
+	}
+	err := r.Do()
+	if err != nil {
+		fmt.Println("Request", err)
+		return c, err
+	}
+	err = json.Unmarshal(r.Body, &c)
+	if err != nil {
+		fmt.Println("Unmarshal", err)
+		return c, err
+	}
+	return c, err
 }

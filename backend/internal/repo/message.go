@@ -26,13 +26,23 @@ func (msg TextMessageEVO) Save(connection ConnectionEVO) error {
 }
 
 func (msg EventMessageEVO) Save(connection ConnectionEVO) error {
-	contact := Contact{
-		Name:         msg.Data.Info.PushName,
-		Number:       strings.Split(msg.Data.Info.Sender, "@")[0],
-		JID:          msg.Data.Info.Sender,
-		LID:          msg.Data.Info.RecipientAlt,
-		ConnectionId: connection.Id,
-		IsGroup:      msg.Data.Info.IsGroup,
+	var contact Contact
+	var err error
+	if msg.Data.Info.IsGroup {
+		contact, err = getGroupInfo(msg.Data.Info.Chat, msg.InstanceToken.String())
+		if err != nil {
+			return err
+		}
+		contact.ConnectionId = connection.Id
+	} else {
+		contact = Contact{
+			Name:         msg.Data.Info.PushName,
+			Number:       strings.Split(msg.Data.Info.Sender, "@")[0],
+			JID:          msg.Data.Info.Sender,
+			LID:          msg.Data.Info.SenderAlt,
+			ConnectionId: connection.Id,
+			IsGroup:      msg.Data.Info.IsGroup,
+		}
 	}
 	fullJson, err := json.Marshal(msg.Data)
 	if err != nil {

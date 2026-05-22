@@ -2,6 +2,7 @@ package controllers
 
 import (
 	"encoding/json"
+	"fmt"
 	"sophus/backend/internal/repo"
 	"sophus/backend/pkg/http/middlewares"
 
@@ -28,6 +29,7 @@ func Webhook(ctx iris.Context) {
 		}
 		err = repo.SaveEvoMessage(msg, connection)
 		if err != nil {
+			fmt.Println(err)
 			ctx.StopWithStatus(iris.StatusInternalServerError)
 		}
 	}
