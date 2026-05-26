@@ -41,6 +41,7 @@ type EventMessageEVO struct {
 			TXT          EventMessageTextEVO  `json:"extendedTextMessage"`
 			IMG          EventMessageImageEVO `json:"imageMessage"`
 			VID          EventMessageVideoEVO `json:"videoMessage"`
+			AUD          EventMessageAudioEVO `json:"audioMessage"`
 			Base64       string               `json:"base64"`
 		} `json:"Message"`
 		IsEphemeral bool `json:"IsEphemeral"`
@@ -75,6 +76,17 @@ type EventMessageImageEVO struct {
 }
 
 type EventMessageVideoEVO struct {
+	URL         string `json:"url"`
+	ContextInfo struct {
+	} `json:"contextInfo"`
+	MimeType string `json:"mimetype"`
+	Seconds  int    `json:"seconds"`
+	Height   int    `json:"height"`
+	Width    int    `json:"width"`
+	Caption  string `json:"caption"`
+}
+
+type EventMessageAudioEVO struct {
 	URL         string `json:"url"`
 	ContextInfo struct {
 	} `json:"contextInfo"`

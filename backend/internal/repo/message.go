@@ -96,7 +96,7 @@ func saveMessageEvo(msg EventMessageEVO, fullJson []byte, contact Contact, conne
 		text,
 		conversationId,
 		msg.Data.Message.TXT.ExtendedTextMessage.ContextInfo.QuotedMessageID,
-		msg.Data.Info.Mediatype,
+		msgType,
 		fullJson,
 		msg.Data.Info.Timestamp,
 		msg.Data.Info.Timestamp,
@@ -113,6 +113,9 @@ func checkMessageType(msg EventMessageEVO) string {
 	if msg.Data.Message.VID.MimeType != "" {
 		return "video"
 	}
+	if msg.Data.Message.AUD.MimeType != "" {
+		return "audio"
+	}
 	return ""
 }
 
@@ -123,6 +126,9 @@ func saveMessageMedia(msg EventMessageEVO, companyId int, messageType string) {
 		format = strings.Split(msg.Data.Message.IMG.MimeType, "/")[1]
 	case "video":
 		format = strings.Split(msg.Data.Message.VID.MimeType, "/")[1]
+	case "audio":
+		format = strings.Split(msg.Data.Message.AUD.MimeType, "/")[1]
+		format = strings.Split(format, ";")[0]
 	}
 
 	path := fmt.Sprintf("./.data/medias/%d/", companyId)
