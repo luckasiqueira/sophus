@@ -18,5 +18,10 @@ func Router(r *iris.Application) {
 	{
 		message.Post("/send", controllers.SendMessage)
 	}
+	//instance := r.Party("/instance")
+	//instance.Use(middlewares.IsValidAPIToken)
+	//{
+	//	instance.Post("/create", controllers.NewInstance)
+	//}
 
 }
