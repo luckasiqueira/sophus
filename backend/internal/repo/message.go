@@ -2,8 +2,12 @@ package repo
 
 import (
 	"encoding/json"
+	"fmt"
 	"sophus/backend/pkg/http/requests"
+	"sophus/backend/utils"
 	"strings"
+
+	"github.com/google/uuid"
 )
 
 func SaveEvoMessage(msg Message, connection ConnectionEVO) error {
@@ -22,7 +26,7 @@ func (msg TextMessageEVO) Save(connection ConnectionEVO) error {
 	if err != nil {
 		return err
 	}
-	return saveMessageEvo(m, msg.JSON, contact, connection.Id)
+	return saveMessageEvo(m, msg.JSON, contact, connection)
 }
 
 func (msg EventMessageEVO) Save(connection ConnectionEVO) error {
@@ -44,11 +48,7 @@ func (msg EventMessageEVO) Save(connection ConnectionEVO) error {
 			IsGroup:      msg.Data.Info.IsGroup,
 		}
 	}
-	fullJson, err := json.Marshal(msg.Data)
-	if err != nil {
-		return err
-	}
-	return saveMessageEvo(msg, fullJson, contact, connection.Id)
+	return saveMessageEvo(msg, msg.FullJSON, contact, connection)
 }
 
 func (msg TextMessageEVO) Send(connectionKey string) (int, []byte, error) {
@@ -66,22 +66,33 @@ func (msg TextMessageEVO) Send(connectionKey string) (int, []byte, error) {
 	return r.StatusCode, r.Response.Body, err
 }
 
-func saveMessageEvo(msg EventMessageEVO, fullJson []byte, contact Contact, connectionId int) error {
-	conversationId, err := setConversation(connectionId, contact)
+func saveMessageEvo(msg EventMessageEVO, fullJson []byte, contact Contact, connection ConnectionEVO) error {
+	conversationId, err := setConversation(connection.Id, contact)
 	if err != nil {
 		return err
 	}
 	query := `INSERT INTO public.messages (id, "messageId", text, "conversationId", "quotedId", "mediaType", "fullData", "createdAt", "updatedAt", 
      "isFromMe", "isGroup", "isRead", "isDeleted") VALUES (DEFAULT, $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12 );`
-	text := msg.Data.Message.Text
-	if text == "" {
-		text = msg.Data.Message.ExtendedTextMessage.Text // text = m.Body.Data.Message.ExtendedTextMessage.ContextInfo.QuotedMessage.Text
+	var text string
+
+	if msg.Data.Message.TXT.ExtendedTextMessage.Text == "" {
+		text = msg.Data.Message.TXT.ExtendedTextMessage.Text // text = m.Body.Data.Message.ExtendedTextMessage.ContextInfo.QuotedMessage.Text
 	}
+	if msg.Data.Message.Conversation != "" {
+		text = msg.Data.Message.Conversation
+	}
+	if msg.Data.Message.IMG.Caption != "" {
+		text = msg.Data.Message.IMG.Caption
+	}
+	if msg.Data.Message.Base64 != "" {
+		saveMessageMedia(msg, connection.CompanyID)
+	}
+
 	return insert(query,
 		msg.Data.Info.ID,
 		text,
 		conversationId,
-		msg.Data.Message.ExtendedTextMessage.ContextInfo.QuotedMessageID,
+		msg.Data.Message.TXT.ExtendedTextMessage.ContextInfo.QuotedMessageID,
 		msg.Data.Info.Mediatype,
 		fullJson,
 		msg.Data.Info.Timestamp,
@@ -91,3 +102,44 @@ func saveMessageEvo(msg EventMessageEVO, fullJson []byte, contact Contact, conne
 		false,
 		false)
 }
+
+func saveMessageMedia(msg EventMessageEVO, companyId int) {
+	format := strings.Split(msg.Data.Message.IMG.MimeType, "/")[1]
+	path := fmt.Sprintf("./.data/medias/%d/", companyId)
+	fileName := fmt.Sprintf("%s.%s", uuid.NewString(), format)
+	err := utils.MediaDecoder(msg.Data.Message.Base64, path, fileName)
+	if err != nil {
+		fmt.Println(err)
+	}
+}
+
+//func (msg EventMesageImageEVO) Save(connection ConnectionEVO) error {
+//	contact, err := contactHelper(msg.Data.Info.BaseEventMSGInfoEVO.IsGroup, connection.Id, msg.Data.Info.BaseEventMSGInfoEVO, msg.InstanceToken)
+//	fullJson, err := json.Marshal(msg.Data)
+//	if err != nil {
+//		return err
+//	}
+//	return saveMessageEvo(msg, fullJson, contact, connection.Id)
+//}
+
+//func contactHelper(isGroup bool, connectionId int, info BaseEventMSGInfoEVO, connectionKey uuid.UUID) (Contact, error) {
+//	var contact Contact
+//	var err error
+//	if isGroup {
+//		contact, err = getGroupInfo(info.Chat, connectionKey.String())
+//		if err != nil {
+//			return contact, err
+//		}
+//		contact.ConnectionId = connectionId
+//	} else {
+//		contact = Contact{
+//			Name:         info.PushName,
+//			Number:       strings.Split(info.Sender, "@")[0],
+//			JID:          info.Sender,
+//			LID:          info.SenderAlt,
+//			ConnectionId: connectionId,
+//			IsGroup:      isGroup,
+//		}
+//	}
+//	return contact, nil
+//}

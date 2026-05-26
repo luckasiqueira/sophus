@@ -37,17 +37,36 @@ type EventMessageEVO struct {
 			IsEphemeral  bool   `json:"IsEphemeral"`
 		} `json:"Info"`
 		Message struct {
-			Text                string `json:"conversation"`
-			ExtendedTextMessage struct {
-				Text        string `json:"text"`
-				ContextInfo struct {
-					QuotedMessageID string `json:"stanzaID"`
-					QuotedMessage   struct {
-						Text string `json:"conversation"`
-					} `json:"quotedMessage"`
-				} `json:"contextInfo"`
-			} `json:"extendedTextMessage"`
+			Conversation string               `json:"conversation"`
+			TXT          EventMessageTextEVO  `json:"extendedTextMessage"`
+			IMG          EventMessageImageEVO `json:"imageMessage"`
+			Base64       string               `json:"base64"`
 		} `json:"Message"`
 	} `json:"data"`
 	EventEVO
+	FullJSON []byte
+}
+
+type EventMessageTextEVO struct {
+	Text                string `json:"conversation"`
+	ExtendedTextMessage struct {
+		Text        string `json:"text"`
+		ContextInfo struct {
+			QuotedMessageID string `json:"stanzaID"`
+			QuotedMessage   struct {
+				Text string `json:"conversation"`
+			} `json:"quotedMessage"`
+		} `json:"contextInfo"`
+	}
+}
+
+type EventMessageImageEVO struct {
+	URL         string `json:"url"`
+	ContextInfo struct {
+	} `json:"contextInfo"`
+	MimeType   string `json:"mimetype"`
+	FileSHA256 string `json:"fileSha256"`
+	Height     int    `json:"height"`
+	Width      int    `json:"width"`
+	Caption    string `json:"caption"`
 }
