@@ -53,7 +53,7 @@ func (msg EventMessageEVO) Save(connection ConnectionEVO) error {
 
 func (msg TextMessageEVO) Send(connectionKey string) (int, []byte, error) {
 	r := requests.Request{
-		URL:     apiBaseURL + `/send/text`,
+		URL:     ApiBaseURL + `/send/text`,
 		Method:  "POST",
 		Payload: msg,
 		Headers: map[string]string{

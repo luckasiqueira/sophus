@@ -59,7 +59,7 @@ func getGroupInfo(jid, connectionKey string) (Contact, error) {
 		GroupJID: jid,
 	}
 	r := requests.Request{
-		URL:     apiBaseURL + "/group/info",
+		URL:     ApiBaseURL + "/group/info",
 		Payload: payload,
 		Headers: map[string]string{
 			"Content-Type": "application/json",
@@ -92,7 +92,7 @@ func GetContactEvo(number, connectionKey string) (ContactEVO, error) {
 		Number: number,
 	}
 	r := requests.Request{
-		URL:     apiBaseURL + "/user/check",
+		URL:     ApiBaseURL + "/user/check",
 		Method:  "POST",
 		Payload: payload,
 		Headers: map[string]string{
