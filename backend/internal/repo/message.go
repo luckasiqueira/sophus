@@ -74,7 +74,7 @@ func saveMessageEvo(msg EventMessageEVO, fullJson []byte, contact Contact, conne
 	query := `INSERT INTO public.messages (id, "messageId", text, "conversationId", "quotedId", "mediaType", "fullData", "createdAt", "updatedAt", 
      "isFromMe", "isGroup", "isRead", "isDeleted") VALUES (DEFAULT, $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12 );`
 	var text string
-
+	msgType := checkMessageType(msg)
 	if msg.Data.Message.TXT.ExtendedTextMessage.Text == "" {
 		text = msg.Data.Message.TXT.ExtendedTextMessage.Text // text = m.Body.Data.Message.ExtendedTextMessage.ContextInfo.QuotedMessage.Text
 	}
@@ -84,8 +84,11 @@ func saveMessageEvo(msg EventMessageEVO, fullJson []byte, contact Contact, conne
 	if msg.Data.Message.IMG.Caption != "" {
 		text = msg.Data.Message.IMG.Caption
 	}
+	if msg.Data.Message.VID.Caption != "" {
+		text = msg.Data.Message.IMG.Caption
+	}
 	if msg.Data.Message.Base64 != "" {
-		saveMessageMedia(msg, connection.CompanyID)
+		saveMessageMedia(msg, connection.CompanyID, msgType)
 	}
 
 	return insert(query,
@@ -103,8 +106,25 @@ func saveMessageEvo(msg EventMessageEVO, fullJson []byte, contact Contact, conne
 		false)
 }
 
-func saveMessageMedia(msg EventMessageEVO, companyId int) {
-	format := strings.Split(msg.Data.Message.IMG.MimeType, "/")[1]
+func checkMessageType(msg EventMessageEVO) string {
+	if msg.Data.Message.IMG.MimeType != "" {
+		return "image"
+	}
+	if msg.Data.Message.VID.MimeType != "" {
+		return "video"
+	}
+	return ""
+}
+
+func saveMessageMedia(msg EventMessageEVO, companyId int, messageType string) {
+	var format string
+	switch messageType {
+	case "image":
+		format = strings.Split(msg.Data.Message.IMG.MimeType, "/")[1]
+	case "video":
+		format = strings.Split(msg.Data.Message.VID.MimeType, "/")[1]
+	}
+
 	path := fmt.Sprintf("./.data/medias/%d/", companyId)
 	fileName := fmt.Sprintf("%s.%s", uuid.NewString(), format)
 	err := utils.MediaDecoder(msg.Data.Message.Base64, path, fileName)

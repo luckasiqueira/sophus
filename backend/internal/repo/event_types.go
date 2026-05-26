@@ -40,8 +40,12 @@ type EventMessageEVO struct {
 			Conversation string               `json:"conversation"`
 			TXT          EventMessageTextEVO  `json:"extendedTextMessage"`
 			IMG          EventMessageImageEVO `json:"imageMessage"`
+			VID          EventMessageVideoEVO `json:"videoMessage"`
 			Base64       string               `json:"base64"`
 		} `json:"Message"`
+		IsEphemeral bool `json:"IsEphemeral"`
+		IsViewOnce  bool `json:"IsViewOnce"`
+		IsEdit      bool `json:"IsEdit"`
 	} `json:"data"`
 	EventEVO
 	FullJSON []byte
@@ -64,9 +68,19 @@ type EventMessageImageEVO struct {
 	URL         string `json:"url"`
 	ContextInfo struct {
 	} `json:"contextInfo"`
-	MimeType   string `json:"mimetype"`
-	FileSHA256 string `json:"fileSha256"`
-	Height     int    `json:"height"`
-	Width      int    `json:"width"`
-	Caption    string `json:"caption"`
+	MimeType string `json:"mimetype"`
+	Height   int    `json:"height"`
+	Width    int    `json:"width"`
+	Caption  string `json:"caption"`
+}
+
+type EventMessageVideoEVO struct {
+	URL         string `json:"url"`
+	ContextInfo struct {
+	} `json:"contextInfo"`
+	MimeType string `json:"mimetype"`
+	Seconds  int    `json:"seconds"`
+	Height   int    `json:"height"`
+	Width    int    `json:"width"`
+	Caption  string `json:"caption"`
 }
