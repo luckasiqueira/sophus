@@ -13,8 +13,9 @@ func Router(r *iris.Application) {
 	})
 
 	r.Post("/webhook/{webhookId:uuid}", controllers.Webhook)
+	r.Post("/dologin", middlewares.DoLogin)
 	message := r.Party("/message")
-	message.Use(middlewares.IsValidAPIToken)
+	message.Use(middlewares.Auth)
 	{
 		message.Post("/send", controllers.SendMessage)
 	}
