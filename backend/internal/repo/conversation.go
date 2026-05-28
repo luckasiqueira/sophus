@@ -10,12 +10,28 @@ import (
 type Conversation struct {
 	ID           int
 	Status       string
-	ContactID    int
+	ContactID    int // possible needed to use contact as struct
 	ConnectionID int
 	AgentID      int
 	URL          uuid.UUID
 	CreatedAt    time.Time
 	UpdatedAt    time.Time
+}
+
+func GetConversationsByAgent(agent Agent) ([]Conversation, error) {
+	conversations := []Conversation{}
+	stmt, err := db.Prepare(`SELECT * FROM conversations WHERE "agentId" = $1 ORDER BY "updatedAt" DESC`)
+	if err != nil {
+		return nil, err
+	}
+	defer stmt.Close()
+	rows, err := stmt.Query(agent.Id)
+	for rows.Next() {
+		var conversation Conversation
+		rows.Scan(&conversation.ID, &conversation.Status, &conversation.ContactID, &conversation.ConnectionID, &conversation.AgentID, &conversation.URL, conversation.CreatedAt, &conversation.UpdatedAt)
+		conversations = append(conversations, conversation)
+	}
+	return conversations, nil
 }
 
 func CreateConversation(conversation Conversation) (int, error) {
