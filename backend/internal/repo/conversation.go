@@ -13,9 +13,10 @@ type Conversation struct {
 	ContactID    int // possible needed to use contact as struct
 	ConnectionID int
 	AgentID      int
-	URL          uuid.UUID
-	CreatedAt    time.Time
-	UpdatedAt    time.Time
+	// Department // department as struct
+	URL       uuid.UUID
+	CreatedAt time.Time
+	UpdatedAt time.Time
 }
 
 func GetConversationsByAgent(agent Agent) ([]Conversation, error) {
