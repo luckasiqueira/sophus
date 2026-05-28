@@ -6,17 +6,14 @@ import (
 	"github.com/kataras/iris/v12"
 )
 
-func Auth(ctx iris.Context) {
+func AuthAPI(ctx iris.Context) {
 	if isValidAPIToken(ctx) {
 		ctx.Next()
+		return
 	}
-
+	ctx.StopWithStatus(iris.StatusUnauthorized)
 }
 
 func isValidAPIToken(ctx iris.Context) bool {
 	return repo.IsValidAPITokenEVO(ctx.GetHeader("apitoken"))
-}
-
-func isValidJWT(ctx iris.Context) bool {
-	return true
 }
