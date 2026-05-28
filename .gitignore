@@ -13,4 +13,4 @@ builds/
 *.sum
 *.exe
 *.templ
-
+*_templ.go
