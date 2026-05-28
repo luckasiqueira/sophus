@@ -12,3 +12,5 @@ builds/
 *.mod
 *.sum
 *.exe
+*.templ
+
