@@ -139,6 +139,50 @@ func saveMessageMedia(msg EventMessageEVO, companyId int, messageType string) {
 	}
 }
 
+func GetMessagesByConversationURL(url uuid.UUID) ([]MessageData, error) {
+	stmt, err := db.Prepare(`SELECT 
+    m."messageId",
+    m.text,
+    m."quotedId",
+    m."mediaType",
+    m."updatedAt",
+    m."isFromMe",
+    m."isGroup",
+    m."isRead",
+    m."isDeleted"
+		FROM messages m
+		INNER JOIN public.conversations c ON c.id = m."conversationId"
+		WHERE c.url = $1
+		ORDER BY m.id ASC;`)
+	if err != nil {
+		return []MessageData{}, err
+	}
+	defer stmt.Close()
+	rows, err := stmt.Query(url)
+	if err != nil {
+		return []MessageData{}, err
+	}
+	messages := []MessageData{}
+	for rows.Next() {
+		msg := MessageData{}
+		err = rows.Scan(
+			&msg.MessageId,
+			&msg.Text,
+			&msg.QuotedId,
+			&msg.MediaType,
+			&msg.UpdatedAt,
+			&msg.IsFromMe,
+			&msg.IsGroup,
+			&msg.IsRead,
+			&msg.IsDeleted)
+		if err != nil {
+			return []MessageData{}, err
+		}
+		messages = append(messages, msg)
+	}
+	return messages, nil
+}
+
 //func (msg EventMesageImageEVO) Save(connection ConnectionEVO) error {
 //	contact, err := contactHelper(msg.Data.Info.BaseEventMSGInfoEVO.IsGroup, connection.Id, msg.Data.Info.BaseEventMSGInfoEVO, msg.InstanceToken)
 //	fullJson, err := json.Marshal(msg.Data)

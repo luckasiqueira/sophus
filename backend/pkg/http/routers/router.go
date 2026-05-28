@@ -6,6 +6,7 @@ import (
 	"sophus/backend/pkg/http/middlewares"
 	"sophus/backend/web"
 
+	"github.com/google/uuid"
 	"github.com/kataras/iris/v12"
 )
 
@@ -36,6 +37,28 @@ func Router(r *iris.Application) {
 			ctx.StopWithStatus(iris.StatusInternalServerError)
 		}
 		ctx.RenderComponent(web.Messages(conversations))
+	})
+
+	r.Get("/messages/{url:uuid}", func(ctx iris.Context) {
+		agent, err := middlewares.AgentIdentifier(ctx)
+		if err != nil {
+			ctx.StopWithStatus(iris.StatusUnauthorized)
+		}
+		conversations, err := repo.GetConversationsByAgent(agent)
+		if err != nil {
+			ctx.StopWithStatus(iris.StatusInternalServerError)
+		}
+		u := ctx.Params().Get("url")
+		url, err := uuid.Parse(u)
+		if err != nil {
+			ctx.StopWithStatus(iris.StatusBadRequest)
+		}
+		messages, err := repo.GetMessagesByConversationURL(url)
+		if err != nil {
+			ctx.StopWithStatus(iris.StatusBadRequest)
+		}
+		ctx.RenderComponent(web.MessageSingle(conversations, messages))
+
 	})
 
 	//instance := r.Party("/instance")

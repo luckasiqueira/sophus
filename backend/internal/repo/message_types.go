@@ -1,7 +1,25 @@
 package repo
 
+import "time"
+
 type Message interface {
 	Save(connection ConnectionEVO) error
+}
+
+type MessageData struct {
+	Id             int       `json:"id"`
+	MessageId      string    `json:"messageId"`
+	Text           string    `json:"text"`
+	ConversationId int       `json:"conversationId"`
+	QuotedId       string    `json:"quotedId"`
+	MediaType      string    `json:"mediaType"`
+	FullJSON       []byte    `json:"fullData"`
+	CreatedAt      time.Time `json:"createdAt"`
+	UpdatedAt      time.Time `json:"updatedAt"`
+	IsFromMe       bool      `json:"isFromMe"`
+	IsGroup        bool      `json:"isGroup"`
+	IsRead         bool      `json:"isRead"`
+	IsDeleted      bool      `json:"isDeleted"`
 }
 
 type MessageBaseEVO struct {
