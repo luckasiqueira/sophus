@@ -8,9 +8,9 @@ import (
 )
 
 type Conversation struct {
-	ID           int
+	Id           int
 	Status       string
-	ContactID    int // possible needed to use contact as struct
+	Contact      Contact // possible needed to use contact as struct
 	ConnectionID int
 	AgentID      int
 	// Department // department as struct
@@ -29,7 +29,7 @@ func GetConversationsByAgent(agent Agent) ([]Conversation, error) {
 	rows, err := stmt.Query(agent.Id)
 	for rows.Next() {
 		var conversation Conversation
-		rows.Scan(&conversation.ID, &conversation.Status, &conversation.ContactID, &conversation.ConnectionID, &conversation.AgentID, &conversation.URL, conversation.CreatedAt, &conversation.UpdatedAt)
+		rows.Scan(&conversation.Id, &conversation.Status, &conversation.Contact.Id, &conversation.ConnectionID, &conversation.AgentID, &conversation.URL, conversation.CreatedAt, &conversation.UpdatedAt)
 		conversations = append(conversations, conversation)
 	}
 	return conversations, nil
@@ -45,7 +45,7 @@ VALUES (DEFAULT, $1, $2, $3, $4, $5, $6, $7) RETURNING id;`)
 	var conversationId int
 	err = stmt.QueryRow(
 		conversation.Status,
-		conversation.ContactID,
+		conversation.Contact.Id,
 		conversation.ConnectionID,
 		conversation.AgentID,
 		conversation.URL,
@@ -94,8 +94,10 @@ func checkExistentConversation(connectionId int, contact Contact) (int, error) {
 			return 0, err
 		}
 		conversation := Conversation{
-			Status:       "open",
-			ContactID:    contactId,
+			Status: "open",
+			Contact: Contact{
+				Id: contactId,
+			},
 			ConnectionID: connectionId,
 			URL:          uuid.New(),
 			CreatedAt:    time.Now(),
