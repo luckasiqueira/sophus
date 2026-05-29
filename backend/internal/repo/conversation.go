@@ -21,7 +21,14 @@ type Conversation struct {
 
 func GetConversationsByAgent(agent Agent) ([]Conversation, error) {
 	conversations := []Conversation{}
-	stmt, err := db.Prepare(`SELECT * FROM conversations WHERE "agentId" = $1 ORDER BY "updatedAt" DESC`)
+	stmt, err := db.Prepare(`SELECT 
+    conversations.*,
+    contacts.*
+FROM conversations
+INNER JOIN contacts 
+    ON contacts.id = conversations."contactId"
+WHERE conversations."agentId" = $1;
+`)
 	if err != nil {
 		return nil, err
 	}
@@ -29,7 +36,23 @@ func GetConversationsByAgent(agent Agent) ([]Conversation, error) {
 	rows, err := stmt.Query(agent.Id)
 	for rows.Next() {
 		var conversation Conversation
-		rows.Scan(&conversation.Id, &conversation.Status, &conversation.Contact.Id, &conversation.ConnectionID, &conversation.AgentID, &conversation.URL, conversation.CreatedAt, &conversation.UpdatedAt)
+		rows.Scan(&conversation.Id,
+			&conversation.Status,
+			&conversation.Contact.Id,
+			&conversation.ConnectionID,
+			&conversation.AgentID,
+			&conversation.URL,
+			&conversation.CreatedAt,
+			&conversation.UpdatedAt,
+			&conversation.Contact.Id,
+			&conversation.Contact.Name,
+			&conversation.Contact.Number,
+			&conversation.Contact.ConnectionId,
+			&conversation.Contact.JID,
+			&conversation.Contact.LID,
+			&conversation.Contact.IsGroup,
+			&conversation.Contact.IsBlocked,
+		)
 		conversations = append(conversations, conversation)
 	}
 	return conversations, nil

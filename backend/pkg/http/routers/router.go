@@ -49,6 +49,7 @@ func Router(r *iris.Application) {
 		if err != nil {
 			ctx.StopWithStatus(iris.StatusInternalServerError)
 		}
+		// NOTE: validate if agent.CompanyId can open this
 		u := ctx.Params().Get("url")
 		url, err := uuid.Parse(u)
 		if err != nil {
@@ -59,15 +60,25 @@ func Router(r *iris.Application) {
 			fmt.Println(err)
 			ctx.StopWithStatus(iris.StatusBadRequest)
 		}
+		if len(messages) == 0 {
+			ctx.StopWithStatus(iris.StatusNoContent)
+			return
+		}
+
 		activeConversation := repo.Conversation{}
+		agentCanSeeThisConversation := false
 		for _, c := range conversations {
-			if c.URL == url {
+			if c.URL.String() == u {
+				agentCanSeeThisConversation = true
 				activeConversation = c
-				break
 			}
 		}
-		activeConversation.Contact, err = repo.GetContactById(activeConversation.Contact.Id)
-		fmt.Println(messages)
+
+		if !agentCanSeeThisConversation {
+			// NOTE: render a page to says that user has no permissions to see that conversation
+			ctx.StopWithStatus(iris.StatusUnauthorized)
+			return
+		}
 		if err != nil {
 			ctx.StopWithStatus(iris.StatusBadRequest)
 		}
