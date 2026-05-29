@@ -32,12 +32,12 @@ func GetConnectionByToken(apiToken string) (ConnectionEVO, error) {
 }
 
 func GetConnectionByWebhook(webhookId string) (ConnectionEVO, error) {
-	stmt, err := db.Prepare(`SELECT "id", "status", "instanceId", "connectionKey" FROM connections WHERE "webhook" = $1`)
+	stmt, err := db.Prepare(`SELECT "id", "status", "instanceId", "connectionKey", "companyId" FROM connections WHERE "webhook" = $1`)
 	if err != nil {
 		return ConnectionEVO{}, err
 	}
 	defer stmt.Close()
 	var c ConnectionEVO
-	err = stmt.QueryRow(webhookId).Scan(&c.Id, &c.Status, &c.InstanceID, &c.ConnectionKey)
+	err = stmt.QueryRow(webhookId).Scan(&c.Id, &c.Status, &c.InstanceID, &c.ConnectionKey, &c.CompanyID)
 	return c, err
 }

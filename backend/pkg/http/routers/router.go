@@ -1,6 +1,7 @@
 package routers
 
 import (
+	"fmt"
 	"sophus/backend/internal/repo"
 	"sophus/backend/pkg/http/controllers"
 	"sophus/backend/pkg/http/middlewares"
@@ -55,6 +56,7 @@ func Router(r *iris.Application) {
 		}
 		messages, err := repo.GetMessagesByConversationURL(url)
 		if err != nil {
+			fmt.Println(err)
 			ctx.StopWithStatus(iris.StatusBadRequest)
 		}
 		activeConversation := repo.Conversation{}
@@ -65,10 +67,11 @@ func Router(r *iris.Application) {
 			}
 		}
 		activeConversation.Contact, err = repo.GetContactById(activeConversation.Contact.Id)
+		fmt.Println(messages)
 		if err != nil {
 			ctx.StopWithStatus(iris.StatusBadRequest)
 		}
-		ctx.RenderComponent(web.MessageSingle(activeConversation, conversations, messages))
+		ctx.RenderComponent(web.MessageSingle(activeConversation, agent.CompanyId, conversations, messages))
 
 	})
 

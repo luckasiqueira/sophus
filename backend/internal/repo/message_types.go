@@ -20,6 +20,7 @@ type MessageData struct {
 	IsGroup        bool      `json:"isGroup"`
 	IsRead         bool      `json:"isRead"`
 	IsDeleted      bool      `json:"isDeleted"`
+	MediaPath      string    `json:"mediaPath"`
 }
 
 type MessageBaseEVO struct {

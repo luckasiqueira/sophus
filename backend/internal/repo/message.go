@@ -94,7 +94,6 @@ func saveMessageEvo(msg EventMessageEVO, fullJson []byte, contact Contact, conne
 			return err
 		}
 	}
-
 	return insert(query,
 		msg.Data.Info.ID,
 		text,
@@ -137,6 +136,7 @@ func saveMessageMedia(msg EventMessageEVO, companyId int, messageType string) (s
 
 	path := fmt.Sprintf("%s/%d/", env.Backend["MEDIA_DIRECTORY"], companyId)
 	fileName := fmt.Sprintf("%s.%s", uuid.NewString(), format)
+	fmt.Print("Saving media file:", path, fileName)
 	return fileName, utils.MediaDecoder(msg.Data.Message.Base64, path, fileName)
 }
 
@@ -150,7 +150,8 @@ func GetMessagesByConversationURL(url uuid.UUID) ([]MessageData, error) {
     m."isFromMe",
     m."isGroup",
     m."isRead",
-    m."isDeleted"
+    m."isDeleted",
+    m."mediaPath"
 		FROM messages m
 		INNER JOIN public.conversations c ON c.id = m."conversationId"
 		WHERE c.url = $1
@@ -175,9 +176,12 @@ func GetMessagesByConversationURL(url uuid.UUID) ([]MessageData, error) {
 			&msg.IsFromMe,
 			&msg.IsGroup,
 			&msg.IsRead,
-			&msg.IsDeleted)
+			&msg.IsDeleted,
+			&msg.MediaPath)
 		if err != nil {
-			return []MessageData{}, err
+			if !strings.Contains(err.Error(), "converting NULL to string is unsupported") {
+				return []MessageData{}, err
+			}
 		}
 		messages = append(messages, msg)
 	}
