@@ -33,7 +33,6 @@ func Webhook(ctx iris.Context) {
 		msg.FullJSON = body
 		err = repo.SaveEvoMessage(msg, connection)
 		if err != nil {
-			fmt.Println(err)
 			ctx.StopWithStatus(iris.StatusInternalServerError)
 		}
 	}

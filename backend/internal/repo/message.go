@@ -75,8 +75,8 @@ func saveMessageEvo(msg EventMessageEVO, fullJson []byte, contact Contact, conne
      "isFromMe", "isGroup", "isRead", "isDeleted") VALUES (DEFAULT, $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12 );`
 	var text string
 	msgType := checkMessageType(msg)
-	if msg.Data.Message.TXT.ExtendedTextMessage.Text == "" {
-		text = msg.Data.Message.TXT.ExtendedTextMessage.Text // text = m.Body.Data.Message.ExtendedTextMessage.ContextInfo.QuotedMessage.Text
+	if msg.Data.Message.TXT.Text != "" {
+		text = msg.Data.Message.TXT.Text // text = m.Body.Data.Message.ExtendedTextMessage.ContextInfo.QuotedMessage.Text
 	}
 	if msg.Data.Message.Conversation != "" {
 		text = msg.Data.Message.Conversation
@@ -95,7 +95,7 @@ func saveMessageEvo(msg EventMessageEVO, fullJson []byte, contact Contact, conne
 		msg.Data.Info.ID,
 		text,
 		conversationId,
-		msg.Data.Message.TXT.ExtendedTextMessage.ContextInfo.QuotedMessageID,
+		msg.Data.Message.TXT.ContextInfo.QuotedMessageID,
 		msgType,
 		fullJson,
 		msg.Data.Info.Timestamp,

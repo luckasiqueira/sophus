@@ -37,6 +37,7 @@ type EventMessageEVO struct {
 			IsEphemeral  bool   `json:"IsEphemeral"`
 		} `json:"Info"`
 		Message struct {
+			Text         string               `json:"text"`
 			Conversation string               `json:"conversation"`
 			TXT          EventMessageTextEVO  `json:"extendedTextMessage"`
 			IMG          EventMessageImageEVO `json:"imageMessage"`
@@ -53,16 +54,13 @@ type EventMessageEVO struct {
 }
 
 type EventMessageTextEVO struct {
-	Text                string `json:"conversation"`
-	ExtendedTextMessage struct {
-		Text        string `json:"text"`
-		ContextInfo struct {
-			QuotedMessageID string `json:"stanzaID"`
-			QuotedMessage   struct {
-				Text string `json:"conversation"`
-			} `json:"quotedMessage"`
-		} `json:"contextInfo"`
-	}
+	Text        string `json:"text"`
+	ContextInfo struct {
+		QuotedMessageID string `json:"stanzaID"`
+		QuotedMessage   struct {
+			Text string `json:"conversation"`
+		} `json:"quotedMessage"`
+	} `json:"contextInfo"`
 }
 
 type EventMessageImageEVO struct {
