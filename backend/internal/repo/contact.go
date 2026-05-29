@@ -83,6 +83,17 @@ func getGroupInfo(jid, connectionKey string) (Contact, error) {
 	return contact, nil
 }
 
+func GetContactById(contactId int) (Contact, error) {
+	var contact Contact
+	stmt, err := db.Prepare(`SELECT * FROM contacts WHERE id= $1;`)
+	if err != nil {
+		return contact, err
+	}
+	defer stmt.Close()
+	err = stmt.QueryRow(contactId).Scan(&contact.Id, &contact.Name, &contact.Number, &contact.ConnectionId, &contact.JID, &contact.LID, &contact.IsGroup, &contact.IsBlocked)
+	return contact, nil
+}
+
 func GetContactEvo(number, connectionKey string) (ContactEVO, error) {
 	c := ContactEVO{}
 	type p struct {
