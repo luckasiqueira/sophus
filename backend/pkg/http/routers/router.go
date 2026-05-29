@@ -57,7 +57,18 @@ func Router(r *iris.Application) {
 		if err != nil {
 			ctx.StopWithStatus(iris.StatusBadRequest)
 		}
-		ctx.RenderComponent(web.MessageSingle(conversations, messages))
+		activeConversation := repo.Conversation{}
+		for _, c := range conversations {
+			if c.URL == url {
+				activeConversation = c
+				break
+			}
+		}
+		activeConversation.Contact, err = repo.GetContactById(activeConversation.Contact.Id)
+		if err != nil {
+			ctx.StopWithStatus(iris.StatusBadRequest)
+		}
+		ctx.RenderComponent(web.MessageSingle(activeConversation, conversations, messages))
 
 	})
 
