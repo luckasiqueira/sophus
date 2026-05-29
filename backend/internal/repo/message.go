@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"sophus/backend/pkg/http/requests"
 	"sophus/backend/utils"
+	"sophus/backend/utils/env"
 	"strings"
 
 	"github.com/google/uuid"
@@ -71,7 +72,7 @@ func saveMessageEvo(msg EventMessageEVO, fullJson []byte, contact Contact, conne
 	if err != nil {
 		return err
 	}
-	query := `INSERT INTO public.messages (id, "messageId", text, "conversationId", "quotedId", "mediaType", "fullData", "createdAt", "updatedAt", 
+	query := `INSERT INTO public.messages (id, "messageId", text, "conversationId", "quotedId", "mediaType", "mediaPath", "createdAt", "updatedAt", 
      "isFromMe", "isGroup", "isRead", "isDeleted") VALUES (DEFAULT, $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12 );`
 	var text string
 	msgType := checkMessageType(msg)
@@ -88,7 +89,10 @@ func saveMessageEvo(msg EventMessageEVO, fullJson []byte, contact Contact, conne
 		text = msg.Data.Message.IMG.Caption
 	}
 	if msg.Data.Message.Base64 != "" {
-		saveMessageMedia(msg, connection.CompanyID, msgType)
+		msg.MediaPath, err = saveMessageMedia(msg, connection.CompanyID, msgType)
+		if err != nil {
+			return err
+		}
 	}
 
 	return insert(query,
@@ -97,7 +101,7 @@ func saveMessageEvo(msg EventMessageEVO, fullJson []byte, contact Contact, conne
 		conversationId,
 		msg.Data.Message.TXT.ContextInfo.QuotedMessageID,
 		msgType,
-		fullJson,
+		msg.MediaPath,
 		msg.Data.Info.Timestamp,
 		msg.Data.Info.Timestamp,
 		msg.Data.Info.IsFromMe,
@@ -116,10 +120,10 @@ func checkMessageType(msg EventMessageEVO) string {
 	if msg.Data.Message.AUD.MimeType != "" {
 		return "audio"
 	}
-	return ""
+	return "text"
 }
 
-func saveMessageMedia(msg EventMessageEVO, companyId int, messageType string) {
+func saveMessageMedia(msg EventMessageEVO, companyId int, messageType string) (string, error) {
 	var format string
 	switch messageType {
 	case "image":
@@ -131,12 +135,9 @@ func saveMessageMedia(msg EventMessageEVO, companyId int, messageType string) {
 		format = strings.Split(format, ";")[0]
 	}
 
-	path := fmt.Sprintf("./.data/medias/%d/", companyId)
+	path := fmt.Sprintf("%s/%d/", env.Backend["MEDIA_DIRECTORY"], companyId)
 	fileName := fmt.Sprintf("%s.%s", uuid.NewString(), format)
-	err := utils.MediaDecoder(msg.Data.Message.Base64, path, fileName)
-	if err != nil {
-		fmt.Println(err)
-	}
+	return fileName, utils.MediaDecoder(msg.Data.Message.Base64, path, fileName)
 }
 
 func GetMessagesByConversationURL(url uuid.UUID) ([]MessageData, error) {

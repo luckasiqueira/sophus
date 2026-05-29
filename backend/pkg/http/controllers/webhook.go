@@ -38,6 +38,7 @@ func Webhook(ctx iris.Context) {
 	}
 }
 
+// adjust to save json onto a separate table messages_body
 func saveBody(body []byte) {
 	file := fmt.Sprintf("%s.txt", time.Now().Format("20060102150405"))
 	if err := os.WriteFile(file, body, os.ModePerm); err != nil {

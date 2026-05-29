@@ -50,7 +50,8 @@ type EventMessageEVO struct {
 		IsEdit      bool `json:"IsEdit"`
 	} `json:"data"`
 	EventEVO
-	FullJSON []byte
+	FullJSON  []byte
+	MediaPath string `json:"mediaPath"`
 }
 
 type EventMessageTextEVO struct {
