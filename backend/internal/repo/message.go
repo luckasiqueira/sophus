@@ -48,6 +48,11 @@ func (msg EventMessageEVO) Save(connection ConnectionEVO) error {
 			ConnectionId: connection.Id,
 			IsGroup:      msg.Data.Info.IsGroup,
 		}
+		if msg.Data.Info.IsFromMe {
+			contact.LID = msg.Data.Info.Chat
+			contact.Number = strings.Split(msg.Data.Info.RecipientAlt, "@")[0]
+			contact.JID = msg.Data.Info.RecipientAlt
+		}
 	}
 	return saveMessageEvo(msg, msg.FullJSON, contact, connection)
 }
@@ -136,7 +141,6 @@ func saveMessageMedia(msg EventMessageEVO, companyId int, messageType string) (s
 
 	path := fmt.Sprintf("%s/%d/", env.Backend["MEDIA_DIRECTORY"], companyId)
 	fileName := fmt.Sprintf("%s.%s", uuid.NewString(), format)
-	fmt.Print("Saving media file:", path, fileName)
 	return fileName, utils.MediaDecoder(msg.Data.Message.Base64, path, fileName)
 }
 

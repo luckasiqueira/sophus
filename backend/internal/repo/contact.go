@@ -114,7 +114,6 @@ func GetContactEvo(number, connectionKey string) (ContactEVO, error) {
 	}
 	err := r.Do()
 	if err != nil {
-		fmt.Println("Request", err)
 		return c, err
 	}
 	err = json.Unmarshal(r.Body, &c)
