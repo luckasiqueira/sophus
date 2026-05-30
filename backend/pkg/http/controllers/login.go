@@ -24,6 +24,7 @@ func DoLogin(ctx iris.Context) {
 		return
 	}
 	type AgentJWT struct {
+		Id        int    `json:"id"`
 		Name      string `json:"name"`
 		Email     string `json:"email"`
 		Role      string `json:"role"`
@@ -31,6 +32,7 @@ func DoLogin(ctx iris.Context) {
 	}
 	signer := jwt.NewSigner(jwt.HS256, []byte(env.Backend["SALT_JWT"]), (7*24)*time.Hour)
 	token, err := signer.Sign(AgentJWT{
+		Id:        agent.Id,
 		Name:      agent.Name,
 		Email:     agent.Email,
 		Role:      agent.Role,
