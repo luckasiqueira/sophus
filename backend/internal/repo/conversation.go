@@ -28,7 +28,7 @@ func GetConversationByURL(url uuid.UUID) (Conversation, error) {
 	defer stmt.Close()
 	err = stmt.QueryRow(url).Scan(
 		&conversation.Id,
-		conversation.Status,
+		&conversation.Status,
 		&conversation.Contact.Id,
 		&conversation.ConnectionID,
 		&conversation.AgentID,
