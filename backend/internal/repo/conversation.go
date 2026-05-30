@@ -19,6 +19,30 @@ type Conversation struct {
 	UpdatedAt time.Time
 }
 
+func GetConversationByMessage(message string) (Conversation, error) {
+	var conversation Conversation
+	stmt, err := db.Prepare(`SELECT c.*
+		FROM messages m
+		INNER JOIN conversations c
+			ON c.id = m."conversationId"
+		WHERE m."messageId" = $1`)
+	if err != nil {
+		return conversation, err
+	}
+	defer stmt.Close()
+	err = stmt.QueryRow(message).Scan(
+		&conversation.Id,
+		&conversation.Status,
+		&conversation.Contact.Id,
+		&conversation.ConnectionID,
+		&conversation.AgentID,
+		&conversation.URL,
+		&conversation.CreatedAt,
+		&conversation.UpdatedAt,
+	)
+	return conversation, err
+}
+
 func GetConversationByURL(url uuid.UUID) (Conversation, error) {
 	var conversation Conversation
 	stmt, err := db.Prepare(`SELECT * FROM conversations WHERE url = $1`)
