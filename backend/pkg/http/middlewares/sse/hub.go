@@ -3,42 +3,42 @@ package sse
 import "sync"
 
 type Client struct {
-	UserId int
-	Ch     chan string
+	URL string
+	Ch  chan string
 }
 
 type Hub struct {
 	mu      sync.RWMutex
-	clients map[int]*Client
+	clients map[string]*Client
 }
 
 var Global = &Hub{
-	clients: make(map[int]*Client),
+	clients: make(map[string]*Client),
 }
 
-func (h *Hub) Register(userId int) *Client {
+func (h *Hub) Register(url string) *Client {
 	h.mu.Lock()
 	defer h.mu.Unlock()
-	if old, ok := h.clients[userId]; ok {
+	if old, ok := h.clients[url]; ok {
 		close(old.Ch)
 	}
 	client := &Client{
-		UserId: userId,
-		Ch:     make(chan string, 10),
+		URL: url,
+		Ch:  make(chan string, 10),
 	}
-	h.clients[userId] = client
+	h.clients[url] = client
 	return client
 }
 
-func (h *Hub) UnRegister(userId int) {
+func (h *Hub) UnRegister(url string) {
 	h.mu.Lock()
 	defer h.mu.Unlock()
-	delete(h.clients, userId)
+	delete(h.clients, url)
 }
 
-func (h *Hub) Send(userId int, html string) {
+func (h *Hub) Send(url, html string) {
 	h.mu.RLock()
-	client, ok := h.clients[userId]
+	client, ok := h.clients[url]
 	h.mu.RUnlock()
 	if ok {
 		select {

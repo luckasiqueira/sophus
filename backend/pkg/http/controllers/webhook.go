@@ -14,7 +14,6 @@ import (
 	"time"
 
 	"github.com/a-h/templ"
-	"github.com/google/uuid"
 	"github.com/kataras/iris/v12"
 )
 
@@ -49,8 +48,8 @@ func Webhook(ctx iris.Context) {
 }
 
 func prepareSSEData(ctx iris.Context, msg repo.EventMessageEVO) {
-	u := ctx.URLParam("webhookId")
-	webhookId, err := uuid.Parse(u)
+	//u := ctx.URLParam("url")
+	//url, err := uuid.Parse(u)
 	msgText := repo.CheckMessageText(msg)
 	msgType := repo.CheckMessageType(msg)
 	t, _ := utils.TimeFromTimestamp(msg.Data.Info.Timestamp)
@@ -65,12 +64,13 @@ func prepareSSEData(ctx iris.Context, msg repo.EventMessageEVO) {
 		IsDeleted:      false,
 		MediaPath:      msg.MediaPath,
 	}
-	conversation, err := repo.GetConversationByURL(webhookId)
+
+	agent, err := repo.GetAgentByMessage(msg.Data.Info.ID)
 	if err != nil {
 		ctx.StopWithStatus(iris.StatusInternalServerError)
 		return
 	}
-	agent, err := repo.GetAgentById(conversation.AgentID)
+	conversation, err := repo.GetConversationByMessage(msg.Data.Info.ID)
 	if err != nil {
 		ctx.StopWithStatus(iris.StatusInternalServerError)
 		return
@@ -91,7 +91,7 @@ func prepareSSEData(ctx iris.Context, msg repo.EventMessageEVO) {
 		ctx.StatusCode(iris.StatusInternalServerError)
 		return
 	}
-	sse.Global.Send(conversation.AgentID, html)
+	sse.Global.Send(conversation.URL.String(), html)
 	ctx.StatusCode(iris.StatusOK)
 }
 

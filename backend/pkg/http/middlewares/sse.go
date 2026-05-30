@@ -3,22 +3,21 @@ package middlewares
 import (
 	"fmt"
 	"sophus/backend/pkg/http/middlewares/sse"
+	"strings"
 
 	"github.com/kataras/iris/v12"
 )
 
 func SSEHandler(ctx iris.Context) {
-	agent, err := AgentIdentifier(ctx)
-	if err != nil {
-		ctx.StopWithStatus(iris.StatusUnauthorized)
-		return
-	}
+	//agent, err := AgentIdentifier(ctx)
+	url := strings.Trim(ctx.GetReferrer().Path, "/messages/")
+	fmt.Println(url)
 	ctx.Header("Content-Type", "text/event-stream")
 	ctx.Header("Cache-Control", "no-cache")
 	ctx.Header("Connection", "keep-alive")
 
-	client := sse.Global.Register(agent.Id)
-	defer sse.Global.UnRegister(agent.Id)
+	client := sse.Global.Register(url)
+	defer sse.Global.UnRegister(url)
 	flusher, ok := ctx.ResponseWriter().Flusher()
 	if !ok {
 		ctx.StopWithStatus(iris.StatusInternalServerError)
