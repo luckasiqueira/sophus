@@ -28,6 +28,7 @@ func Router(r *iris.Application) {
 	}
 
 	r.Use(middlewares.AuthLogin)
+	r.Get("/sse", middlewares.SSEHandler)
 	r.Get("/messages", func(ctx iris.Context) {
 		agent, err := middlewares.AgentIdentifier(ctx)
 		if err != nil {
@@ -76,6 +77,7 @@ func Router(r *iris.Application) {
 
 		if !agentCanSeeThisConversation {
 			// NOTE: render a page to says that user has no permissions to see that conversation
+			fmt.Println(err, agent)
 			ctx.StopWithStatus(iris.StatusUnauthorized)
 			return
 		}

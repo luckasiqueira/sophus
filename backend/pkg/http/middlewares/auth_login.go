@@ -35,7 +35,8 @@ func AgentIdentifier(ctx iris.Context) (repo.Agent, error) {
 		ctx.StopWithStatus(iris.StatusUnauthorized)
 		return repo.Agent{}, errors.New("token is empty")
 	}
+
 	var agent repo.Agent
-	jwtToken.Claims(&agent)
-	return repo.GetAgentByEmail(agent.Email)
+	err = jwtToken.Claims(&agent)
+	return agent, err //repo.GetAgentByEmail(agent.Email)
 }

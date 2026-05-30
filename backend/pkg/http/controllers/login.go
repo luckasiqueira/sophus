@@ -29,6 +29,7 @@ func DoLogin(ctx iris.Context) {
 		Email     string `json:"email"`
 		Role      string `json:"role"`
 		CompanyId int    `json:"companyId"`
+		IsActive  bool   `json:"isActive"`
 	}
 	signer := jwt.NewSigner(jwt.HS256, []byte(env.Backend["SALT_JWT"]), (7*24)*time.Hour)
 	token, err := signer.Sign(AgentJWT{
@@ -37,6 +38,7 @@ func DoLogin(ctx iris.Context) {
 		Email:     agent.Email,
 		Role:      agent.Role,
 		CompanyId: agent.CompanyId,
+		IsActive:  agent.IsActive,
 	})
 	if err != nil {
 		ctx.JSON(iris.Map{"message": "Login inválido"})

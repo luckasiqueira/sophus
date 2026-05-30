@@ -79,20 +79,8 @@ func saveMessageEvo(msg EventMessageEVO, fullJson []byte, contact Contact, conne
 	}
 	query := `INSERT INTO public.messages (id, "messageId", text, "conversationId", "quotedId", "mediaType", "mediaPath", "createdAt", "updatedAt", 
      "isFromMe", "isGroup", "isRead", "isDeleted") VALUES (DEFAULT, $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12 );`
-	var text string
-	msgType := checkMessageType(msg)
-	if msg.Data.Message.TXT.Text != "" {
-		text = msg.Data.Message.TXT.Text // text = m.Body.Data.Message.ExtendedTextMessage.ContextInfo.QuotedMessage.Text
-	}
-	if msg.Data.Message.Conversation != "" {
-		text = msg.Data.Message.Conversation
-	}
-	if msg.Data.Message.IMG.Caption != "" {
-		text = msg.Data.Message.IMG.Caption
-	}
-	if msg.Data.Message.VID.Caption != "" {
-		text = msg.Data.Message.IMG.Caption
-	}
+	msgType := CheckMessageType(msg)
+	text := CheckMessageText(msg)
 	if msg.Data.Message.Base64 != "" {
 		msg.MediaPath, err = saveMessageMedia(msg, connection.CompanyID, msgType)
 		if err != nil {
@@ -114,7 +102,24 @@ func saveMessageEvo(msg EventMessageEVO, fullJson []byte, contact Contact, conne
 		false)
 }
 
-func checkMessageType(msg EventMessageEVO) string {
+func CheckMessageText(msg EventMessageEVO) string {
+	var text string
+	if msg.Data.Message.TXT.Text != "" {
+		text = msg.Data.Message.TXT.Text // text = m.Body.Data.Message.ExtendedTextMessage.ContextInfo.QuotedMessage.Text
+	}
+	if msg.Data.Message.Conversation != "" {
+		text = msg.Data.Message.Conversation
+	}
+	if msg.Data.Message.IMG.Caption != "" {
+		text = msg.Data.Message.IMG.Caption
+	}
+	if msg.Data.Message.VID.Caption != "" {
+		text = msg.Data.Message.IMG.Caption
+	}
+	return text
+}
+
+func CheckMessageType(msg EventMessageEVO) string {
 	if msg.Data.Message.IMG.MimeType != "" {
 		return "image"
 	}
