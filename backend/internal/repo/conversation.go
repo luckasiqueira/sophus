@@ -19,6 +19,26 @@ type Conversation struct {
 	UpdatedAt time.Time
 }
 
+func GetConversationByURL(url uuid.UUID) (Conversation, error) {
+	var conversation Conversation
+	stmt, err := db.Prepare(`SELECT * FROM conversations WHERE url = $1`)
+	if err != nil {
+		return conversation, err
+	}
+	defer stmt.Close()
+	err = stmt.QueryRow(url).Scan(
+		&conversation.Id,
+		conversation.Status,
+		&conversation.Contact.Id,
+		&conversation.ConnectionID,
+		&conversation.AgentID,
+		&conversation.URL,
+		&conversation.CreatedAt,
+		&conversation.UpdatedAt,
+	)
+	return conversation, nil
+}
+
 func GetConversationsByAgent(agent Agent) ([]Conversation, error) {
 	conversations := []Conversation{}
 	stmt, err := db.Prepare(`SELECT 

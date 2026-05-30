@@ -18,13 +18,22 @@ type Agent struct {
 }
 
 func GetAgentByEmail(email string) (Agent, error) {
+	query := fmt.Sprintf(`SELECT * FROM agents WHERE email = $1`)
+	return getAgent(query, email)
+}
+
+func GetAgentById(id int) (Agent, error) {
+	query := fmt.Sprintf(`SELECT * FROM agents WHERE id = $1`, id)
+	return getAgent(query, id)
+}
+
+func getAgent(query string, args ...interface{}) (Agent, error) {
 	a := Agent{}
-	stmt, err := db.Prepare(`SELECT * FROM agents WHERE email = $1`)
+	stmt, err := db.Prepare(query)
 	if err != nil {
 		return Agent{}, err
 	}
 	defer stmt.Close()
-	err = stmt.QueryRow(email).Scan(&a.Id, &a.Name, &a.Email, &a.Password, &a.Role, &a.IsActive, &a.CompanyId, &a.CreatedAt, &a.UpdatedAt)
-	fmt.Println(err)
+	err = stmt.QueryRow(args...).Scan(&a.Id, &a.Name, &a.Email, &a.Password, &a.Role, &a.IsActive, &a.CompanyId, &a.CreatedAt, &a.UpdatedAt)
 	return a, nil
 }

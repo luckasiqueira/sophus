@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/a-h/templ"
+	"github.com/google/uuid"
 	"github.com/kataras/iris/v12"
 )
 
@@ -23,11 +24,6 @@ func Webhook(ctx iris.Context) {
 		ctx.StopWithStatus(iris.StatusBadRequest)
 	}
 	saveBody(body)
-	agent, err := middlewares.AgentIdentifier(ctx)
-	if err != nil {
-		ctx.StopWithStatus(iris.StatusBadRequest)
-		return
-	}
 	switch event.EventType {
 	case "QRCode":
 		qrcode := repo.EventQRCode{}
@@ -47,12 +43,14 @@ func Webhook(ctx iris.Context) {
 		if err != nil {
 			ctx.StopWithStatus(iris.StatusInternalServerError)
 		}
-		prepareSSEData(agent, ctx, msg)
+		prepareSSEData(ctx, msg)
 	}
 
 }
 
-func prepareSSEData(agent repo.Agent, ctx iris.Context, msg repo.EventMessageEVO) {
+func prepareSSEData(ctx iris.Context, msg repo.EventMessageEVO) {
+	u := ctx.URLParam("webhookId")
+	webhookId, err := uuid.Parse(u)
 	msgText := repo.CheckMessageText(msg)
 	msgType := repo.CheckMessageType(msg)
 	t, _ := utils.TimeFromTimestamp(msg.Data.Info.Timestamp)
@@ -67,13 +65,22 @@ func prepareSSEData(agent repo.Agent, ctx iris.Context, msg repo.EventMessageEVO
 		IsDeleted:      false,
 		MediaPath:      msg.MediaPath,
 	}
+	conversation, err := repo.GetConversationByURL(webhookId)
+	if err != nil {
+		ctx.StopWithStatus(iris.StatusInternalServerError)
+		return
+	}
+	agent, err := repo.GetAgentById(conversation.AgentID)
+	if err != nil {
+		ctx.StopWithStatus(iris.StatusInternalServerError)
+		return
+	}
 	var component templ.Component
 	switch msgType {
 	case "text":
 		msgData.QuotedId = msg.Data.Message.TXT.ContextInfo.QuotedMessageID
 		if msg.Data.Info.IsFromMe {
 			component = components.MessageSent(msgData, agent.CompanyId)
-
 		} else {
 			component = components.MessageReceived(msgData, agent.CompanyId)
 		}
@@ -84,7 +91,7 @@ func prepareSSEData(agent repo.Agent, ctx iris.Context, msg repo.EventMessageEVO
 		ctx.StatusCode(iris.StatusInternalServerError)
 		return
 	}
-	sse.Global.Send(agent.Id, html)
+	sse.Global.Send(conversation.AgentID, html)
 	ctx.StatusCode(iris.StatusOK)
 }
 
