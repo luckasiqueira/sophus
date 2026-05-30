@@ -27,6 +27,17 @@ func GetAgentById(id int) (Agent, error) {
 	return getAgent(query, id)
 }
 
+func GetAgentByMessage(message string) (Agent, error) {
+	query := fmt.Sprintf(`SELECT a.*
+	FROM messages m
+	INNER JOIN conversations c
+		ON c.id = m."conversationId"
+	INNER JOIN agents a
+		ON a.id = c."agentId"
+	WHERE m."messageId" = $1`)
+	return getAgent(query, message)
+}
+
 func getAgent(query string, args ...interface{}) (Agent, error) {
 	a := Agent{}
 	stmt, err := db.Prepare(query)
