@@ -197,6 +197,16 @@ func GetMessagesByConversationURL(url uuid.UUID) ([]MessageData, error) {
 	return messages, nil
 }
 
+func GetMediaPathByMessage(message string) (string, error) {
+	mediaPath := ""
+	stmt, err := db.Prepare(`SELECT "mediaPath" FROM messages WHERE "messageId" = $1`)
+	if err != nil {
+		return mediaPath, err
+	}
+	defer stmt.Close()
+	return mediaPath, stmt.QueryRow(message).Scan(&mediaPath)
+}
+
 //func (msg EventMesageImageEVO) Save(connection ConnectionEVO) error {
 //	contact, err := contactHelper(msg.Data.Info.BaseEventMSGInfoEVO.IsGroup, connection.Id, msg.Data.Info.BaseEventMSGInfoEVO, msg.InstanceToken)
 //	fullJson, err := json.Marshal(msg.Data)

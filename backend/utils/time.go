@@ -7,5 +7,5 @@ func TimeNow() string {
 }
 
 func TimeFromTimestamp(timestamp string) (time.Time, error) {
-	return time.Parse("15:04:05 02-01-2006", timestamp)
+	return time.Parse(time.RFC3339, timestamp)
 }

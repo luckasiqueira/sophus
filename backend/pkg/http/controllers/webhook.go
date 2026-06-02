@@ -52,8 +52,10 @@ func prepareSSEData(ctx iris.Context, msg repo.EventMessageEVO) {
 	//url, err := uuid.Parse(u)
 	msgText := repo.CheckMessageText(msg)
 	msgType := repo.CheckMessageType(msg)
-	t, _ := utils.TimeFromTimestamp(msg.Data.Info.Timestamp)
+	t, err := utils.TimeFromTimestamp(msg.Data.Info.Timestamp)
+	fmt.Println(t, err)
 	msgData := repo.MessageData{
+		MessageId:      msg.Data.Info.ID,
 		Text:           msgText,
 		ConversationId: 0,
 		MediaType:      msgType,
@@ -75,15 +77,22 @@ func prepareSSEData(ctx iris.Context, msg repo.EventMessageEVO) {
 		ctx.StopWithStatus(iris.StatusInternalServerError)
 		return
 	}
+
 	var component templ.Component
 	switch msgType {
 	case "text":
 		msgData.QuotedId = msg.Data.Message.TXT.ContextInfo.QuotedMessageID
-		if msg.Data.Info.IsFromMe {
-			component = components.MessageSent(msgData, agent.CompanyId)
-		} else {
-			component = components.MessageReceived(msgData, agent.CompanyId)
+	case "image":
+		msgData.MediaPath, err = repo.GetMediaPathByMessage(msgData.MessageId)
+		if err != nil {
+			ctx.StopWithStatus(iris.StatusInternalServerError)
+			return
 		}
+	}
+	if msg.Data.Info.IsFromMe {
+		component = components.MessageSent(msgData, agent.CompanyId)
+	} else {
+		component = components.MessageReceived(msgData, agent.CompanyId)
 	}
 
 	html, err := renderComponent(component)
