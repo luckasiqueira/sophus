@@ -39,9 +39,9 @@ func SSEHandler(ctx iris.Context) {
 					done <- err
 					return
 				}
+				flusher.Flush()
+				done <- nil
 			}()
-			flusher.Flush()
-			done <- nil
 
 			select {
 			case err := <-done:
