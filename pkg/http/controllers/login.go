@@ -2,9 +2,9 @@ package controllers
 
 import (
 	"fmt"
-	"sophus/backend/internal/repo"
-	"sophus/backend/utils/env"
-	"sophus/backend/web"
+	"sophus/internal/repo"
+	"sophus/utils/env"
+	"sophus/web"
 	"time"
 
 	"github.com/kataras/iris/v12"

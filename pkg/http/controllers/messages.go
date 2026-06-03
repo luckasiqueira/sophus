@@ -3,7 +3,7 @@ package controllers
 import (
 	"encoding/json"
 	"io"
-	"sophus/backend/internal/repo"
+	repo2 "sophus/internal/repo"
 
 	"github.com/kataras/iris/v12"
 )
@@ -13,13 +13,13 @@ func SendMessage(ctx iris.Context) {
 	if err != nil {
 		ctx.StopWithStatus(iris.StatusBadRequest)
 	}
-	msg := repo.TextMessageEVO{}
+	msg := repo2.TextMessageEVO{}
 	apiToken := ctx.GetHeader("apitoken")
 	err = json.Unmarshal(body, &msg)
 	if err != nil {
 		ctx.StopWithStatus(iris.StatusBadRequest)
 	}
-	connection, err := repo.GetConnectionByToken(apiToken)
+	connection, err := repo2.GetConnectionByToken(apiToken)
 	if err != nil {
 		ctx.StopWithStatus(iris.StatusBadRequest)
 	}
@@ -29,7 +29,7 @@ func SendMessage(ctx iris.Context) {
 		ctx.StopWithStatus(status)
 	}
 	msg.JSON = fullJson
-	err = repo.SaveEvoMessage(msg, connection)
+	err = repo2.SaveEvoMessage(msg, connection)
 	if err != nil {
 		ctx.StopWithStatus(iris.StatusInternalServerError)
 	}

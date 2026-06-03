@@ -2,8 +2,8 @@ package middlewares
 
 import (
 	"errors"
-	"sophus/backend/internal/repo"
-	"sophus/backend/utils/env"
+	"sophus/internal/repo"
+	"sophus/utils/env"
 
 	"github.com/kataras/iris/v12"
 	"github.com/kataras/iris/v12/middleware/jwt"

@@ -3,9 +3,9 @@ package main
 import (
 	"fmt"
 	"os"
-	"sophus/backend/internal/repo"
-	"sophus/backend/pkg/http/routers"
-	"sophus/backend/utils/env"
+	"sophus/internal/repo"
+	"sophus/pkg/http/routers"
+	"sophus/utils/env"
 
 	"github.com/kataras/iris/v12"
 )

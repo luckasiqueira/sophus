@@ -1,7 +1,7 @@
 package middlewares
 
 import (
-	"sophus/backend/internal/repo"
+	"sophus/internal/repo"
 
 	"github.com/kataras/iris/v12"
 )

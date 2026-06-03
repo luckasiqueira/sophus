@@ -4,9 +4,9 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"sophus/backend/internal/repo"
-	"sophus/backend/pkg/http/requests"
-	"sophus/backend/utils/env"
+	repo2 "sophus/internal/repo"
+	"sophus/pkg/http/requests"
+	"sophus/utils/env"
 
 	"github.com/google/uuid"
 	"github.com/kataras/iris/v12"
@@ -17,7 +17,7 @@ func NewInstance(ctx iris.Context) {
 	if err != nil {
 		ctx.StopWithStatus(iris.StatusBadRequest)
 	}
-	instance := repo.InstanceEVO{}
+	instance := repo2.InstanceEVO{}
 	err = json.Unmarshal(body, &instance)
 	if err != nil {
 		ctx.StopWithStatus(iris.StatusBadRequest)
@@ -31,7 +31,7 @@ func NewInstance(ctx iris.Context) {
 		Token: instance.InstanceID,
 	}
 	r := requests.Request{
-		URL:     repo.ApiBaseURL + "/instance/create",
+		URL:     repo2.ApiBaseURL + "/instance/create",
 		Payload: i,
 		Headers: map[string]string{
 			"Content-Type": "application/json",

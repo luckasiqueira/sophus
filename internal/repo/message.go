@@ -3,9 +3,9 @@ package repo
 import (
 	"encoding/json"
 	"fmt"
-	"sophus/backend/pkg/http/requests"
-	"sophus/backend/utils"
-	"sophus/backend/utils/env"
+	"sophus/pkg/http/requests"
+	"sophus/utils"
+	"sophus/utils/env"
 	"strings"
 
 	"github.com/google/uuid"

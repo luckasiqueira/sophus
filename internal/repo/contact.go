@@ -3,7 +3,7 @@ package repo
 import (
 	"encoding/json"
 	"fmt"
-	"sophus/backend/pkg/http/requests"
+	"sophus/pkg/http/requests"
 )
 
 type Contact struct {

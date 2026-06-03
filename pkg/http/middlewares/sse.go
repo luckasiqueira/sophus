@@ -2,7 +2,7 @@ package middlewares
 
 import (
 	"fmt"
-	"sophus/backend/pkg/http/middlewares/sse"
+	"sophus/pkg/http/middlewares/sse"
 	"strings"
 	"time"
 

@@ -2,39 +2,39 @@ package routers
 
 import (
 	"fmt"
-	"sophus/backend/internal/repo"
-	"sophus/backend/pkg/http/controllers"
-	"sophus/backend/pkg/http/middlewares"
-	"sophus/backend/web"
+	repo2 "sophus/internal/repo"
+	controllers2 "sophus/pkg/http/controllers"
+	middlewares2 "sophus/pkg/http/middlewares"
+	"sophus/web"
 
 	"github.com/google/uuid"
 	"github.com/kataras/iris/v12"
 )
 
 func Router(r *iris.Application) {
-	r.Get("/login", controllers.Login)
-	r.Post("/dologin", controllers.DoLogin)
+	r.Get("/login", controllers2.Login)
+	r.Post("/dologin", controllers2.DoLogin)
 
-	r.Post("/webhook/{webhookId:uuid}", controllers.Webhook)
+	r.Post("/webhook/{webhookId:uuid}", controllers2.Webhook)
 
 	api := r.Party("/api")
-	api.Use(middlewares.AuthAPI)
+	api.Use(middlewares2.AuthAPI)
 	{
 		message := api.Party("/message")
 		{
-			message.Post("/send", controllers.SendMessage)
+			message.Post("/send", controllers2.SendMessage)
 		}
 
 	}
 
-	r.Use(middlewares.AuthLogin)
-	r.Get("/sse", middlewares.SSEHandler)
+	r.Use(middlewares2.AuthLogin)
+	r.Get("/sse", middlewares2.SSEHandler)
 	r.Get("/messages", func(ctx iris.Context) {
-		agent, err := middlewares.AgentIdentifier(ctx)
+		agent, err := middlewares2.AgentIdentifier(ctx)
 		if err != nil {
 			ctx.StopWithStatus(iris.StatusUnauthorized)
 		}
-		conversations, err := repo.GetConversationsByAgent(agent)
+		conversations, err := repo2.GetConversationsByAgent(agent)
 		if err != nil {
 			ctx.StopWithStatus(iris.StatusInternalServerError)
 		}
@@ -42,11 +42,11 @@ func Router(r *iris.Application) {
 	})
 
 	r.Get("/messages/{url:uuid}", func(ctx iris.Context) {
-		agent, err := middlewares.AgentIdentifier(ctx)
+		agent, err := middlewares2.AgentIdentifier(ctx)
 		if err != nil {
 			ctx.StopWithStatus(iris.StatusUnauthorized)
 		}
-		conversations, err := repo.GetConversationsByAgent(agent)
+		conversations, err := repo2.GetConversationsByAgent(agent)
 		if err != nil {
 			ctx.StopWithStatus(iris.StatusInternalServerError)
 		}
@@ -56,7 +56,7 @@ func Router(r *iris.Application) {
 		if err != nil {
 			ctx.StopWithStatus(iris.StatusBadRequest)
 		}
-		messages, err := repo.GetMessagesByConversationURL(url)
+		messages, err := repo2.GetMessagesByConversationURL(url)
 		if err != nil {
 			fmt.Println(err)
 			ctx.StopWithStatus(iris.StatusBadRequest)
@@ -66,7 +66,7 @@ func Router(r *iris.Application) {
 			return
 		}
 
-		activeConversation := repo.Conversation{}
+		activeConversation := repo2.Conversation{}
 		agentCanSeeThisConversation := false
 		for _, c := range conversations {
 			if c.URL.String() == u {

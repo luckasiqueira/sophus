@@ -4,7 +4,7 @@ import (
 	"database/sql"
 	"fmt"
 	"log"
-	"sophus/backend/utils/env"
+	"sophus/utils/env"
 	"time"
 
 	_ "github.com/lib/pq"
