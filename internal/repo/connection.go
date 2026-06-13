@@ -48,7 +48,7 @@ func GetConnectionByConversationURL(url uuid.UUID) (ConnectionEVO, error) {
 		FROM conversations cv
 		INNER JOIN connections c
 			ON c.id = cv."connectionId"
-		WHERE cv."url" = '534f83a7-5368-46fc-927a-d39e2b3072aa'`)
+		WHERE cv."url" = $1`)
 	if err != nil {
 		fmt.Println(err)
 		return ConnectionEVO{}, err
