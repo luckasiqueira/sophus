@@ -21,7 +21,7 @@ type ConnectionEVO struct {
 	ConnectionKey uuid.UUID
 }
 
-func GetConnectionByToken(apiToken string) (ConnectionEVO, error) {
+func GetConnectionByAPI(apiToken string) (ConnectionEVO, error) {
 	stmt, err := db.Prepare(`SELECT "id", "status", "instanceId", "connectionKey" FROM connections WHERE "apiToken" = $1`)
 	if err != nil {
 		return ConnectionEVO{}, err
