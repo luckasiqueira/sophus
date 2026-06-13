@@ -6,7 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
-	repo2 "sophus/internal/repo"
+	"sophus/internal/repo"
 	"sophus/pkg/http/middlewares"
 	"sophus/pkg/http/middlewares/sse"
 	"sophus/utils"
@@ -25,19 +25,19 @@ func Webhook(ctx iris.Context) {
 	saveBody(body)
 	switch event.EventType {
 	case "QRCode":
-		qrcode := repo2.EventQRCode{}
+		qrcode := repo.EventQRCode{}
 		err = json.Unmarshal(body, &qrcode)
 		if err != nil {
 			ctx.StopWithStatus(iris.StatusBadRequest)
 		}
 	case "Message":
-		msg := repo2.EventMessageEVO{}
+		msg := repo.EventMessageEVO{}
 		err = json.Unmarshal(body, &msg)
 		if err != nil {
 			ctx.StopWithStatus(iris.StatusBadRequest)
 		}
 		msg.FullJSON = body
-		err = repo2.SaveEvoMessage(msg, connection)
+		err = repo.SaveEvoMessage(msg, connection)
 		fmt.Println(err)
 		if err != nil {
 			ctx.StopWithStatus(iris.StatusInternalServerError)
@@ -47,14 +47,14 @@ func Webhook(ctx iris.Context) {
 
 }
 
-func prepareSSEData(ctx iris.Context, msg repo2.EventMessageEVO) {
+func prepareSSEData(ctx iris.Context, msg repo.EventMessageEVO) {
 	//u := ctx.URLParam("url")
 	//url, err := uuid.Parse(u)
-	msgText := repo2.CheckMessageText(msg)
-	msgType := repo2.CheckMessageType(msg)
+	msgText := repo.CheckMessageText(msg)
+	msgType := repo.CheckMessageType(msg)
 	t, err := utils.TimeFromTimestamp(msg.Data.Info.Timestamp)
 	fmt.Println(t, err)
-	msgData := repo2.MessageData{
+	msgData := repo.MessageData{
 		MessageId:      msg.Data.Info.ID,
 		Text:           msgText,
 		ConversationId: 0,
@@ -67,12 +67,12 @@ func prepareSSEData(ctx iris.Context, msg repo2.EventMessageEVO) {
 		MediaPath:      msg.MediaPath,
 	}
 
-	agent, err := repo2.GetAgentByMessage(msg.Data.Info.ID)
+	agent, err := repo.GetAgentByMessage(msg.Data.Info.ID)
 	if err != nil {
 		ctx.StopWithStatus(iris.StatusInternalServerError)
 		return
 	}
-	conversation, err := repo2.GetConversationByMessage(msg.Data.Info.ID)
+	conversation, err := repo.GetConversationByMessage(msg.Data.Info.ID)
 	if err != nil {
 		ctx.StopWithStatus(iris.StatusInternalServerError)
 		return
@@ -83,7 +83,7 @@ func prepareSSEData(ctx iris.Context, msg repo2.EventMessageEVO) {
 		msgData.QuotedId = msg.Data.Message.TXT.ContextInfo.QuotedMessageID
 	}
 	if msgType == "image" || msgType == "video" || msgType == "audio" || msgType == "document" {
-		msgData.MediaPath, err = repo2.GetMediaPathByMessage(msgData.MessageId)
+		msgData.MediaPath, err = repo.GetMediaPathByMessage(msgData.MessageId)
 		if err != nil {
 			ctx.StopWithStatus(iris.StatusInternalServerError)
 			return
