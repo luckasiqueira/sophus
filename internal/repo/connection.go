@@ -59,3 +59,22 @@ func GetConnectionByConversationURL(url uuid.UUID) (ConnectionEVO, error) {
 	fmt.Println(err)
 	return c, err
 }
+
+func GetConnectionListByCompany(companyId int) ([]ConnectionEVO, error) {
+	stmt, err := db.Prepare(`SELECT * FROM public.connections WHERE "companyId" = $1`)
+	if err != nil {
+		return []ConnectionEVO{}, err
+	}
+	defer stmt.Close()
+	connectionsList := []ConnectionEVO{}
+	rows, err := stmt.Query(companyId)
+	for rows.Next() {
+		var c ConnectionEVO
+		err = rows.Scan(&c.Id, &c.Name, &c.Number, &c.Status, &c.CompanyID, &c.QRCode, &c.CreatedAt, &c.InstanceID, &c.Webhook, &c.APIToken, &c.ConnectionKey)
+		if err != nil {
+			return []ConnectionEVO{}, err
+		}
+		connectionsList = append(connectionsList, c)
+	}
+	return connectionsList, nil
+}
