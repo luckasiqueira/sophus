@@ -12,16 +12,25 @@ import (
 var secret = []byte(env.Backend["SALT_JWT"])
 
 func AuthLogin(ctx iris.Context) {
-	token := ctx.GetCookie("token")
-	if token == "" {
+	if !IsValidJWT(ctx) {
 		ctx.Redirect("/login", iris.StatusPermanentRedirect)
 		return
 	}
+	ctx.Next()
+}
+
+func IsValidJWT(ctx iris.Context) bool {
+	token := ctx.GetCookie("token")
+	if token == "" {
+		//ctx.Redirect("/login", iris.StatusPermanentRedirect)
+		return false
+	}
 	_, err := jwt.Verify(jwt.HS256, secret, []byte(token))
 	if err != nil {
-		ctx.Redirect("/login", iris.StatusPermanentRedirect)
+		//ctx.Redirect("/login", iris.StatusPermanentRedirect)
+		return false
 	}
-	ctx.Next()
+	return true
 }
 
 func AgentIdentifier(ctx iris.Context) (repo.Agent, error) {

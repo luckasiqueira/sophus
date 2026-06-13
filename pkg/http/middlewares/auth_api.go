@@ -11,6 +11,10 @@ func AuthAPI(ctx iris.Context) {
 		ctx.Next()
 		return
 	}
+	if IsValidJWT(ctx) {
+		ctx.Next()
+		return
+	}
 	ctx.StopWithStatus(iris.StatusUnauthorized)
 }
 
