@@ -127,7 +127,7 @@ func sendMessageAPI(ctx iris.Context) (repo.ConnectionEVO, repo.TextMessageEVO, 
 	if err != nil {
 		return repo.ConnectionEVO{}, repo.TextMessageEVO{}, err
 	}
-	connection, err := repo.GetConnectionByToken(apiToken)
+	connection, err := repo.GetConnectionByAPI(apiToken)
 	if err != nil {
 		return repo.ConnectionEVO{}, repo.TextMessageEVO{}, err
 	}
