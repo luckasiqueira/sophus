@@ -47,5 +47,6 @@ func AgentIdentifier(ctx iris.Context) (repo.Agent, error) {
 
 	var agent repo.Agent
 	err = jwtToken.Claims(&agent)
+	agent, err = repo.GetAgentByEmail(agent.Email)
 	return agent, err //repo.GetAgentByEmail(agent.Email)
 }
