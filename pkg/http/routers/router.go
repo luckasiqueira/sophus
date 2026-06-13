@@ -1,92 +1,33 @@
 package routers
 
 import (
-	"fmt"
-	repo2 "sophus/internal/repo"
-	controllers2 "sophus/pkg/http/controllers"
-	middlewares2 "sophus/pkg/http/middlewares"
-	"sophus/web"
+	"sophus/pkg/http/controllers"
+	"sophus/pkg/http/middlewares"
 
-	"github.com/google/uuid"
 	"github.com/kataras/iris/v12"
 )
 
 func Router(r *iris.Application) {
-	r.Get("/login", controllers2.Login)
-	r.Post("/dologin", controllers2.DoLogin)
+	r.Get("/login", controllers.Login)
+	r.Post("/dologin", controllers.DoLogin)
 
-	r.Post("/webhook/{webhookId:uuid}", controllers2.Webhook)
+	r.Post("/webhook/{webhookId:uuid}", controllers.Webhook)
 
 	api := r.Party("/api")
-	api.Use(middlewares2.AuthAPI)
+	api.Use(middlewares.AuthAPI)
 	{
 		message := api.Party("/message")
 		{
-			message.Post("/send", controllers2.SendMessage)
+			message.Post("/send", controllers.SendMessage)
 		}
 
 	}
 
-	r.Use(middlewares2.AuthLogin)
-	r.Get("/sse", middlewares2.SSEHandler)
-	r.Get("/messages", func(ctx iris.Context) {
-		agent, err := middlewares2.AgentIdentifier(ctx)
-		if err != nil {
-			ctx.StopWithStatus(iris.StatusUnauthorized)
-		}
-		conversations, err := repo2.GetConversationsByAgent(agent)
-		if err != nil {
-			ctx.StopWithStatus(iris.StatusInternalServerError)
-		}
-		ctx.RenderComponent(web.Messages(conversations))
-	})
+	r.Use(middlewares.AuthLogin)
+	r.Get("/sse", middlewares.SSEHandler)
+	r.Get("/messages", controllers.Messages)
 
-	r.Get("/messages/{url:uuid}", func(ctx iris.Context) {
-		agent, err := middlewares2.AgentIdentifier(ctx)
-		if err != nil {
-			ctx.StopWithStatus(iris.StatusUnauthorized)
-		}
-		conversations, err := repo2.GetConversationsByAgent(agent)
-		if err != nil {
-			ctx.StopWithStatus(iris.StatusInternalServerError)
-		}
-		// NOTE: validate if agent.CompanyId can open this
-		u := ctx.Params().Get("url")
-		url, err := uuid.Parse(u)
-		if err != nil {
-			ctx.StopWithStatus(iris.StatusBadRequest)
-		}
-		messages, err := repo2.GetMessagesByConversationURL(url)
-		if err != nil {
-			fmt.Println(err)
-			ctx.StopWithStatus(iris.StatusBadRequest)
-		}
-		if len(messages) == 0 {
-			ctx.StopWithStatus(iris.StatusNoContent)
-			return
-		}
-
-		activeConversation := repo2.Conversation{}
-		agentCanSeeThisConversation := false
-		for _, c := range conversations {
-			if c.URL.String() == u {
-				agentCanSeeThisConversation = true
-				activeConversation = c
-			}
-		}
-
-		if !agentCanSeeThisConversation {
-			// NOTE: render a page to says that user has no permissions to see that conversation
-			fmt.Println(err, agent)
-			ctx.StopWithStatus(iris.StatusUnauthorized)
-			return
-		}
-		if err != nil {
-			ctx.StopWithStatus(iris.StatusBadRequest)
-		}
-		ctx.RenderComponent(web.MessageSingle(activeConversation, agent.CompanyId, conversations, messages))
-
-	})
+	r.Get("/messages/{url:uuid}", controllers.MessageOpen)
 
 	//instance := r.Party("/instance")
 	//instance.Use(middlewares.IsValidAPIToken)
