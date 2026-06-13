@@ -1,7 +1,6 @@
 package controllers
 
 import (
-	"fmt"
 	"sophus/internal/repo"
 	"sophus/utils/env"
 	"sophus/web"
@@ -19,26 +18,25 @@ func Login(ctx iris.Context) {
 func DoLogin(ctx iris.Context) {
 	agent, status, err := checkCredentials(ctx)
 	if err != nil {
-		fmt.Println(err)
 		ctx.StopWithStatus(status)
 		return
 	}
 	type AgentJWT struct {
-		Id        int    `json:"id"`
-		Name      string `json:"name"`
-		Email     string `json:"email"`
-		Role      string `json:"role"`
-		CompanyId int    `json:"companyId"`
-		IsActive  bool   `json:"isActive"`
+		Id    int    `json:"id"`
+		Name  string `json:"name"`
+		Email string `json:"email"`
+		//Role      string `json:"role"`
+		//CompanyId int    `json:"companyId"`
+		IsActive bool `json:"isActive"`
 	}
 	signer := jwt.NewSigner(jwt.HS256, []byte(env.Backend["SALT_JWT"]), (7*24)*time.Hour)
 	token, err := signer.Sign(AgentJWT{
-		Id:        agent.Id,
-		Name:      agent.Name,
-		Email:     agent.Email,
-		Role:      agent.Role,
-		CompanyId: agent.CompanyId,
-		IsActive:  agent.IsActive,
+		Id:    agent.Id,
+		Name:  agent.Name,
+		Email: agent.Email,
+		//Role:      agent.Role,
+		//CompanyId: agent.CompanyId,
+		IsActive: agent.IsActive,
 	})
 	if err != nil {
 		ctx.JSON(iris.Map{"message": "Login inválido"})
