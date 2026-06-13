@@ -42,7 +42,7 @@ func AgentIdentifier(ctx iris.Context) (repo.Agent, error) {
 	jwtToken, err := jwt.Verify(jwt.HS256, secret, []byte(token))
 	if err != nil {
 		ctx.StopWithStatus(iris.StatusUnauthorized)
-		return repo.Agent{}, errors.New("token is empty")
+		return repo.Agent{}, errors.New("error decoding token")
 	}
 
 	var agent repo.Agent
