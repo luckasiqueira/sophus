@@ -1,6 +1,7 @@
 package repo
 
 import (
+	"fmt"
 	"time"
 
 	"github.com/google/uuid"
@@ -39,5 +40,22 @@ func GetConnectionByWebhook(webhookId string) (ConnectionEVO, error) {
 	defer stmt.Close()
 	var c ConnectionEVO
 	err = stmt.QueryRow(webhookId).Scan(&c.Id, &c.Status, &c.InstanceID, &c.ConnectionKey, &c.CompanyID)
+	return c, err
+}
+
+func GetConnectionByConversationURL(url uuid.UUID) (ConnectionEVO, error) {
+	stmt, err := db.Prepare(`SELECT c."id", c."status", c."instanceId", c."connectionKey", c."companyId"
+		FROM conversations cv
+		INNER JOIN connections c
+			ON c.id = cv."connectionId"
+		WHERE cv."url" = '534f83a7-5368-46fc-927a-d39e2b3072aa'`)
+	if err != nil {
+		fmt.Println(err)
+		return ConnectionEVO{}, err
+	}
+	defer stmt.Close()
+	var c ConnectionEVO
+	err = stmt.QueryRow().Scan(&c.Id, &c.Status, &c.InstanceID, &c.ConnectionKey, &c.CompanyID)
+	fmt.Println(err)
 	return c, err
 }
