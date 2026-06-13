@@ -7,6 +7,8 @@ import (
 	"io"
 	"sophus/internal/repo"
 	"sophus/pkg/http/middlewares"
+	"sophus/utils"
+	"sophus/web/components"
 	"strings"
 
 	"github.com/google/uuid"
@@ -20,12 +22,13 @@ func SendMessage(ctx iris.Context) {
 	if ctx.GetHeader("apitoken") != "" {
 		connection, msg, err = sendMessageAPI(ctx)
 	}
+	var serveHX bool
 	if middlewares.IsValidJWT(ctx) {
+		serveHX = true
 		connection, msg, err = sendMessageJWT(ctx)
 	}
 	status, fullJson, err := msg.Send(connection.ConnectionKey.String()) // coletar a resposta, pra puxar o data e o messageid e salvar corretamente no banco de dados
 	if err != nil || status != 200 {
-		fmt.Println(err, string(fullJson))
 		ctx.StopWithStatus(status)
 		return
 	}
@@ -34,6 +37,24 @@ func SendMessage(ctx iris.Context) {
 	if err != nil {
 		ctx.StopWithStatus(iris.StatusInternalServerError)
 		return
+	}
+	if serveHX {
+		var jsonMsg repo.EventMessageEVO
+		err = json.Unmarshal(fullJson, &jsonMsg)
+		fmt.Println("\n\n", jsonMsg)
+		t, err := utils.TimeFromTimestamp(jsonMsg.Data.Info.Timestamp)
+		if err != nil {
+			ctx.StopWithStatus(iris.StatusInternalServerError)
+		}
+		m := repo.MessageData{
+			Text:     msg.Text,
+			QuotedId: jsonMsg.Data.Message.TXT.ContextInfo.QuotedMessage.Text,
+			//MediaType:      "",
+			CreatedAt: t,
+			UpdatedAt: t,
+			MediaPath: "",
+		}
+		defer ctx.RenderComponent(components.MessageSent(m, connection.CompanyID))
 	}
 }
 
@@ -80,7 +101,6 @@ func sendMessageJWT(ctx iris.Context) (repo.ConnectionEVO, repo.TextMessageEVO, 
 		return repo.ConnectionEVO{}, repo.TextMessageEVO{}, err
 	}
 	msg.Text = ctx.FormValue("message")
-	fmt.Println(conversation)
 	msg.Number = contact.Number
 	return connection, msg, nil
 }
