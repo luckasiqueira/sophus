@@ -79,10 +79,10 @@ func prepareSSEData(ctx iris.Context, msg repo2.EventMessageEVO) {
 	}
 
 	var component templ.Component
-	switch msgType {
-	case "text":
+	if msgType == "text" {
 		msgData.QuotedId = msg.Data.Message.TXT.ContextInfo.QuotedMessageID
-	case "image":
+	}
+	if msgType == "image" || msgType == "video" || msgType == "audio" || msgType == "document" {
 		msgData.MediaPath, err = repo2.GetMediaPathByMessage(msgData.MessageId)
 		if err != nil {
 			ctx.StopWithStatus(iris.StatusInternalServerError)
