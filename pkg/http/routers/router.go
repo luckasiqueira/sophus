@@ -24,15 +24,16 @@ func Router(r *iris.Application) {
 	}
 
 	r.Use(middlewares.AuthLogin)
-	r.Get("/sse", middlewares.SSEHandler)
-	r.Get("/messages", controllers.Messages)
 
+	r.Get("/sse", middlewares.SSEHandler)
+
+	r.Get("/messages", controllers.Messages)
 	r.Get("/messages/{url:uuid}", controllers.MessageOpen)
 
-	//instance := r.Party("/instance")
-	//instance.Use(middlewares.IsValidAPIToken)
-	//{
-	//	instance.Post("/create", controllers.NewInstance)
-	//}
+	instance := r.Party("/instances")
+	{
+		instance.Get("/list", controllers.Instances)
+		instance.Post("/create", controllers.NewInstance)
+	}
 
 }
