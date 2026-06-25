@@ -1,4 +1,4 @@
-package repo
+package instances
 
 import "github.com/google/uuid"
 
