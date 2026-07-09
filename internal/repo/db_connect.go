@@ -11,6 +11,7 @@ import (
 )
 
 var db = connect()
+var DB = connect()
 
 func connect() *sql.DB {
 	dsn := fmt.Sprintf("postgres://%s:%s@%s:%s/%s?sslmode=disable",
