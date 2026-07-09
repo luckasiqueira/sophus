@@ -32,7 +32,8 @@ func Router(r *iris.Application) {
 
 	instance := r.Party("/instances")
 	{
-		instance.Get("/list", controllers.Instances)
+		instance.Get("/", controllers.Instances)
+		instance.Get("/create", controllers.InstancePopup)
 		instance.Post("/create", controllers.NewInstance)
 	}
 

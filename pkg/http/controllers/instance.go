@@ -1,15 +1,13 @@
 package controllers
 
 import (
-	"encoding/json"
 	"fmt"
-	"io"
 	"net/http"
 	"sophus/internal/repo"
+	"sophus/internal/repo/instances"
 	"sophus/pkg/http/middlewares"
-	"sophus/pkg/http/requests"
-	"sophus/utils/env"
 	"sophus/web"
+	"strings"
 
 	"github.com/google/uuid"
 	"github.com/kataras/iris/v12"
@@ -31,37 +29,36 @@ func Instances(ctx iris.Context) {
 	ctx.RenderComponent(web.Instances(connectionsList))
 }
 
+func InstancePopup(ctx iris.Context) {
+	ctx.RenderComponent(web.InstanceCreatePopup())
+}
+
 func NewInstance(ctx iris.Context) {
-	body, err := io.ReadAll(ctx.Request().Body)
-	if err != nil {
-		ctx.StopWithStatus(iris.StatusBadRequest)
+	if ctx.GetHeader("apitoken") == "" && !middlewares.IsValidJWT(ctx) {
+		ctx.StopWithStatus(iris.StatusUnauthorized)
+		return
 	}
-	instance := repo.InstanceEVO{}
-	err = json.Unmarshal(body, &instance)
-	if err != nil {
-		ctx.StopWithStatus(iris.StatusBadRequest)
+
+	i := instances.InstanceEVO{
+		WebhookURL:    uuid.NewString(),
+		ConnectionKey: uuid.New(),
 	}
-	instance.InstanceID = uuid.New()
-	i := struct {
-		Name  string
-		Token uuid.UUID
-	}{
-		Name:  instance.Name,
-		Token: instance.InstanceID,
+	if ctx.GetHeader("apitoken") != "" {
+		i.Type = "meta"
 	}
-	r := requests.Request{
-		URL:     repo.ApiBaseURL + "/instance/create",
-		Payload: i,
-		Headers: map[string]string{
-			"Content-Type": "application/json",
-			"apikey":       env.Backend["WPP_API_GLOBAL_TOKEN"],
-		},
-		Method: "POST",
+	var serveHX bool
+	if middlewares.IsValidJWT(ctx) {
+		serveHX = true
+		agent, err := middlewares.AgentIdentifier(ctx)
+		if err != nil {
+
+		}
+		fmt.Println(agent, serveHX)
+
+		i.Name = ctx.FormValue("connection_name")
+		i.Type = ctx.FormValue("connection_type")
+		i.Token = strings.ReplaceAll(uuid.NewString(), "-", "")
 	}
-	err = r.Do()
-	if err != nil {
-		fmt.Println(err)
-		ctx.StopWithStatus(iris.StatusBadRequest)
-	}
-	fmt.Println(string(r.Response.Body))
+	i.Create()
+	fmt.Println(i)
 }
