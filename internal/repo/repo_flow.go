@@ -135,13 +135,36 @@ func GetActiveFlowsForConnection(companyId, connectionId int) ([]ChatbotFlow, er
 	return flows, nil
 }
 
-func CreateFlowExecution(e FlowExecution) (int, error) {
+func StartFlowExecution(e FlowExecution) (int, bool, error) {
+	tx, err := db.Begin()
+	if err != nil {
+		return 0, false, err
+	}
+	defer tx.Rollback()
+
+	result, err := tx.Exec(`UPDATE conversations SET status = $1, "updatedAt" = now()
+		WHERE id = $2 AND status = $3`, ConversationStatusRunning, e.ConversationId, ConversationStatusOpen)
+	if err != nil {
+		return 0, false, err
+	}
+	rows, err := result.RowsAffected()
+	if err != nil || rows != 1 {
+		return 0, false, err
+	}
 	if len(e.Context) == 0 {
 		e.Context = json.RawMessage(`{}`)
 	}
-	query := `INSERT INTO flow_executions ("flowId", "conversationId", "companyId", status, context)
-		VALUES ($1, $2, $3, $4, $5) RETURNING id`
-	return insertInt(query, e.FlowId, e.ConversationId, e.CompanyId, e.Status, e.Context)
+	var id int
+	err = tx.QueryRow(`INSERT INTO flow_executions ("flowId", "conversationId", "companyId", status, context)
+		VALUES ($1, $2, $3, $4, $5) RETURNING id`,
+		e.FlowId, e.ConversationId, e.CompanyId, e.Status, e.Context).Scan(&id)
+	if err != nil {
+		return 0, false, err
+	}
+	if err := tx.Commit(); err != nil {
+		return 0, false, err
+	}
+	return id, true, nil
 }
 
 func GetFlowExecutionById(id int) (FlowExecution, error) {
@@ -174,6 +197,19 @@ func GetWaitingExecutionByConversation(conversationId int) (FlowExecution, error
 	return e, err
 }
 
+func GetActiveFlowExecutionByConversation(conversationId int) (FlowExecution, error) {
+	var e FlowExecution
+	err := db.QueryRow(`SELECT id, "flowId", "conversationId", "companyId", status,
+		"currentNodeId", context, "errorMessage", "createdAt", "updatedAt", "completedAt"
+		FROM flow_executions
+		WHERE "conversationId" = $1 AND status IN ('running', 'waiting')
+		ORDER BY id DESC LIMIT 1`, conversationId).Scan(
+		&e.Id, &e.FlowId, &e.ConversationId, &e.CompanyId, &e.Status,
+		&e.CurrentNodeId, &e.Context, &e.ErrorMessage, &e.CreatedAt, &e.UpdatedAt, &e.CompletedAt,
+	)
+	return e, err
+}
+
 func ClaimFlowExecution(id int) (bool, error) {
 	result, err := db.Exec(`UPDATE flow_executions SET status = 'running', "updatedAt" = now()
 		WHERE id = $1 AND status = 'waiting'`, id)
@@ -196,6 +232,27 @@ func UpdateFlowExecution(e FlowExecution) error {
 	return err
 }
 
+func FinalizeFlowExecution(e FlowExecution) error {
+	tx, err := db.Begin()
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+
+	_, err = tx.Exec(`UPDATE flow_executions SET status = $1, "currentNodeId" = $2, context = $3,
+		"errorMessage" = $4, "updatedAt" = now(), "completedAt" = $5
+		WHERE id = $6`, e.Status, e.CurrentNodeId, e.Context, e.ErrorMessage, e.CompletedAt, e.Id)
+	if err != nil {
+		return err
+	}
+	_, err = tx.Exec(`UPDATE conversations SET status = $1, "updatedAt" = now()
+		WHERE id = $2 AND status = $3`, ConversationStatusOpen, e.ConversationId, ConversationStatusRunning)
+	if err != nil {
+		return err
+	}
+	return tx.Commit()
+}
+
 func UpdateConversationStatus(conversationId int, status string) error {
 	stmt, err := db.Prepare(`UPDATE conversations SET status = $1, "updatedAt" = now() WHERE id = $2`)
 	if err != nil {
@@ -204,6 +261,16 @@ func UpdateConversationStatus(conversationId int, status string) error {
 	defer stmt.Close()
 	_, err = stmt.Exec(status, conversationId)
 	return err
+}
+
+func ClaimConversationForFlow(conversationId int) (bool, error) {
+	result, err := db.Exec(`UPDATE conversations SET status = $1, "updatedAt" = now()
+		WHERE id = $2 AND status = $3`, ConversationStatusRunning, conversationId, ConversationStatusOpen)
+	if err != nil {
+		return false, err
+	}
+	rows, err := result.RowsAffected()
+	return rows == 1, err
 }
 
 func AssignConversationAgent(conversationId, agentId int) error {
@@ -230,7 +297,7 @@ func GetConversationById(id int) (Conversation, error) {
 
 func GetConnectionById(id int) (ConnectionEVO, error) {
 	stmt, err := db.Prepare(`SELECT id, name, number, status, "companyId", COALESCE(qrcode,''), "createdAt",
-		"instanceId", webhook, "apiToken", "connectionKey"
+		"instanceId", webhook, COALESCE("apiToken", ''), "connectionKey"
 		FROM connections WHERE id = $1`)
 	if err != nil {
 		return ConnectionEVO{}, err

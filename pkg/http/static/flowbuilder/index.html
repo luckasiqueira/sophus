@@ -925,7 +925,7 @@ function renderFieldsFor(node) {
           '<option value="">Selecione</option>' +
           '<option value="open" ' + (d.status==='open'?'selected':'') + '>Aberta</option>' +
           '<option value="pending" ' + (d.status==='pending'?'selected':'') + '>Pendente</option>' +
-          '<option value="resolved" ' + (d.status==='resolved'?'selected':'') + '>Resolvida</option></select>');
+          '<option value="closed" ' + (d.status==='closed'?'selected':'') + '>Fechada</option></select>');
       break;
     case 'assign':
       html += field('ID do agente', numberInput(d.assignId, 'assignId'), 'Atribui a conversa a esse agente (ID numérico).');

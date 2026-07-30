@@ -37,7 +37,6 @@ func MessageOpen(ctx iris.Context) {
 	if err != nil {
 		ctx.StopWithStatus(iris.StatusInternalServerError)
 	}
-	// NOTE: validate if agent.CompanyId can open this
 	u := ctx.Params().Get("url")
 	url, err := uuid.Parse(u)
 	if err != nil {
@@ -91,7 +90,7 @@ func SendMessage(ctx iris.Context) {
 		serveHX = true
 		connection, msg, err = sendMessageJWT(ctx)
 	}
-	status, fullJson, err := msg.Send(connection.ConnectionKey.String()) // coletar a resposta, pra puxar o data e o messageid e salvar corretamente no banco de dados
+	status, fullJson, err := msg.Send(connection.EvolutionAPIKey()) // coletar a resposta, pra puxar o data e o messageid e salvar corretamente no banco de dados
 	if err != nil || status != 200 {
 		ctx.StopWithStatus(status)
 		return

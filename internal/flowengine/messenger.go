@@ -45,7 +45,7 @@ func (m *Messenger) SendText(conversation repo.Conversation, message string) err
 		MessageBaseEVO: repo.MessageBaseEVO{Number: contact.Number},
 		Text:           message,
 	}
-	status, _, err := msg.Send(m.Connection.ConnectionKey.String())
+	status, _, err := msg.Send(m.Connection.EvolutionAPIKey())
 	if err != nil {
 		return err
 	}
@@ -78,7 +78,7 @@ func (m *Messenger) SendMedia(conversation repo.Conversation, mediaType, mediaUR
 		Payload: payload,
 		Headers: map[string]string{
 			"Content-Type": "application/json",
-			"apikey":       m.Connection.ConnectionKey.String(),
+			"apikey":       m.Connection.EvolutionAPIKey(),
 		},
 		Response: requests.Response{},
 	}
@@ -152,7 +152,7 @@ func (m *Messenger) SendMenu(conversation repo.Conversation, data map[string]int
 		Payload: payload,
 		Headers: map[string]string{
 			"Content-Type": "application/json",
-			"apikey":       m.Connection.ConnectionKey.String(),
+			"apikey":       m.Connection.EvolutionAPIKey(),
 		},
 		Response: requests.Response{},
 	}

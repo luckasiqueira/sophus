@@ -25,7 +25,7 @@ func Router(r *iris.Application) {
 
 	r.Use(middlewares.AuthLogin)
 
-	r.Get("/sse", middlewares.SSEHandler)
+	r.Get("/sse", middlewares.SSEMessages)
 
 	r.Get("/messages", controllers.Messages)
 	r.Get("/messages/{url:uuid}", controllers.MessageOpen)
@@ -55,6 +55,7 @@ func Router(r *iris.Application) {
 		instance.Get("/", controllers.Instances)
 		instance.Get("/create", controllers.InstancePopup)
 		instance.Post("/create", controllers.NewInstance)
+		instance.Get("/{id:int}/qrcode/events", middlewares.SSEQRCode)
 	}
 
 }

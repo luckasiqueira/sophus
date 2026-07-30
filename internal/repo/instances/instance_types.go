@@ -2,6 +2,7 @@ package instances
 
 import (
 	"encoding/json"
+	"fmt"
 	"sophus/internal/repo"
 	"sophus/pkg/http/requests"
 	"sophus/utils/env"
@@ -28,12 +29,15 @@ type InstanceEvoResponse struct {
 	Message string `json:"message"`
 }
 
-func (i InstanceEVO) Create() error {
+func (i *InstanceEVO) Create() error {
 	r := requests.Request{
 		URL: repo.ApiBaseURL + "/instance/create",
 		Payload: map[string]any{
-			"name":  i.Name,
-			"token": i.APIToken,
+			"name":          i.Name,
+			"token":         i.APIToken,
+			"instanceId":    i.InstanceID.String(),
+			"webhook":       i.WebhookURL,
+			"webhookEvents": []string{"QRCODE", "CONNECTION", "MESSAGE", "BUTTON_CLICK"},
 		},
 		Headers: map[string]string{
 			"Content-Type": "application/json",
@@ -46,10 +50,43 @@ func (i InstanceEVO) Create() error {
 		return err
 	}
 	var response InstanceEvoResponse
-	err = json.Unmarshal(r.Response.Body, &response)
-	i.ConnectionKey = uuid.MustParse(response.Data.Token)
+	if err := json.Unmarshal(r.Response.Body, &response); err != nil {
+		return err
+	}
+	if response.Data.ID != "" {
+		instanceID, err := uuid.Parse(response.Data.ID)
+		if err != nil {
+			return fmt.Errorf("invalid Evolution GO instance ID: %w", err)
+		}
+		i.InstanceID = instanceID
+	}
+	if response.Data.Token != "" {
+		connectionKey, err := uuid.Parse(response.Data.Token)
+		if err != nil {
+			return fmt.Errorf("invalid Evolution GO instance token: %w", err)
+		}
+		i.ConnectionKey = connectionKey
+		i.APIToken = response.Data.Token
+	}
 
 	return nil
+}
+
+func (i *InstanceEVO) Connect() error {
+	r := requests.Request{
+		URL: repo.ApiBaseURL + "/instance/connect",
+		Payload: map[string]any{
+			"webhookUrl": i.WebhookURL,
+			"subscribe":  []string{"QRCODE", "CONNECTION", "MESSAGE", "BUTTON_CLICK"},
+			"immediate":  true,
+		},
+		Headers: map[string]string{
+			"Content-Type": "application/json",
+			"apikey":       i.APIToken,
+		},
+		Method: "POST",
+	}
+	return r.Do()
 }
 
 //stmt, err := repo.DB.Prepare("RETURNING id;")

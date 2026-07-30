@@ -3,6 +3,7 @@ package requests
 import (
 	"bytes"
 	"encoding/json"
+	"fmt"
 	"io"
 	"net/http"
 )
@@ -39,8 +40,8 @@ func (r *Request) Do() error {
 	if err != nil {
 		return err
 	}
-	if r.Response.StatusCode != 200 {
-		return err
+	if r.Response.StatusCode < http.StatusOK || r.Response.StatusCode >= http.StatusMultipleChoices {
+		return fmt.Errorf("request failed with status %d: %s", r.Response.StatusCode, string(r.Response.Body))
 	}
 	return nil
 }

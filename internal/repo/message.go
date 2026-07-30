@@ -73,7 +73,7 @@ func (msg TextMessageEVO) Send(connectionKey string) (int, []byte, error) {
 }
 
 func saveMessageEvo(msg EventMessageEVO, fullJson []byte, contact Contact, connection ConnectionEVO) error {
-	conversationId, err := setConversation(connection.Id, contact)
+	conversationId, err := setConversation(connection.Id, contact, !msg.Data.Info.IsFromMe)
 	if err != nil {
 		return err
 	}

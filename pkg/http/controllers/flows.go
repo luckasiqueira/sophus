@@ -202,6 +202,10 @@ func ExecuteFlowTest(ctx iris.Context) {
 		ctx.StopWithStatus(iris.StatusForbidden)
 		return
 	}
+	if conversation.Status != repo.ConversationStatusOpen {
+		ctx.StopWithJSON(iris.StatusConflict, iris.Map{"error": "a conversa precisa estar aberta para iniciar o flow"})
+		return
+	}
 	engine := flowengine.NewEngine(connection)
 	go func() {
 		_ = engine.ExecuteFlow(id, body.ConversationId, agent.CompanyId, body.Context)

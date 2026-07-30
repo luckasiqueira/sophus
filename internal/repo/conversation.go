@@ -1,10 +1,16 @@
 package repo
 
 import (
-	"strings"
+	"database/sql"
 	"time"
 
 	"github.com/google/uuid"
+)
+
+const (
+	ConversationStatusOpen    = "open"
+	ConversationStatusRunning = "running"
+	ConversationStatusClosed  = "closed"
 )
 
 type Conversation struct {
@@ -48,10 +54,9 @@ func GetOpenConversationByContact(connectionID int, number, jid string) (Convers
 	stmt, err := db.Prepare(`SELECT c.id, c.status, c."contactId", c."connectionId", c."agentId", c.url, c."createdAt", c."updatedAt"
 		FROM conversations c
 		INNER JOIN contacts ct ON ct.id = c."contactId"
-		INNER JOIN flow_executions fe ON fe."conversationId" = c.id AND fe.status = 'waiting'
 		WHERE c."connectionId" = $1
 		AND (ct.number = $2 OR ct.jid = $3 OR ct.lid = $3)
-		ORDER BY fe.id DESC LIMIT 1`)
+		ORDER BY c.id DESC LIMIT 1`)
 	if err != nil {
 		return conversation, err
 	}
@@ -151,23 +156,27 @@ VALUES (DEFAULT, $1, $2, $3, $4, $5, $6, $7) RETURNING id;`)
 	return conversationId, nil
 }
 
-func setConversation(connectionId int, contact Contact) (int, error) {
-	conversationId, err := checkExistentConversation(connectionId, contact)
+func setConversation(connectionId int, contact Contact, reopenClosed bool) (int, error) {
+	conversationId, err := checkExistentConversation(connectionId, contact, reopenClosed)
 	if err != nil {
 		return 0, err
 	}
 	return conversationId, nil
 }
 
-func checkExistentConversation(connectionId int, contact Contact) (int, error) {
-	stmt, err := db.Prepare(`SELECT "id" FROM "contacts" WHERE "number" = $1 OR "lid" = $2 OR "jid" = $3`)
+func checkExistentConversation(connectionId int, contact Contact, reopenClosed bool) (int, error) {
+	stmt, err := db.Prepare(`SELECT id FROM contacts
+		WHERE "connectionId" = $1::text AND (number = $2
+			OR ($3 <> '' AND lid = $3)
+			OR ($4 <> '' AND jid = $4))
+		ORDER BY id DESC LIMIT 1`)
 	if err != nil {
 		return 0, err
 	}
 	var contactId int
-	err = stmt.QueryRow(contact.Number, contact.LID, contact.JID).Scan(&contactId)
+	err = stmt.QueryRow(connectionId, contact.Number, contact.LID, contact.JID).Scan(&contactId)
 	if err != nil {
-		if !strings.Contains(err.Error(), "no rows in result set") {
+		if err != sql.ErrNoRows {
 			return 0, err
 		}
 		contactId, err = CreateContact(contact)
@@ -176,18 +185,21 @@ func checkExistentConversation(connectionId int, contact Contact) (int, error) {
 		}
 	}
 	defer stmt.Close()
-	stmtt, err := db.Prepare(`SELECT "id" FROM "conversations" WHERE "contactId" = $1 AND "status" = 'open'`)
+	stmtt, err := db.Prepare(`SELECT id, status FROM conversations
+		WHERE "contactId" = $1 AND "connectionId" = $2
+		ORDER BY id DESC LIMIT 1`)
 	if err != nil {
 		return 0, err
 	}
 	var conversationId int
-	err = stmtt.QueryRow(contactId).Scan(&conversationId)
+	var status string
+	err = stmtt.QueryRow(contactId, connectionId).Scan(&conversationId, &status)
 	if err != nil {
-		if !strings.Contains(err.Error(), "no rows in result set") {
+		if err != sql.ErrNoRows {
 			return 0, err
 		}
 		conversation := Conversation{
-			Status: "open",
+			Status: ConversationStatusOpen,
 			Contact: Contact{
 				Id: contactId,
 			},
@@ -200,7 +212,17 @@ func checkExistentConversation(connectionId int, contact Contact) (int, error) {
 		if err != nil {
 			return 0, err
 		}
+	} else if reopenClosed && (status == ConversationStatusClosed || status == "resolved") {
+		if err := UpdateConversationStatus(conversationId, ConversationStatusOpen); err != nil {
+			return 0, err
+		}
 	}
 
 	return conversationId, nil
+}
+
+func ReopenConversation(id int) error {
+	_, err := db.Exec(`UPDATE conversations SET status = $1, "updatedAt" = now()
+		WHERE id = $2 AND status IN ($3, 'resolved')`, ConversationStatusOpen, id, ConversationStatusClosed)
+	return err
 }

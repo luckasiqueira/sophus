@@ -27,27 +27,40 @@ func NewEngine(connection repo.ConnectionEVO) *Engine {
 func (e *Engine) ExecuteFlow(flowID, conversationID, companyID int, initialContext ExecutionContext) error {
 	startTime := time.Now()
 	var execution repo.FlowExecution
+	resumeExecutionID, _ := initialContext["_resumeExecutionId"].(float64)
 
 	flow, err := repo.GetChatbotFlowById(flowID, companyID)
 	if err != nil {
-		return fmt.Errorf("flow %d não encontrado: %w", flowID, err)
+		message := fmt.Sprintf("flow %d não encontrado: %v", flowID, err)
+		if int(resumeExecutionID) > 0 {
+			return e.failExecution(int(resumeExecutionID), message)
+		}
+		return errors.New(message)
 	}
 	if !flow.IsActive {
-		log.Printf("flow %d está inativo, ignorando execução", flowID)
-		return nil
+		message := fmt.Sprintf("flow %d está inativo", flowID)
+		if int(resumeExecutionID) > 0 {
+			return e.failExecution(int(resumeExecutionID), message)
+		}
+		return errors.New(message)
 	}
 
 	flowData, err := ParseFlowData(flow.FlowData)
 	if err != nil {
+		if int(resumeExecutionID) > 0 {
+			return e.failExecution(int(resumeExecutionID), err.Error())
+		}
 		return err
 	}
 
 	conversation, err := repo.GetConversationById(conversationID)
 	if err != nil {
+		if int(resumeExecutionID) > 0 {
+			return e.failExecution(int(resumeExecutionID), err.Error())
+		}
 		return err
 	}
 
-	resumeExecutionID, _ := initialContext["_resumeExecutionId"].(float64)
 	context := cloneContext(initialContext)
 	context["_flowId"] = flowID
 
@@ -85,7 +98,7 @@ func (e *Engine) ExecuteFlow(flowID, conversationID, companyID int, initialConte
 			}
 		}
 	} else {
-		executionID, err := repo.CreateFlowExecution(repo.FlowExecution{
+		executionID, started, err := repo.StartFlowExecution(repo.FlowExecution{
 			FlowId:         flowID,
 			ConversationId: conversationID,
 			CompanyId:      companyID,
@@ -95,19 +108,25 @@ func (e *Engine) ExecuteFlow(flowID, conversationID, companyID int, initialConte
 		if err != nil {
 			return err
 		}
-		execution, _ = repo.GetFlowExecutionById(executionID)
+		if !started {
+			return nil
+		}
+		execution, err = repo.GetFlowExecutionById(executionID)
+		if err != nil {
+			return e.failExecution(executionID, err.Error())
+		}
 	}
 
 	if currentNodeID == "" {
 		startNode := findNodeByType(flowData.Nodes, NodeStart)
 		if startNode == nil {
-			return errors.New("flow não possui node start")
+			return e.failExecution(execution.Id, "flow não possui node start")
 		}
 		currentNodeID = startNode.ID
 		if int(resumeExecutionID) == 0 {
 			bhResult, err := e.checkBusinessHours(startNode, conversation)
 			if err != nil {
-				return err
+				return e.failExecution(execution.Id, err.Error())
 			}
 			if bhResult == "blocked" || bhResult == "message_sent" {
 				return e.completeExecution(execution.Id, currentNodeID, context)
@@ -123,7 +142,7 @@ func (e *Engine) ExecuteFlow(flowID, conversationID, companyID int, initialConte
 
 		currentNode := findNode(flowData.Nodes, currentNodeID)
 		if currentNode == nil {
-			return fmt.Errorf("node %s não encontrado", currentNodeID)
+			return e.failExecution(execution.Id, fmt.Sprintf("node %s não encontrado", currentNodeID))
 		}
 
 		log.Printf("processando node %s (%s)", currentNode.ID, currentNode.Type)
@@ -139,7 +158,7 @@ func (e *Engine) ExecuteFlow(flowID, conversationID, companyID int, initialConte
 		if result.WaitForResponse {
 			timeoutSeconds := intVal(currentNode.Data, "timeout")
 			if err := e.saveExecutionState(execution.Id, currentNodeID, context, "waiting"); err != nil {
-				return fmt.Errorf("não foi possível colocar a execução em espera: %w", err)
+				return e.failExecution(execution.Id, fmt.Sprintf("não foi possível colocar a execução em espera: %v", err))
 			}
 			if timeoutSeconds > 0 {
 				ScheduleTimeout(execution.Id, flowID, conversationID, companyID, timeoutSeconds)
@@ -167,7 +186,9 @@ func (e *Engine) ExecuteFlow(flowID, conversationID, companyID int, initialConte
 }
 
 func (e *Engine) processNode(executionID int, node FlowNode, ctx ExecutionContext, conversation repo.Conversation, companyID int, flowData FlowData) (ProcessResult, error) {
-	_ = e.saveExecutionState(executionID, node.ID, ctx, "running")
+	if err := e.saveExecutionState(executionID, node.ID, ctx, "running"); err != nil {
+		return ProcessResult{}, err
+	}
 
 	switch node.Type {
 	case NodeStart:
@@ -500,7 +521,7 @@ func (e *Engine) completeExecution(executionID int, currentNodeID string, ctx Ex
 	execution.CurrentNodeId = &currentNodeID
 	execution.Context = ctx.ToJSON()
 	execution.CompletedAt = &now
-	return repo.UpdateFlowExecution(execution)
+	return repo.FinalizeFlowExecution(execution)
 }
 
 func (e *Engine) failExecution(executionID int, message string) error {
@@ -512,7 +533,9 @@ func (e *Engine) failExecution(executionID int, message string) error {
 	execution.Status = "failed"
 	execution.ErrorMessage = &message
 	execution.CompletedAt = &now
-	_ = repo.UpdateFlowExecution(execution)
+	if err := repo.FinalizeFlowExecution(execution); err != nil {
+		return fmt.Errorf("%s: não foi possível persistir a falha: %w", message, err)
+	}
 	return errors.New(message)
 }
 

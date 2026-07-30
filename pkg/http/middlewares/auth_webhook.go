@@ -2,6 +2,7 @@ package middlewares
 
 import (
 	"encoding/json"
+	"errors"
 	"io"
 	repo2 "sophus/internal/repo"
 
@@ -21,9 +22,6 @@ func ValidateWebhook(ctx iris.Context) (repo2.ConnectionEVO, repo2.EventEVO, []b
 		ctx.StopWithStatus(iris.StatusInternalServerError)
 		return repo2.ConnectionEVO{}, repo2.EventEVO{}, nil, err
 	}
-	if connection.Status != "connected" {
-		ctx.StopWithStatus(iris.StatusLocked)
-	}
 	body, err := io.ReadAll(ctx.Request().Body)
 	if err != nil {
 		ctx.StopWithStatus(iris.StatusInternalServerError)
@@ -36,9 +34,12 @@ func ValidateWebhook(ctx iris.Context) (repo2.ConnectionEVO, repo2.EventEVO, []b
 		return repo2.ConnectionEVO{}, repo2.EventEVO{}, nil, err
 	}
 	if event.InstanceID != connection.InstanceID {
-		//fmt.Println(e[0].Body.InstanceToken, connection.InstanceID)
 		ctx.StopWithStatus(iris.StatusUnauthorized)
-		return repo2.ConnectionEVO{}, repo2.EventEVO{}, nil, err
+		return repo2.ConnectionEVO{}, repo2.EventEVO{}, nil, errors.New("webhook instance does not match connection")
+	}
+	if event.InstanceToken != connection.ConnectionKey {
+		ctx.StopWithStatus(iris.StatusUnauthorized)
+		return repo2.ConnectionEVO{}, repo2.EventEVO{}, nil, errors.New("webhook token does not match connection")
 	}
 	return connection, event, body, nil
 }

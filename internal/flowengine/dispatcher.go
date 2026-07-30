@@ -38,10 +38,12 @@ func ScheduleTimeout(executionID, flowID, conversationID, companyID, timeoutSeco
 				return
 			}
 			engine := NewEngine(connection)
-			_ = engine.ExecuteFlow(flowID, conversationID, companyID, ExecutionContext{
+			if err := engine.ExecuteFlow(flowID, conversationID, companyID, ExecutionContext{
 				"_resumeExecutionId": float64(executionID),
 				"_timedOut":          true,
-			})
+			}); err != nil {
+				log.Printf("erro ao processar timeout da execução %d: %v", executionID, err)
+			}
 		}()
 	})
 }
@@ -62,6 +64,15 @@ func HandleIncomingMessage(conversation repo.Conversation, connection repo.Conne
 
 	waiting, err := repo.GetWaitingExecutionByConversation(conversation.Id)
 	if err == nil && waiting.Id > 0 {
+		if conversation.Status == repo.ConversationStatusClosed {
+			return
+		}
+		if conversation.Status == repo.ConversationStatusOpen {
+			claimed, claimErr := repo.ClaimConversationForFlow(conversation.Id)
+			if claimErr != nil || !claimed {
+				return
+			}
+		}
 		CancelTimeout(waiting.Id)
 		go func() {
 			engine := NewEngine(connection)
@@ -76,6 +87,12 @@ func HandleIncomingMessage(conversation repo.Conversation, connection repo.Conne
 				log.Printf("erro ao retomar flow: %v", err)
 			}
 		}()
+		return
+	}
+	if active, activeErr := repo.GetActiveFlowExecutionByConversation(conversation.Id); activeErr == nil && active.Id > 0 {
+		return
+	}
+	if conversation.Status != repo.ConversationStatusOpen {
 		return
 	}
 
