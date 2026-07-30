@@ -55,7 +55,7 @@ func GetConnectionByConversationURL(url uuid.UUID) (ConnectionEVO, error) {
 	}
 	defer stmt.Close()
 	var c ConnectionEVO
-	err = stmt.QueryRow().Scan(&c.Id, &c.Status, &c.InstanceID, &c.ConnectionKey, &c.CompanyID)
+	err = stmt.QueryRow(url).Scan(&c.Id, &c.Status, &c.InstanceID, &c.ConnectionKey, &c.CompanyID)
 	fmt.Println(err)
 	return c, err
 }

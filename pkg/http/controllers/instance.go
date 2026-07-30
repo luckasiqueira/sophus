@@ -57,7 +57,7 @@ func NewInstance(ctx iris.Context) {
 
 		i.Name = ctx.FormValue("connection_name")
 		i.Type = ctx.FormValue("connection_type")
-		i.Token = strings.ReplaceAll(uuid.NewString(), "-", "")
+		i.APIToken = strings.ReplaceAll(uuid.NewString(), "-", "")
 	}
 	i.Create()
 	fmt.Println(i)

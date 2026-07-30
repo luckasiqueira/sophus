@@ -75,6 +75,11 @@ func MessageOpen(ctx iris.Context) {
 }
 
 func SendMessage(ctx iris.Context) {
+	if ctx.GetHeader("apitoken") == "" && !middlewares.IsValidJWT(ctx) {
+		ctx.StopWithStatus(iris.StatusUnauthorized)
+		return
+	}
+
 	connection := repo.ConnectionEVO{}
 	msg := repo.TextMessageEVO{}
 	var err error

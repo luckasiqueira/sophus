@@ -33,7 +33,7 @@ func (i InstanceEVO) Create() error {
 		URL: repo.ApiBaseURL + "/instance/create",
 		Payload: map[string]any{
 			"name":  i.Name,
-			"token": i.Token,
+			"token": i.APIToken,
 		},
 		Headers: map[string]string{
 			"Content-Type": "application/json",

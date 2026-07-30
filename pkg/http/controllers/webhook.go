@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"sophus/internal/flowengine"
 	"sophus/internal/repo"
 	"sophus/pkg/http/middlewares"
 	"sophus/pkg/http/middlewares/sse"
@@ -42,7 +43,30 @@ func Webhook(ctx iris.Context) {
 		if err != nil {
 			ctx.StopWithStatus(iris.StatusInternalServerError)
 		}
+		if !msg.Data.Info.IsFromMe && !msg.Data.Info.IsGroup {
+			conversation, convErr := repo.GetConversationByMessage(msg.Data.Info.ID)
+			if convErr == nil {
+				messageText := repo.CheckMessageText(msg)
+				flowengine.HandleIncomingMessage(conversation, connection, messageText, msg.Data.Info.PushName)
+			}
+		}
 		prepareSSEData(ctx, msg)
+	case "ButtonClick":
+		click := repo.EventButtonClickEVO{}
+		if err = json.Unmarshal(body, &click); err != nil {
+			ctx.StopWithStatus(iris.StatusBadRequest)
+			return
+		}
+		responseID := click.Data.ButtonID
+		if responseID == "" {
+			responseID = click.Data.RowID
+		}
+		if !click.Data.FromMe && responseID != "" {
+			conversation, convErr := repo.GetOpenConversationByContact(connection.Id, click.Data.Phone, click.Data.JID)
+			if convErr == nil {
+				flowengine.HandleIncomingMessage(conversation, connection, responseID, click.Data.PushName)
+			}
+		}
 	}
 
 }

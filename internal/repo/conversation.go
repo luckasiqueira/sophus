@@ -43,6 +43,32 @@ func GetConversationByMessage(message string) (Conversation, error) {
 	return conversation, err
 }
 
+func GetOpenConversationByContact(connectionID int, number, jid string) (Conversation, error) {
+	var conversation Conversation
+	stmt, err := db.Prepare(`SELECT c.id, c.status, c."contactId", c."connectionId", c."agentId", c.url, c."createdAt", c."updatedAt"
+		FROM conversations c
+		INNER JOIN contacts ct ON ct.id = c."contactId"
+		INNER JOIN flow_executions fe ON fe."conversationId" = c.id AND fe.status = 'waiting'
+		WHERE c."connectionId" = $1
+		AND (ct.number = $2 OR ct.jid = $3 OR ct.lid = $3)
+		ORDER BY fe.id DESC LIMIT 1`)
+	if err != nil {
+		return conversation, err
+	}
+	defer stmt.Close()
+	err = stmt.QueryRow(connectionID, number, jid).Scan(
+		&conversation.Id,
+		&conversation.Status,
+		&conversation.Contact.Id,
+		&conversation.ConnectionID,
+		&conversation.AgentID,
+		&conversation.URL,
+		&conversation.CreatedAt,
+		&conversation.UpdatedAt,
+	)
+	return conversation, err
+}
+
 func GetConversationByURL(url uuid.UUID) (Conversation, error) {
 	var conversation Conversation
 	stmt, err := db.Prepare(`SELECT * FROM conversations WHERE url = $1`)

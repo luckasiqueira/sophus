@@ -30,6 +30,26 @@ func Router(r *iris.Application) {
 	r.Get("/messages", controllers.Messages)
 	r.Get("/messages/{url:uuid}", controllers.MessageOpen)
 
+	flows := r.Party("/flows")
+	{
+		// HTML page (the visual builder SPA)
+		flows.Get("/", controllers.FlowBuilderPage)
+		flows.Get("/builder", controllers.FlowBuilderPage)
+
+		// JSON API consumed by that page's JS - kept under its own /api
+		// sub-path so it never collides with the page route above.
+		flowsAPI := flows.Party("/api")
+		{
+			flowsAPI.Get("/", controllers.ListFlows)
+			flowsAPI.Get("/connections", controllers.ListConnectionsForFlows)
+			flowsAPI.Get("/{id:int}", controllers.GetFlow)
+			flowsAPI.Post("/", controllers.CreateFlow)
+			flowsAPI.Put("/{id:int}", controllers.UpdateFlow)
+			flowsAPI.Delete("/{id:int}", controllers.DeleteFlow)
+			flowsAPI.Post("/{id:int}/execute", controllers.ExecuteFlowTest)
+		}
+	}
+
 	instance := r.Party("/instances")
 	{
 		instance.Get("/", controllers.Instances)

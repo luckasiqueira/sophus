@@ -21,6 +21,9 @@ func envReader() map[string]string {
 				key, value := e[0], e[1]
 				envList[key] = value
 			}
+			if len(envList) <= 1 {
+				os.Exit(1)
+			}
 			return envList
 		}
 	}

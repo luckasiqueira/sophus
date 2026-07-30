@@ -19,6 +19,23 @@ type EventQRCode struct {
 	EventEVO
 }
 
+type EventButtonClickEVO struct {
+	Data struct {
+		ButtonID   string `json:"buttonId"`
+		RowID      string `json:"rowId"`
+		ButtonText string `json:"buttonText"`
+		Type       string `json:"type"`
+		Phone      string `json:"phone"`
+		JID        string `json:"jid"`
+		PushName   string `json:"pushName"`
+		MessageID  string `json:"messageId"`
+		Chat       string `json:"chat"`
+		FromMe     bool   `json:"fromMe"`
+		Timestamp  int64  `json:"timestamp"`
+	} `json:"data"`
+	EventEVO
+}
+
 type EventMessageEVO struct {
 	Data struct {
 		Info struct {
