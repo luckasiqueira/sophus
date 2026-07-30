@@ -2,6 +2,7 @@ package middlewares
 
 import (
 	"fmt"
+	"log"
 	"net/http"
 	"strconv"
 	"strings"
@@ -48,7 +49,11 @@ func streamSSE(ctx iris.Context, hub *sse.Hub, key, event string) {
 	ctx.Header("X-Accel-Buffering", "no")
 
 	client := hub.Register(key)
-	defer hub.Unregister(client)
+	log.Printf("SSE stream opened: event=%s key=%s", event, key)
+	defer func() {
+		hub.Unregister(client)
+		log.Printf("SSE stream closed: event=%s key=%s", event, key)
+	}()
 	flusher, ok := ctx.ResponseWriter().Flusher()
 	if !ok {
 		ctx.StopWithStatus(iris.StatusInternalServerError)

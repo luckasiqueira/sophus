@@ -2,6 +2,7 @@ package controllers
 
 import (
 	"fmt"
+	"log"
 	"net/http"
 	"net/url"
 	"sophus/internal/repo"
@@ -89,27 +90,68 @@ func NewInstance(ctx iris.Context) {
 		ConnectionKey: i.ConnectionKey,
 	})
 	if err != nil {
+		log.Printf("failed to persist new connection %q: %v", i.Name, err)
 		ctx.StopWithJSON(iris.StatusInternalServerError, iris.Map{"error": err.Error()})
 		return
 	}
+	log.Printf("creating Evolution GO instance: connection=%d name=%q webhook=%s", connectionID, i.Name, i.WebhookURL)
 	if err := i.Create(); err != nil {
+		log.Printf("failed to create Evolution GO instance for connection %d: %v", connectionID, err)
 		_ = repo.UpdateConnectionStatus(connectionID, "error")
 		ctx.StopWithJSON(iris.StatusBadGateway, iris.Map{"error": err.Error()})
 		return
 	}
 	if err := repo.UpdateConnectionCredentials(connectionID, i.InstanceID, i.ConnectionKey); err != nil {
+		log.Printf("failed to update Evolution GO credentials for connection %d: %v", connectionID, err)
 		_ = repo.UpdateConnectionStatus(connectionID, "error")
 		ctx.StopWithJSON(iris.StatusInternalServerError, iris.Map{"error": err.Error()})
 		return
 	}
 	if err := repo.UpdateConnectionStatus(connectionID, "connecting"); err != nil {
+		log.Printf("failed to mark connection %d as connecting: %v", connectionID, err)
 		ctx.StopWithJSON(iris.StatusInternalServerError, iris.Map{"error": err.Error()})
 		return
 	}
 	if err := i.Connect(); err != nil {
+		log.Printf("failed to configure Evolution GO webhook for connection %d: %v", connectionID, err)
 		_ = repo.UpdateConnectionStatus(connectionID, "error")
 		ctx.StopWithJSON(iris.StatusBadGateway, iris.Map{"error": err.Error()})
 		return
 	}
+	log.Printf("Evolution GO instance connected to webhook configuration: connection=%d", connectionID)
+	go awaitInitialQRCode(connectionID, i)
 	ctx.RenderComponent(web.InstanceQRCodePanel(connectionID, i.Name))
+}
+
+func awaitInitialQRCode(connectionID int, instance instances.InstanceEVO) {
+	publishedCount := 0
+	for attempt := 1; attempt <= 90; attempt++ {
+		connection, err := repo.GetConnectionById(connectionID)
+		if err == nil && connection.Status == "connected" {
+			return
+		}
+		if err == nil && (connection.Status == "disconnected" || connection.Status == "error") {
+			return
+		}
+		qrcode, err := instance.GetQRCode()
+		if err == nil && qrcode.QRCode != connection.QRCode {
+			publishedCount++
+			if qrcode.Count == 0 {
+				qrcode.Count = publishedCount
+			}
+			published, publishErr := publishQRCode(connectionID, qrcode.Code, qrcode.QRCode, qrcode.Count, qrcode.MaxCount)
+			if publishErr != nil {
+				log.Printf("failed to publish polled QR Code for connection %d: %v", connectionID, publishErr)
+				return
+			}
+			if published {
+				log.Printf("QR Code obtained from Evolution GO fallback: connection=%d attempt=%d", connectionID, attempt)
+			}
+		}
+		if attempt == 1 || attempt%5 == 0 {
+			log.Printf("waiting for Evolution GO QR Code: connection=%d attempt=%d error=%v", connectionID, attempt, err)
+		}
+		time.Sleep(2 * time.Second)
+	}
+	log.Printf("Evolution GO QR polling ended without a connected session: connection=%d", connectionID)
 }

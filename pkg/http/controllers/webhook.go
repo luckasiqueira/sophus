@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"log"
 	"os"
 	"sophus/internal/flowengine"
 	"sophus/internal/repo"
@@ -14,11 +15,14 @@ import (
 	"sophus/web/components"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/a-h/templ"
 	"github.com/kataras/iris/v12"
 )
+
+var qrConnectionLocks sync.Map
 
 func Webhook(ctx iris.Context) {
 	connection, event, body, err := middlewares.ValidateWebhook(ctx)
@@ -28,6 +32,7 @@ func Webhook(ctx iris.Context) {
 	}
 	saveBody(body)
 	eventType := strings.NewReplacer("_", "", "-", "").Replace(strings.ToLower(event.EventType))
+	log.Printf("Evolution GO webhook received: connection=%d event=%s", connection.Id, eventType)
 	switch eventType {
 	case "qrcode":
 		qrcode := repo.EventQRCode{}
@@ -36,8 +41,9 @@ func Webhook(ctx iris.Context) {
 			ctx.StopWithStatus(iris.StatusBadRequest)
 			return
 		}
-		updated, err := repo.UpdateConnectionQRCode(connection.Id, qrcode.Data.QRCode)
+		updated, err := publishQRCode(connection.Id, qrcode.Data.Code, qrcode.Data.QRCode, qrcode.Data.Count, qrcode.Data.MaxCount)
 		if err != nil {
+			log.Printf("failed to publish QR Code for connection %d: %v", connection.Id, err)
 			ctx.StopWithStatus(iris.StatusInternalServerError)
 			return
 		}
@@ -45,14 +51,6 @@ func Webhook(ctx iris.Context) {
 			ctx.StatusCode(iris.StatusOK)
 			return
 		}
-		payload, _ := json.Marshal(iris.Map{
-			"code":      qrcode.Data.Code,
-			"qrcode":    qrcode.Data.QRCode,
-			"count":     qrcode.Data.Count,
-			"maxCount":  qrcode.Data.MaxCount,
-			"expiresAt": time.Now().Add(qrCodeLifetime(qrcode.Data.Count)).UnixMilli(),
-		})
-		sse.QRGlobal.SendEvent(strconv.Itoa(connection.Id), "qrcode", string(payload))
 		ctx.StatusCode(iris.StatusOK)
 	case "pairsuccess", "connected":
 		var connected struct {
@@ -70,6 +68,9 @@ func Webhook(ctx iris.Context) {
 		if number == "" {
 			number = strings.Split(connected.Data.JID, "@")[0]
 		}
+		lock := qrConnectionLock(connection.Id)
+		lock.Lock()
+		defer lock.Unlock()
 		updated, err := repo.SetConnectionConnected(connection.Id, number)
 		if err != nil {
 			ctx.StopWithStatus(iris.StatusInternalServerError)
@@ -85,6 +86,9 @@ func Webhook(ctx iris.Context) {
 		sse.QRGlobal.SendEvent(key, "connection", string(payload))
 		ctx.StatusCode(iris.StatusOK)
 	case "qrtimeout":
+		lock := qrConnectionLock(connection.Id)
+		lock.Lock()
+		defer lock.Unlock()
 		updated, err := repo.MarkConnectionQRTimeout(connection.Id)
 		if err != nil {
 			ctx.StopWithStatus(iris.StatusInternalServerError)
@@ -100,6 +104,9 @@ func Webhook(ctx iris.Context) {
 		sse.QRGlobal.SendEvent(key, "connection", string(payload))
 		ctx.StatusCode(iris.StatusOK)
 	case "disconnected", "loggedout":
+		lock := qrConnectionLock(connection.Id)
+		lock.Lock()
+		defer lock.Unlock()
 		if err := repo.UpdateConnectionStatus(connection.Id, "disconnected"); err != nil {
 			ctx.StopWithStatus(iris.StatusInternalServerError)
 			return
@@ -161,6 +168,39 @@ func qrCodeLifetime(count int) time.Duration {
 		return 60 * time.Second
 	}
 	return 20 * time.Second
+}
+
+func publishQRCode(connectionID int, code, image string, count, maxCount int) (bool, error) {
+	lock := qrConnectionLock(connectionID)
+	lock.Lock()
+	defer lock.Unlock()
+	if strings.HasPrefix(code, "data:image/") {
+		code, image = image, code
+	}
+	if image == "" {
+		return false, fmt.Errorf("QR Code image is empty")
+	}
+	updated, err := repo.UpdateConnectionQRCode(connectionID, image)
+	if err != nil || !updated {
+		return updated, err
+	}
+	payload, err := json.Marshal(iris.Map{
+		"code":      code,
+		"qrcode":    image,
+		"count":     count,
+		"maxCount":  maxCount,
+		"expiresAt": time.Now().Add(qrCodeLifetime(count)).UnixMilli(),
+	})
+	if err != nil {
+		return false, err
+	}
+	sse.QRGlobal.SendEvent(strconv.Itoa(connectionID), "qrcode", string(payload))
+	return true, nil
+}
+
+func qrConnectionLock(connectionID int) *sync.Mutex {
+	lock, _ := qrConnectionLocks.LoadOrStore(connectionID, &sync.Mutex{})
+	return lock.(*sync.Mutex)
 }
 
 func prepareSSEData(ctx iris.Context, msg repo.EventMessageEVO) {

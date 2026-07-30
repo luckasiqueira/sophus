@@ -6,6 +6,7 @@ import (
 	"sophus/internal/repo"
 	"sophus/pkg/http/requests"
 	"sophus/utils/env"
+	"strings"
 
 	"github.com/google/uuid"
 )
@@ -27,6 +28,13 @@ type InstanceEvoResponse struct {
 		Token string `json:"token"`
 	} `json:"data"`
 	Message string `json:"message"`
+}
+
+type QRCode struct {
+	Code     string
+	QRCode   string
+	Count    int
+	MaxCount int
 }
 
 func (i *InstanceEVO) Create() error {
@@ -87,6 +95,44 @@ func (i *InstanceEVO) Connect() error {
 		Method: "POST",
 	}
 	return r.Do()
+}
+
+func (i *InstanceEVO) GetQRCode() (QRCode, error) {
+	r := requests.Request{
+		URL: repo.ApiBaseURL + "/instance/qr",
+		Headers: map[string]string{
+			"apikey": i.APIToken,
+		},
+		Method: "GET",
+	}
+	if err := r.Do(); err != nil {
+		return QRCode{}, err
+	}
+	var response struct {
+		Data struct {
+			QRCode   string `json:"qrcode"`
+			Code     string `json:"code"`
+			Count    int    `json:"count"`
+			MaxCount int    `json:"maxCount"`
+		} `json:"data"`
+	}
+	if err := json.Unmarshal(r.Body, &response); err != nil {
+		return QRCode{}, err
+	}
+	result := QRCode{
+		Code:     response.Data.Code,
+		QRCode:   response.Data.QRCode,
+		Count:    response.Data.Count,
+		MaxCount: response.Data.MaxCount,
+	}
+	if strings.HasPrefix(response.Data.Code, "data:image/") {
+		result.Code = response.Data.QRCode
+		result.QRCode = response.Data.Code
+	}
+	if result.QRCode == "" {
+		return QRCode{}, fmt.Errorf("Evolution GO returned an empty QR Code")
+	}
+	return result, nil
 }
 
 //stmt, err := repo.DB.Prepare("RETURNING id;")
