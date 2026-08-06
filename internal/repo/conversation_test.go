@@ -7,8 +7,8 @@ func TestConversationListFilter(t *testing.T) {
 		tab  string
 		want string
 	}{
-		{tab: "active", want: `cv."agentId" = $3 AND cv.status NOT IN ('closed', 'pending')`},
-		{tab: "pending", want: `cv."agentId" IS NULL AND cv.status NOT IN ('closed', 'running')`},
+		{tab: "active", want: `cv."agentId" = $3 AND cv.status NOT IN ('closed', 'pending', 'running')`},
+		{tab: "pending", want: `(cv."agentId" IS NULL OR cv.status = 'running') AND cv.status <> 'closed'`},
 		{tab: "closed", want: `cv.status = 'closed'`},
 	}
 

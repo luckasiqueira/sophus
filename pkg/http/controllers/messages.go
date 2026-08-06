@@ -9,6 +9,7 @@ import (
 
 	"sophus/internal/repo"
 	"sophus/pkg/http/middlewares"
+	"sophus/pkg/http/middlewares/sse"
 	"sophus/utils"
 	"sophus/web"
 	"sophus/web/components"
@@ -18,10 +19,27 @@ import (
 )
 
 func Messages(ctx iris.Context) {
+	tab, conversations, ok := conversationListData(ctx)
+	if !ok {
+		return
+	}
+	ctx.RenderComponent(web.Messages(conversations, tab))
+}
+
+func ConversationList(ctx iris.Context) {
+	tab, conversations, ok := conversationListData(ctx)
+	if !ok {
+		return
+	}
+	ctx.Header("Cache-Control", "no-store")
+	ctx.RenderComponent(web.ConversationList(conversations, tab))
+}
+
+func conversationListData(ctx iris.Context) (string, []repo.Conversation, bool) {
 	agent, err := middlewares.AgentIdentifier(ctx)
 	if err != nil {
 		ctx.StopWithStatus(iris.StatusUnauthorized)
-		return
+		return "", nil, false
 	}
 	tab := ctx.URLParamDefault("tab", "active")
 	if tab != "active" && tab != "pending" && tab != "closed" {
@@ -30,9 +48,9 @@ func Messages(ctx iris.Context) {
 	conversations, err := repo.GetConversationsByAgent(agent, tab)
 	if err != nil {
 		ctx.StopWithStatus(iris.StatusInternalServerError)
-		return
+		return "", nil, false
 	}
-	ctx.RenderComponent(web.Messages(conversations, tab))
+	return tab, conversations, true
 }
 
 func MessageOpen(ctx iris.Context) {
@@ -69,6 +87,9 @@ func MessageOpen(ctx iris.Context) {
 func conversationTab(conversation repo.Conversation) string {
 	if conversation.Status == repo.ConversationStatusClosed {
 		return "closed"
+	}
+	if conversation.Status == repo.ConversationStatusRunning {
+		return "pending"
 	}
 	if conversation.AgentID == nil {
 		return "pending"
@@ -118,6 +139,7 @@ func updatePendingConversation(ctx iris.Context, accept bool) {
 	} else {
 		ctx.Header("HX-Redirect", "/messages?tab=pending")
 	}
+	sse.NotifyConversations(agent.CompanyId)
 	ctx.StatusCode(iris.StatusNoContent)
 }
 
@@ -141,6 +163,7 @@ func CloseConversation(ctx iris.Context) {
 		return
 	}
 	ctx.Header("HX-Redirect", "/messages")
+	sse.NotifyConversations(agent.CompanyId)
 	ctx.StatusCode(iris.StatusNoContent)
 }
 

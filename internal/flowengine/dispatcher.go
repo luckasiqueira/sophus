@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"sophus/internal/repo"
+	"sophus/pkg/http/middlewares/sse"
 )
 
 var timeoutMu sync.Mutex
@@ -68,6 +69,7 @@ func HandleIncomingMessage(conversation repo.Conversation, connection repo.Conne
 			if claimErr != nil || !claimed {
 				return
 			}
+			sse.NotifyConversations(connection.CompanyID)
 		}
 		CancelTimeout(waiting.Id)
 		go func() {
@@ -96,6 +98,7 @@ func HandleIncomingMessage(conversation repo.Conversation, connection repo.Conne
 				log.Printf("failed to recover stale flow execution: execution=%d conversation=%d error=%v", active.Id, conversation.Id, err)
 				return
 			}
+			sse.NotifyConversations(connection.CompanyID)
 			conversation.Status = repo.ConversationStatusOpen
 			log.Printf("recovered stale flow execution: execution=%d conversation=%d", active.Id, conversation.Id)
 		} else {

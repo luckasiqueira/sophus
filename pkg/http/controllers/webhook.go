@@ -257,6 +257,7 @@ func prepareSSEData(ctx iris.Context, msg repo.EventMessageEVO, companyID int) {
 		return
 	}
 	sse.Global.Send(conversation.URL.String(), html)
+	sse.NotifyConversations(companyID)
 	ctx.StatusCode(iris.StatusOK)
 }
 

@@ -3,8 +3,11 @@ package repo
 import (
 	"database/sql"
 	"encoding/json"
+	"errors"
 	"time"
 )
+
+var ErrFlowExecutionInactive = errors.New("flow execution is no longer active")
 
 type ChatbotFlow struct {
 	Id           int             `json:"id"`
@@ -224,13 +227,23 @@ func ClaimFlowExecution(id int) (bool, error) {
 func UpdateFlowExecution(e FlowExecution) error {
 	stmt, err := db.Prepare(`UPDATE flow_executions SET status = $1, "currentNodeId" = $2, context = $3,
 		"errorMessage" = $4, "updatedAt" = now(), "completedAt" = $5
-		WHERE id = $6`)
+		WHERE id = $6 AND status IN ('running', 'waiting')`)
 	if err != nil {
 		return err
 	}
 	defer stmt.Close()
-	_, err = stmt.Exec(e.Status, e.CurrentNodeId, e.Context, e.ErrorMessage, e.CompletedAt, e.Id)
-	return err
+	result, err := stmt.Exec(e.Status, e.CurrentNodeId, e.Context, e.ErrorMessage, e.CompletedAt, e.Id)
+	if err != nil {
+		return err
+	}
+	rows, err := result.RowsAffected()
+	if err != nil {
+		return err
+	}
+	if rows != 1 {
+		return ErrFlowExecutionInactive
+	}
+	return nil
 }
 
 func FinalizeFlowExecution(e FlowExecution) error {
@@ -240,11 +253,18 @@ func FinalizeFlowExecution(e FlowExecution) error {
 	}
 	defer tx.Rollback()
 
-	_, err = tx.Exec(`UPDATE flow_executions SET status = $1, "currentNodeId" = $2, context = $3,
+	result, err := tx.Exec(`UPDATE flow_executions SET status = $1, "currentNodeId" = $2, context = $3,
 		"errorMessage" = $4, "updatedAt" = now(), "completedAt" = $5
-		WHERE id = $6`, e.Status, e.CurrentNodeId, e.Context, e.ErrorMessage, e.CompletedAt, e.Id)
+		WHERE id = $6 AND status IN ('running', 'waiting')`, e.Status, e.CurrentNodeId, e.Context, e.ErrorMessage, e.CompletedAt, e.Id)
 	if err != nil {
 		return err
+	}
+	rows, err := result.RowsAffected()
+	if err != nil {
+		return err
+	}
+	if rows != 1 {
+		return ErrFlowExecutionInactive
 	}
 	conversationStatus := conversationStatusAfterExecution(e.Status)
 	_, err = tx.Exec(`UPDATE conversations SET status = $1, "updatedAt" = now()
@@ -262,14 +282,28 @@ func conversationStatusAfterExecution(executionStatus string) string {
 	return ConversationStatusOpen
 }
 
-func UpdateConversationStatus(conversationId int, status string) error {
-	stmt, err := db.Prepare(`UPDATE conversations SET status = $1, "updatedAt" = now() WHERE id = $2`)
+func UpdateConversationStatus(conversationID, executionID int, status string) error {
+	stmt, err := db.Prepare(`UPDATE conversations SET status = $1, "updatedAt" = now()
+		WHERE id = $2 AND EXISTS (
+			SELECT 1 FROM flow_executions fe
+			WHERE fe.id = $3 AND fe."conversationId" = $2 AND fe.status IN ('running', 'waiting')
+		)`)
 	if err != nil {
 		return err
 	}
 	defer stmt.Close()
-	_, err = stmt.Exec(status, conversationId)
-	return err
+	result, err := stmt.Exec(status, conversationID, executionID)
+	if err != nil {
+		return err
+	}
+	rows, err := result.RowsAffected()
+	if err != nil {
+		return err
+	}
+	if rows != 1 {
+		return ErrFlowExecutionInactive
+	}
+	return nil
 }
 
 func ClaimConversationForFlow(conversationId int) (bool, error) {
@@ -291,7 +325,8 @@ func AssignConversationAgent(conversationID, agentID, companyID int) error {
 			status = $1, "updatedAt" = now()
 		FROM agents a, connections co
 		WHERE cv.id = $2 AND a.id = $3 AND a."companyId" = $4 AND a."isActive" = true
-		AND co.id = cv."connectionId" AND co."companyId" = $4`, ConversationStatusOpen, conversationID, agentID, companyID)
+		AND co.id = cv."connectionId" AND co."companyId" = $4
+		AND EXISTS (SELECT 1 FROM flow_executions fe WHERE fe."conversationId" = cv.id AND fe.status IN ('running', 'waiting'))`, ConversationStatusOpen, conversationID, agentID, companyID)
 	if err != nil {
 		return err
 	}
@@ -310,7 +345,8 @@ func AssignConversationDepartment(conversationID, departmentID, companyID int) e
 		SET "departmentId" = d.id, "agentId" = NULL, status = $1, "updatedAt" = now()
 		FROM departments d, connections co
 		WHERE cv.id = $2 AND d.id = $3 AND d."companyId" = $4 AND d."isActive" = true
-		AND co.id = cv."connectionId" AND co."companyId" = $4`, ConversationStatusPending, conversationID, departmentID, companyID)
+		AND co.id = cv."connectionId" AND co."companyId" = $4
+		AND EXISTS (SELECT 1 FROM flow_executions fe WHERE fe."conversationId" = cv.id AND fe.status IN ('running', 'waiting'))`, ConversationStatusPending, conversationID, departmentID, companyID)
 	if err != nil {
 		return err
 	}

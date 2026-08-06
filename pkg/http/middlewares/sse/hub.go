@@ -1,6 +1,9 @@
 package sse
 
-import "sync"
+import (
+	"strconv"
+	"sync"
+)
 
 type Client struct {
 	Key string
@@ -29,6 +32,11 @@ func NewHub(retained bool) *Hub {
 
 var Global = NewHub(false)
 var QRGlobal = NewHub(true)
+var Conversations = NewHub(false)
+
+func NotifyConversations(companyID int) {
+	Conversations.SendEvent(strconv.Itoa(companyID), "conversation", "refresh")
+}
 
 func (h *Hub) Register(key string) *Client {
 	h.mu.Lock()

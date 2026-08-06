@@ -2,6 +2,25 @@ package web
 
 import "sophus/internal/repo"
 import "fmt"
+import "strings"
+
+func conversationPreview(conversation repo.Conversation) string {
+    if text := strings.TrimSpace(conversation.LastContactMessage); text != "" {
+        return text
+    }
+    switch conversation.LastContactMediaType {
+    case "image":
+        return "Imagem"
+    case "video":
+        return "Vídeo"
+    case "audio":
+        return "Áudio"
+    case "document":
+        return "Documento"
+    default:
+        return "Nenhuma mensagem recebida"
+    }
+}
 
 templ messagesDefault(conversations []repo.Conversation, tab string) {
 @base("messages") {
@@ -20,7 +39,33 @@ templ messagesDefault(conversations []repo.Conversation, tab string) {
             <a href="/messages?tab=pending" class={ "flex-1 px-3 py-2 rounded-full text-sm font-medium text-center transition-colors", templ.KV("bg-purple-100 text-purple-700", tab == "pending"), templ.KV("bg-stone-100 text-gray-600", tab != "pending") }>Pendentes</a>
             <a href="/messages?tab=closed" class={ "flex-1 px-3 py-2 rounded-full text-sm font-medium text-center transition-colors", templ.KV("bg-purple-100 text-purple-700", tab == "closed"), templ.KV("bg-stone-100 text-gray-600", tab != "closed") }>Fechadas</a>
         </div>
-        <div class="flex-1 overflow-y-auto p-2">
+        @conversationList(conversations, tab)
+        <script>
+            (function () {
+                if (window.conversationListEvents) window.conversationListEvents.close();
+                const events = new EventSource('/sse/conversations');
+                let refreshTimer;
+                events.addEventListener('conversation', function () {
+                    clearTimeout(refreshTimer);
+                    refreshTimer = setTimeout(function () {
+                        const list = document.getElementById('conversation-list');
+                        if (list) htmx.ajax('GET', list.dataset.refreshUrl, { target: '#conversation-list', swap: 'outerHTML' });
+                    }, 100);
+                });
+                window.conversationListEvents = events;
+            })();
+        </script>
+    </div>
+    { children... }
+}
+}
+
+templ ConversationList(conversations []repo.Conversation, tab string) {
+    @conversationList(conversations, tab)
+}
+
+templ conversationList(conversations []repo.Conversation, tab string) {
+        <div id="conversation-list" data-refresh-url={ fmt.Sprintf("/messages/list?tab=%s", tab) } class="flex-1 overflow-y-auto p-2">
             for _, conversation := range conversations {
                 <div class="mb-2 bg-white rounded-2xl hover:shadow-md transition-all border border-stone-200 overflow-hidden">
                     <a href={ fmt.Sprintf("/messages/%s", conversation.URL.String()) } class="block p-3 cursor-pointer">
@@ -29,18 +74,25 @@ templ messagesDefault(conversations []repo.Conversation, tab string) {
                             <div class="flex-1 min-w-0">
                                 <div class="flex items-center justify-between">
                                     <span class="text-sm font-medium text-gray-900 truncate">{ conversation.Contact.Name }</span>
-                                    <span class="text-xs text-gray-500">{ conversation.UpdatedAt.Format("15:04") }</span>
+                                    <span class="text-xs text-gray-500">{ conversation.LastContactMessageAt.Format("15:04") }</span>
                                 </div>
-                                <div class="text-xs text-gray-500 mt-1">{ conversation.Status }</div>
+                                <div class="text-xs text-gray-500 mt-1 truncate">{ conversationPreview(conversation) }</div>
                                 <div class="flex items-center gap-2 flex-wrap mt-2">
-                                    <span class="inline-flex items-center gap-1 px-2 py-1 bg-stone-100 text-gray-700 rounded-full text-xs">
-                                        <i class="fas fa-user-circle"></i>
-                                        if conversation.AgentName != "" {
-                                            { conversation.AgentName }
-                                        } else {
-                                            Sem agente
-                                        }
-                                    </span>
+                                    if conversation.Status == repo.ConversationStatusRunning {
+                                        <span class="inline-flex items-center gap-1 px-2 py-1 bg-purple-100 text-purple-700 rounded-full text-xs">
+                                            <i class="fas fa-diagram-project"></i>
+                                            Flow
+                                        </span>
+                                    } else {
+                                        <span class="inline-flex items-center gap-1 px-2 py-1 bg-stone-100 text-gray-700 rounded-full text-xs">
+                                            <i class="fas fa-user-circle"></i>
+                                            if conversation.AgentName != "" {
+                                                { conversation.AgentName }
+                                            } else {
+                                                Sem agente
+                                            }
+                                        </span>
+                                    }
                                     <span class="inline-flex items-center gap-1 px-2 py-1 bg-blue-50 text-blue-700 rounded-full text-xs">
                                         <i class="fas fa-layer-group"></i>
                                         if conversation.DepartmentName != "" {
@@ -54,11 +106,11 @@ templ messagesDefault(conversations []repo.Conversation, tab string) {
                         </div>
                     </a>
                     if tab == "pending" {
-                        <div class="px-3 pb-3 grid grid-cols-2 gap-2">
-                            <button type="button" hx-post={ fmt.Sprintf("/messages/%s/accept", conversation.URL.String()) } hx-swap="none" class="px-3 py-2 rounded-xl bg-green-600 text-white hover:bg-green-700 text-sm font-medium">
+                        <div class="px-3 pb-3 flex justify-end gap-2">
+                            <button type="button" hx-post={ fmt.Sprintf("/messages/%s/accept", conversation.URL.String()) } hx-swap="none" class="px-2.5 py-1.5 rounded-lg bg-green-600 text-white hover:bg-green-700 text-xs font-medium">
                                 <i class="fas fa-check mr-1"></i>Aceitar
                             </button>
-                            <button type="button" hx-post={ fmt.Sprintf("/messages/%s/ignore", conversation.URL.String()) } hx-swap="none" hx-confirm="Recusar e fechar esta conversa?" class="px-3 py-2 rounded-xl bg-stone-100 text-gray-700 hover:bg-red-50 hover:text-red-700 text-sm font-medium">
+                            <button type="button" hx-post={ fmt.Sprintf("/messages/%s/ignore", conversation.URL.String()) } hx-swap="none" hx-confirm="Recusar e fechar esta conversa?" class="px-2.5 py-1.5 rounded-lg bg-stone-100 text-gray-700 hover:bg-red-50 hover:text-red-700 text-xs font-medium">
                                 <i class="fas fa-times mr-1"></i>Recusar
                             </button>
                         </div>
@@ -78,7 +130,4 @@ templ messagesDefault(conversations []repo.Conversation, tab string) {
                 <div class="text-center text-sm text-gray-400 py-10">Nenhuma conversa nesta área.</div>
             }
         </div>
-    </div>
-    { children... }
-}
 }

@@ -37,8 +37,10 @@ func Router(r *iris.Application) {
 	})
 
 	web.Get("/sse", middlewares.SSEMessages)
+	web.Get("/sse/conversations", middlewares.SSEConversations)
 
 	web.Get("/messages", controllers.Messages)
+	web.Get("/messages/list", controllers.ConversationList)
 	web.Get("/messages/{url:uuid}", controllers.MessageOpen)
 	web.Post("/messages/{url:uuid}/close", controllers.CloseConversation)
 	web.Post("/messages/{url:uuid}/accept", controllers.AcceptConversation)

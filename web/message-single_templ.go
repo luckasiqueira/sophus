@@ -16,6 +16,9 @@ func messageConversationTab(conversation repo.Conversation) string {
 	if conversation.Status == repo.ConversationStatusClosed {
 		return "closed"
 	}
+	if conversation.Status == repo.ConversationStatusRunning {
+		return "pending"
+	}
 	if conversation.AgentID == nil {
 		return "pending"
 	}
@@ -66,7 +69,7 @@ func MessageSingle(activeConversation repo.Conversation, agent repo.Agent, conve
 			var templ_7745c5c3_Var3 string
 			templ_7745c5c3_Var3, templ_7745c5c3_Err = templ.JoinStringErrs(activeConversation.Contact.Name)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/message-single.templ`, Line: 29, Col: 96}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/message-single.templ`, Line: 32, Col: 96}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var3))
 			if templ_7745c5c3_Err != nil {
@@ -84,7 +87,7 @@ func MessageSingle(activeConversation repo.Conversation, agent repo.Agent, conve
 				var templ_7745c5c3_Var4 string
 				templ_7745c5c3_Var4, templ_7745c5c3_Err = templ.ResolveAttributeValue(fmt.Sprintf("/messages/%s/accept", activeConversation.URL.String()))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/message-single.templ`, Line: 35, Col: 113}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/message-single.templ`, Line: 38, Col: 113}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var4)
 				if templ_7745c5c3_Err != nil {
@@ -97,7 +100,7 @@ func MessageSingle(activeConversation repo.Conversation, agent repo.Agent, conve
 				var templ_7745c5c3_Var5 string
 				templ_7745c5c3_Var5, templ_7745c5c3_Err = templ.ResolveAttributeValue(fmt.Sprintf("/messages/%s/ignore", activeConversation.URL.String()))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/message-single.templ`, Line: 38, Col: 113}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/message-single.templ`, Line: 41, Col: 113}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var5)
 				if templ_7745c5c3_Err != nil {
@@ -115,7 +118,7 @@ func MessageSingle(activeConversation repo.Conversation, agent repo.Agent, conve
 				var templ_7745c5c3_Var6 string
 				templ_7745c5c3_Var6, templ_7745c5c3_Err = templ.ResolveAttributeValue(fmt.Sprintf("/messages/%s/close", activeConversation.URL.String()))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/message-single.templ`, Line: 44, Col: 93}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/message-single.templ`, Line: 47, Col: 93}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var6)
 				if templ_7745c5c3_Err != nil {
@@ -152,7 +155,7 @@ func MessageSingle(activeConversation repo.Conversation, agent repo.Agent, conve
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			if canReplyToConversation(activeConversation, agent) && activeConversation.AgentID != nil && activeConversation.Status != repo.ConversationStatusClosed {
+			if canReplyToConversation(activeConversation, agent) && activeConversation.AgentID != nil && activeConversation.Status != repo.ConversationStatusClosed && activeConversation.Status != repo.ConversationStatusRunning {
 				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 11, "<div class=\"p-4 border-t border-stone-200 bg-stone-50\"><form class=\"flex items-center gap-3 w-full\" hx-post=\"/api/message/send\" hx-swap=\"beforeend\" hx-target=\"#chatMessages\"><input type=\"hidden\" name=\"conversation\" value=\"")
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
@@ -160,7 +163,7 @@ func MessageSingle(activeConversation repo.Conversation, agent repo.Agent, conve
 				var templ_7745c5c3_Var7 string
 				templ_7745c5c3_Var7, templ_7745c5c3_Err = templ.ResolveAttributeValue(activeConversation.URL.String())
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/message-single.templ`, Line: 80, Col: 96}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/message-single.templ`, Line: 83, Col: 96}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var7)
 				if templ_7745c5c3_Err != nil {

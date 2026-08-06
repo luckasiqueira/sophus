@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log"
 	"sophus/internal/repo"
+	"sophus/pkg/http/middlewares/sse"
 	"strconv"
 	"strings"
 	"time"
@@ -111,6 +112,7 @@ func (e *Engine) ExecuteFlow(flowID, conversationID, companyID int, initialConte
 		if !started {
 			return nil
 		}
+		sse.NotifyConversations(companyID)
 		execution, err = repo.GetFlowExecutionById(executionID)
 		if err != nil {
 			return e.failExecution(executionID, err.Error())
@@ -148,6 +150,9 @@ func (e *Engine) ExecuteFlow(flowID, conversationID, companyID int, initialConte
 		log.Printf("processando node %s (%s)", currentNode.ID, currentNode.Type)
 		result, err := e.processNode(execution.Id, *currentNode, context, conversation, companyID, flowData)
 		if err != nil {
+			if errors.Is(err, repo.ErrFlowExecutionInactive) {
+				return nil
+			}
 			return e.failExecution(execution.Id, err.Error())
 		}
 
@@ -233,7 +238,7 @@ func (e *Engine) processNode(executionID int, node FlowNode, ctx ExecutionContex
 	case NodeDelay:
 		return ProcessResult{}, e.executeDelay(node.Data)
 	case NodeChangeStatus:
-		return ProcessResult{}, e.executeChangeStatus(node.Data, conversation.Id)
+		return ProcessResult{}, e.executeChangeStatus(node.Data, conversation.Id, executionID, companyID)
 	case NodeAssign:
 		return ProcessResult{}, e.executeAssign(node.Data, conversation.Id, companyID)
 	case NodeHTTPRequest:
@@ -414,12 +419,16 @@ func (e *Engine) executeDelay(data map[string]interface{}) error {
 	return nil
 }
 
-func (e *Engine) executeChangeStatus(data map[string]interface{}, conversationID int) error {
+func (e *Engine) executeChangeStatus(data map[string]interface{}, conversationID, executionID, companyID int) error {
 	status := stringVal(data, "status")
 	if status == "" {
 		return nil
 	}
-	return repo.UpdateConversationStatus(conversationID, status)
+	if err := repo.UpdateConversationStatus(conversationID, executionID, status); err != nil {
+		return err
+	}
+	sse.NotifyConversations(companyID)
+	return nil
 }
 
 func (e *Engine) executeAssign(data map[string]interface{}, conversationID, companyID int) error {
@@ -432,12 +441,20 @@ func (e *Engine) executeAssign(data map[string]interface{}, conversationID, comp
 		return nil
 	}
 	if assignType == "department" {
-		return repo.AssignConversationDepartment(conversationID, assignID, companyID)
+		if err := repo.AssignConversationDepartment(conversationID, assignID, companyID); err != nil {
+			return err
+		}
+		sse.NotifyConversations(companyID)
+		return nil
 	}
 	if assignType != "agent" {
 		return fmt.Errorf("tipo de atribuição inválido: %s", assignType)
 	}
-	return repo.AssignConversationAgent(conversationID, assignID, companyID)
+	if err := repo.AssignConversationAgent(conversationID, assignID, companyID); err != nil {
+		return err
+	}
+	sse.NotifyConversations(companyID)
+	return nil
 }
 
 func (e *Engine) checkBusinessHours(startNode *FlowNode, conversation repo.Conversation) (string, error) {
@@ -526,7 +543,14 @@ func (e *Engine) completeExecution(executionID int, currentNodeID string, ctx Ex
 	execution.CurrentNodeId = &currentNodeID
 	execution.Context = ctx.ToJSON()
 	execution.CompletedAt = &now
-	return repo.FinalizeFlowExecution(execution)
+	if err := repo.FinalizeFlowExecution(execution); err != nil {
+		if errors.Is(err, repo.ErrFlowExecutionInactive) {
+			return nil
+		}
+		return err
+	}
+	sse.NotifyConversations(execution.CompanyId)
+	return nil
 }
 
 func (e *Engine) failExecution(executionID int, message string) error {
@@ -539,8 +563,12 @@ func (e *Engine) failExecution(executionID int, message string) error {
 	execution.ErrorMessage = &message
 	execution.CompletedAt = &now
 	if err := repo.FinalizeFlowExecution(execution); err != nil {
+		if errors.Is(err, repo.ErrFlowExecutionInactive) {
+			return nil
+		}
 		return fmt.Errorf("%s: não foi possível persistir a falha: %w", message, err)
 	}
+	sse.NotifyConversations(execution.CompanyId)
 	return errors.New(message)
 }
 

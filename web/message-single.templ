@@ -8,6 +8,9 @@ func messageConversationTab(conversation repo.Conversation) string {
     if conversation.Status == repo.ConversationStatusClosed {
         return "closed"
     }
+    if conversation.Status == repo.ConversationStatusRunning {
+        return "pending"
+    }
     if conversation.AgentID == nil {
         return "pending"
     }
@@ -74,7 +77,7 @@ templ MessageSingle(activeConversation repo.Conversation, agent repo.Agent, conv
           }
        </div>
        <!-- Input Area -->
-       if canReplyToConversation(activeConversation, agent) && activeConversation.AgentID != nil && activeConversation.Status != repo.ConversationStatusClosed {
+       if canReplyToConversation(activeConversation, agent) && activeConversation.AgentID != nil && activeConversation.Status != repo.ConversationStatusClosed && activeConversation.Status != repo.ConversationStatusRunning {
        <div class="p-4 border-t border-stone-200 bg-stone-50">
             <form class="flex items-center gap-3 w-full" hx-post="/api/message/send" hx-swap="beforeend" hx-target="#chatMessages">
                 <input type="hidden" name="conversation" value={ activeConversation.URL.String() }/>

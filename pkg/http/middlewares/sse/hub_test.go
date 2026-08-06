@@ -1,6 +1,9 @@
 package sse
 
-import "testing"
+import (
+	"testing"
+	"time"
+)
 
 func TestRetainedHubReplaysLatestEvent(t *testing.T) {
 	hub := NewHub(true)
@@ -27,5 +30,24 @@ func TestHubPublishesToEverySubscriber(t *testing.T) {
 		if event.Name != "connection" {
 			t.Fatalf("unexpected event for subscriber: %#v", event)
 		}
+	}
+}
+
+func TestNotifyConversationsPublishesCompanyRefresh(t *testing.T) {
+	original := Conversations
+	Conversations = NewHub(false)
+	defer func() { Conversations = original }()
+
+	client := Conversations.Register("42")
+	defer Conversations.Unregister(client)
+	NotifyConversations(42)
+
+	select {
+	case event := <-client.Ch:
+		if event.Name != "conversation" || event.Data != "refresh" {
+			t.Fatalf("unexpected conversation event: %#v", event)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("conversation refresh event was not published")
 	}
 }

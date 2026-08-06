@@ -15,6 +15,7 @@ func TestConversationTab(t *testing.T) {
 	}{
 		{name: "unassigned", conversation: repo.Conversation{}, want: "pending"},
 		{name: "assigned", conversation: repo.Conversation{AgentID: &agentID}, want: "active"},
+		{name: "flow running", conversation: repo.Conversation{Status: repo.ConversationStatusRunning, AgentID: &agentID}, want: "pending"},
 		{name: "closed unassigned", conversation: repo.Conversation{Status: repo.ConversationStatusClosed}, want: "closed"},
 	}
 
