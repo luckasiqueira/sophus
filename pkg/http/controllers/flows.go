@@ -5,6 +5,7 @@ import (
 	"sophus/internal/flowengine"
 	"sophus/internal/repo"
 	"sophus/pkg/http/middlewares"
+	"sophus/web"
 
 	"github.com/kataras/iris/v12"
 )
@@ -217,5 +218,5 @@ func FlowBuilderPage(ctx iris.Context) {
 	ctx.Header("Cache-Control", "no-store, no-cache, must-revalidate")
 	ctx.Header("Pragma", "no-cache")
 	ctx.Header("Expires", "0")
-	ctx.ServeFile("./pkg/http/static/flowbuilder/index.html")
+	ctx.RenderComponent(web.FlowBuilder())
 }

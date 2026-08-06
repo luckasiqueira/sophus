@@ -7,12 +7,26 @@ import (
 	"sophus/utils"
 	"sophus/utils/env"
 	"strings"
+	"time"
 
 	"github.com/google/uuid"
 )
 
 func SaveEvoMessage(msg Message, connection ConnectionEVO) error {
 	return msg.Save(connection)
+}
+
+func SaveFlowMessage(conversationID int, messageID, text string) error {
+	if messageID == "" {
+		messageID = "flow-" + uuid.NewString()
+	}
+	now := time.Now()
+	_, err := db.Exec(`INSERT INTO public.messages
+		("messageId", text, "conversationId", "quotedId", "mediaType", "mediaPath",
+		 "createdAt", "updatedAt", "isFromMe", "isGroup", "isRead", "isDeleted")
+		VALUES ($1, $2, $3, '', 'flow', '', $4, $4, true, false, false, false)`,
+		messageID, text, conversationID, now)
+	return err
 }
 
 func (msg TextMessageEVO) Save(connection ConnectionEVO) error {
@@ -103,7 +117,7 @@ func saveMessageEvo(msg EventMessageEVO, fullJson []byte, contact Contact, conne
 }
 
 func CheckMessageText(msg EventMessageEVO) string {
-	var text string
+	text := msg.Data.Message.Text
 	if msg.Data.Message.TXT.Text != "" {
 		text = msg.Data.Message.TXT.Text // text = m.Body.Data.Message.ExtendedTextMessage.ContextInfo.QuotedMessage.Text
 	}
@@ -114,7 +128,7 @@ func CheckMessageText(msg EventMessageEVO) string {
 		text = msg.Data.Message.IMG.Caption
 	}
 	if msg.Data.Message.VID.Caption != "" {
-		text = msg.Data.Message.IMG.Caption
+		text = msg.Data.Message.VID.Caption
 	}
 	return text
 }

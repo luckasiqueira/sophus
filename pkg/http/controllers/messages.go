@@ -1,16 +1,17 @@
 package controllers
 
 import (
+	"database/sql"
 	"encoding/json"
 	"errors"
-	"fmt"
 	"io"
+	"strings"
+
 	"sophus/internal/repo"
 	"sophus/pkg/http/middlewares"
 	"sophus/utils"
 	"sophus/web"
 	"sophus/web/components"
-	"strings"
 
 	"github.com/google/uuid"
 	"github.com/kataras/iris/v12"
@@ -20,78 +21,148 @@ func Messages(ctx iris.Context) {
 	agent, err := middlewares.AgentIdentifier(ctx)
 	if err != nil {
 		ctx.StopWithStatus(iris.StatusUnauthorized)
+		return
 	}
-	conversations, err := repo.GetConversationsByAgent(agent)
+	tab := ctx.URLParamDefault("tab", "active")
+	if tab != "active" && tab != "pending" && tab != "closed" {
+		tab = "active"
+	}
+	conversations, err := repo.GetConversationsByAgent(agent, tab)
 	if err != nil {
 		ctx.StopWithStatus(iris.StatusInternalServerError)
+		return
 	}
-	ctx.RenderComponent(web.Messages(conversations))
+	ctx.RenderComponent(web.Messages(conversations, tab))
 }
 
 func MessageOpen(ctx iris.Context) {
 	agent, err := middlewares.AgentIdentifier(ctx)
 	if err != nil {
 		ctx.StopWithStatus(iris.StatusUnauthorized)
-	}
-	conversations, err := repo.GetConversationsByAgent(agent)
-	if err != nil {
-		ctx.StopWithStatus(iris.StatusInternalServerError)
+		return
 	}
 	u := ctx.Params().Get("url")
 	url, err := uuid.Parse(u)
 	if err != nil {
 		ctx.StopWithStatus(iris.StatusBadRequest)
+		return
+	}
+	activeConversation, err := repo.GetVisibleConversationByURL(url, agent)
+	if err != nil {
+		ctx.StopWithStatus(iris.StatusForbidden)
+		return
+	}
+	tab := conversationTab(activeConversation)
+	conversations, err := repo.GetConversationsByAgent(agent, tab)
+	if err != nil {
+		ctx.StopWithStatus(iris.StatusInternalServerError)
+		return
 	}
 	messages, err := repo.GetMessagesByConversationURL(url)
 	if err != nil {
-		fmt.Println(err)
 		ctx.StopWithStatus(iris.StatusBadRequest)
-	}
-	if len(messages) == 0 {
-		ctx.StopWithStatus(iris.StatusNoContent)
 		return
 	}
+	ctx.RenderComponent(web.MessageSingle(activeConversation, agent, conversations, messages))
+}
 
-	activeConversation := repo.Conversation{}
-	agentCanSeeThisConversation := false
-	for _, c := range conversations {
-		if c.URL.String() == u {
-			agentCanSeeThisConversation = true
-			activeConversation = c
-		}
+func conversationTab(conversation repo.Conversation) string {
+	if conversation.Status == repo.ConversationStatusClosed {
+		return "closed"
 	}
+	if conversation.AgentID == nil {
+		return "pending"
+	}
+	return "active"
+}
 
-	if !agentCanSeeThisConversation {
-		// NOTE: render a page to says that user has no permissions to see that conversation
-		fmt.Println(err, agent)
+func AcceptConversation(ctx iris.Context) {
+	updatePendingConversation(ctx, true)
+}
+
+func IgnoreConversation(ctx iris.Context) {
+	updatePendingConversation(ctx, false)
+}
+
+func updatePendingConversation(ctx iris.Context, accept bool) {
+	agent, err := middlewares.AgentIdentifier(ctx)
+	if err != nil {
 		ctx.StopWithStatus(iris.StatusUnauthorized)
 		return
 	}
+	conversationURL, err := uuid.Parse(ctx.Params().Get("url"))
 	if err != nil {
 		ctx.StopWithStatus(iris.StatusBadRequest)
+		return
 	}
-	ctx.RenderComponent(web.MessageSingle(activeConversation, agent.CompanyId, conversations, messages))
+	var updated bool
+	if accept {
+		updated, err = repo.AcceptConversation(conversationURL, agent)
+	} else {
+		updated, err = repo.IgnoreConversation(conversationURL, agent)
+	}
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			ctx.StopWithStatus(iris.StatusNotFound)
+			return
+		}
+		ctx.StopWithStatus(iris.StatusInternalServerError)
+		return
+	}
+	if !updated {
+		ctx.StopWithStatus(iris.StatusConflict)
+		return
+	}
+	if accept {
+		ctx.Header("HX-Redirect", "/messages/"+conversationURL.String())
+	} else {
+		ctx.Header("HX-Redirect", "/messages?tab=pending")
+	}
+	ctx.StatusCode(iris.StatusNoContent)
+}
+
+func CloseConversation(ctx iris.Context) {
+	agent, err := middlewares.AgentIdentifier(ctx)
+	if err != nil {
+		ctx.StopWithStatus(iris.StatusUnauthorized)
+		return
+	}
+	conversationURL, err := uuid.Parse(ctx.Params().Get("url"))
+	if err != nil {
+		ctx.StopWithStatus(iris.StatusBadRequest)
+		return
+	}
+	if err := repo.CloseConversationByURL(conversationURL, agent.CompanyId, agent.Id, agent.IsAdmin()); err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			ctx.StopWithStatus(iris.StatusNotFound)
+			return
+		}
+		ctx.StopWithStatus(iris.StatusInternalServerError)
+		return
+	}
+	ctx.Header("HX-Redirect", "/messages")
+	ctx.StatusCode(iris.StatusNoContent)
 }
 
 func SendMessage(ctx iris.Context) {
-	if ctx.GetHeader("apitoken") == "" && !middlewares.IsValidJWT(ctx) {
-		ctx.StopWithStatus(iris.StatusUnauthorized)
-		return
-	}
-
 	connection := repo.ConnectionEVO{}
 	msg := repo.TextMessageEVO{}
 	var err error
-	if ctx.GetHeader("apitoken") != "" {
+	serveHX := !middlewares.IsAPIAuthentication(ctx)
+	if !serveHX {
 		connection, msg, err = sendMessageAPI(ctx)
-	}
-	var serveHX bool
-	if middlewares.IsValidJWT(ctx) {
-		serveHX = true
+	} else {
 		connection, msg, err = sendMessageJWT(ctx)
+	}
+	if err != nil {
+		ctx.StopWithStatus(iris.StatusBadRequest)
+		return
 	}
 	status, fullJson, err := msg.Send(connection.EvolutionAPIKey()) // coletar a resposta, pra puxar o data e o messageid e salvar corretamente no banco de dados
 	if err != nil || status != 200 {
+		if status < 100 {
+			status = iris.StatusBadGateway
+		}
 		ctx.StopWithStatus(status)
 		return
 	}
@@ -144,13 +215,24 @@ func sendMessageJWT(ctx iris.Context) (repo.ConnectionEVO, repo.TextMessageEVO, 
 	if err != nil {
 		return repo.ConnectionEVO{}, repo.TextMessageEVO{}, err
 	}
-	urlID := strings.Split(ctx.Request().Header.Get("Referer"), "messages/")[1]
-	url := uuid.MustParse(urlID)
-	conversation, err := repo.GetConversationByURL(url)
+	urlID := ctx.FormValue("conversation")
+	if urlID == "" {
+		parts := strings.Split(ctx.Request().Header.Get("Referer"), "messages/")
+		if len(parts) != 2 {
+			return repo.ConnectionEVO{}, repo.TextMessageEVO{}, errors.New("conversation is required")
+		}
+		urlID = parts[1]
+	}
+	url, err := uuid.Parse(urlID)
 	if err != nil {
 		return repo.ConnectionEVO{}, repo.TextMessageEVO{}, err
 	}
-	if conversation.AgentID != agent.Id || agent.Role != "admin" {
+	conversation, err := repo.GetVisibleConversationByURL(url, agent)
+	if err != nil {
+		return repo.ConnectionEVO{}, repo.TextMessageEVO{}, err
+	}
+	assignedToAgent := conversation.AgentID != nil && *conversation.AgentID == agent.Id
+	if !assignedToAgent && !agent.IsAdmin() {
 		return repo.ConnectionEVO{}, repo.TextMessageEVO{}, errors.New("agent not authorized in this conversation")
 	}
 	// wait for the allowedConnections slice on agents table to check if agent has permission to that connection

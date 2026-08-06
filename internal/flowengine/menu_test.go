@@ -1,6 +1,48 @@
 package flowengine
 
-import "testing"
+import (
+	"encoding/json"
+	"strings"
+	"testing"
+)
+
+func TestMenuPayloadUsesEvolutionFooterField(t *testing.T) {
+	payload, err := json.Marshal(menuPayload{FooterText: "Sophus"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(payload), `"footerText":"Sophus"`) {
+		t.Fatalf("menu payload does not contain footerText: %s", payload)
+	}
+}
+
+func TestEvolutionMessageID(t *testing.T) {
+	body := []byte(`{"data":{"Info":{"ID":"message-id"}}}`)
+	if got := evolutionMessageID(body); got != "message-id" {
+		t.Fatalf("evolutionMessageID() = %q, want message-id", got)
+	}
+}
+
+func TestFormatMenuAsText(t *testing.T) {
+	payload := menuPayload{
+		Title:       "Atendimento",
+		Description: "Escolha um setor",
+		FooterText:  "Sophus",
+		Sections: []menuSection{{
+			Title: "Setores",
+			Rows: []menuRow{
+				{Title: "Vendas", Description: "Novos pedidos"},
+				{Title: "Suporte"},
+			},
+		}},
+	}
+	text := formatMenuAsText(payload)
+	for _, expected := range []string{"*Atendimento*", "1. Vendas", "2. Suporte", "Responda com o número da opção.", "_Sophus_"} {
+		if !strings.Contains(text, expected) {
+			t.Fatalf("formatted menu does not contain %q: %s", expected, text)
+		}
+	}
+}
 
 func TestMenuResponseHandle(t *testing.T) {
 	data := map[string]interface{}{
@@ -16,6 +58,9 @@ func TestMenuResponseHandle(t *testing.T) {
 
 	if got := menuResponseHandle(data, " support ", ExecutionContext{}); got != "menu-support-handle" {
 		t.Fatalf("menuResponseHandle() = %q, want %q", got, "menu-support-handle")
+	}
+	if got := menuResponseHandle(data, "2", ExecutionContext{}); got != "menu-support-handle" {
+		t.Fatalf("menuResponseHandle() = %q, want menu-support-handle for option 2", got)
 	}
 	if got := menuResponseHandle(data, "unknown", ExecutionContext{}); got != "fallback" {
 		t.Fatalf("menuResponseHandle() = %q, want fallback", got)

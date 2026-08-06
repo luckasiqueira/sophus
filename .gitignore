@@ -14,3 +14,15 @@ builds/
 *.exe
 *.templ
 *_templ.go
+!web/flowbuilder.templ
+!web/flowbuilder_templ.go
+!web/message-single.templ
+!web/message-single_templ.go
+!web/base.templ
+!web/base_templ.go
+!web/messages.templ
+!web/messages_templ.go
+!web/departments.templ
+!web/departments_templ.go
+!web/components/message.templ
+!web/components/message_templ.go

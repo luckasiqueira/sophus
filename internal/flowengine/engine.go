@@ -235,7 +235,7 @@ func (e *Engine) processNode(executionID int, node FlowNode, ctx ExecutionContex
 	case NodeChangeStatus:
 		return ProcessResult{}, e.executeChangeStatus(node.Data, conversation.Id)
 	case NodeAssign:
-		return ProcessResult{}, e.executeAssign(node.Data, conversation.Id)
+		return ProcessResult{}, e.executeAssign(node.Data, conversation.Id, companyID)
 	case NodeHTTPRequest:
 		resp := e.messenger.ExecuteHTTPRequest(node.Data, ctx)
 		if saveTo := stringVal(node.Data, "saveResponseTo"); saveTo != "" {
@@ -334,13 +334,15 @@ func (e *Engine) getNextNode(currentNodeID, nodeType string, edges []FlowEdge, c
 func menuResponseHandle(data map[string]interface{}, response string, ctx ExecutionContext) string {
 	sections, _ := data["sections"].([]interface{})
 	response = strings.TrimSpace(response)
+	option := 1
 	for _, rawSection := range sections {
 		section, _ := rawSection.(map[string]interface{})
 		rows, _ := section["rows"].([]interface{})
 		for _, rawRow := range rows {
 			row, _ := rawRow.(map[string]interface{})
 			rowID := ReplaceVariables(stringVal(row, "rowId"), ctx)
-			if response != strings.TrimSpace(rowID) {
+			if response != strconv.Itoa(option) && response != strings.TrimSpace(rowID) {
+				option++
 				continue
 			}
 			handleID := stringVal(row, "_handleId")
@@ -420,19 +422,22 @@ func (e *Engine) executeChangeStatus(data map[string]interface{}, conversationID
 	return repo.UpdateConversationStatus(conversationID, status)
 }
 
-func (e *Engine) executeAssign(data map[string]interface{}, conversationID int) error {
+func (e *Engine) executeAssign(data map[string]interface{}, conversationID, companyID int) error {
 	assignType := stringVal(data, "assignType")
 	if assignType == "" {
 		assignType = "agent"
-	}
-	if assignType != "agent" {
-		return nil
 	}
 	assignID := intVal(data, "assignId")
 	if assignID <= 0 {
 		return nil
 	}
-	return repo.AssignConversationAgent(conversationID, assignID)
+	if assignType == "department" {
+		return repo.AssignConversationDepartment(conversationID, assignID, companyID)
+	}
+	if assignType != "agent" {
+		return fmt.Errorf("tipo de atribuição inválido: %s", assignType)
+	}
+	return repo.AssignConversationAgent(conversationID, assignID, companyID)
 }
 
 func (e *Engine) checkBusinessHours(startNode *FlowNode, conversation repo.Conversation) (string, error) {

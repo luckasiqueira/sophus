@@ -11,11 +11,26 @@ import (
 	"sophus/internal/repo"
 	"sophus/pkg/http/middlewares/sse"
 
+	"github.com/google/uuid"
 	"github.com/kataras/iris/v12"
 )
 
 func SSEMessages(ctx iris.Context) {
 	key := strings.TrimPrefix(ctx.GetReferrer().Path, "/messages/")
+	conversationURL, err := uuid.Parse(key)
+	if err != nil {
+		ctx.StopWithStatus(iris.StatusBadRequest)
+		return
+	}
+	agent, err := AgentIdentifier(ctx)
+	if err != nil {
+		ctx.StopWithStatus(iris.StatusUnauthorized)
+		return
+	}
+	if _, err := repo.GetVisibleConversationByURL(conversationURL, agent); err != nil {
+		ctx.StopWithStatus(iris.StatusForbidden)
+		return
+	}
 	streamSSE(ctx, sse.Global, key, "message")
 }
 

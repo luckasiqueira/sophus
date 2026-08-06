@@ -2,6 +2,7 @@ package middlewares
 
 import (
 	"errors"
+
 	"sophus/internal/repo"
 	"sophus/utils/env"
 
@@ -11,8 +12,11 @@ import (
 
 var secret = []byte(env.Backend["SALT_JWT"])
 
+const agentContextKey = "authenticatedAgent"
+
 func AuthLogin(ctx iris.Context) {
-	if !IsValidJWT(ctx) {
+	agent, err := identifyAgent(ctx)
+	if err != nil {
 		// StatusFound (302), never Permanent(301/308): a permanent redirect
 		// here gets cached by the browser itself, so once someone hits this
 		// while logged out, the browser will keep bouncing them to /login
@@ -21,6 +25,7 @@ func AuthLogin(ctx iris.Context) {
 		ctx.Redirect("/login", iris.StatusFound)
 		return
 	}
+	ctx.Values().Set(agentContextKey, agent)
 	ctx.Next()
 }
 
@@ -37,19 +42,39 @@ func IsValidJWT(ctx iris.Context) bool {
 }
 
 func AgentIdentifier(ctx iris.Context) (repo.Agent, error) {
+	if agent, ok := ctx.Values().Get(agentContextKey).(repo.Agent); ok {
+		return agent, nil
+	}
+
+	agent, err := identifyAgent(ctx)
+	if err != nil {
+		ctx.StopWithStatus(iris.StatusUnauthorized)
+		return repo.Agent{}, err
+	}
+	ctx.Values().Set(agentContextKey, agent)
+	return agent, nil
+}
+
+func identifyAgent(ctx iris.Context) (repo.Agent, error) {
 	token := ctx.GetCookie("token")
 	if token == "" {
-		ctx.StopWithStatus(iris.StatusUnauthorized)
 		return repo.Agent{}, errors.New("token is empty")
 	}
 	jwtToken, err := jwt.Verify(jwt.HS256, secret, []byte(token))
 	if err != nil {
-		ctx.StopWithStatus(iris.StatusUnauthorized)
 		return repo.Agent{}, errors.New("error decoding token")
 	}
 
 	var agent repo.Agent
-	err = jwtToken.Claims(&agent)
+	if err := jwtToken.Claims(&agent); err != nil {
+		return repo.Agent{}, err
+	}
 	agent, err = repo.GetAgentByEmail(agent.Email)
-	return agent, err
+	if err != nil {
+		return repo.Agent{}, err
+	}
+	if !agent.IsActive {
+		return repo.Agent{}, errors.New("agent is inactive")
+	}
+	return agent, nil
 }

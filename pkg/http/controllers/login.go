@@ -1,10 +1,12 @@
 package controllers
 
 import (
+	"errors"
+	"time"
+
 	"sophus/internal/repo"
 	"sophus/utils/env"
 	"sophus/web"
-	"time"
 
 	"github.com/kataras/iris/v12"
 	"github.com/kataras/iris/v12/middleware/jwt"
@@ -56,6 +58,9 @@ func checkCredentials(ctx iris.Context) (repo.Agent, int, error) {
 	err = bcrypt.CompareHashAndPassword([]byte(agent.Password), []byte(givenPassword))
 	if err != nil {
 		return repo.Agent{}, iris.StatusUnauthorized, err
+	}
+	if !agent.IsActive {
+		return repo.Agent{}, iris.StatusUnauthorized, errors.New("agent is inactive")
 	}
 	return agent, iris.StatusOK, nil
 }

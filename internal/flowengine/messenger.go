@@ -3,9 +3,11 @@ package flowengine
 import (
 	"encoding/json"
 	"fmt"
+	"log"
 	"sophus/internal/repo"
 	"sophus/pkg/http/requests"
 	"strings"
+	"time"
 )
 
 type Messenger struct {
@@ -28,7 +30,7 @@ type menuPayload struct {
 	Title       string        `json:"title,omitempty"`
 	Description string        `json:"description"`
 	ButtonText  string        `json:"buttonText"`
-	FooterText  string        `json:"footerText,omitempty"`
+	FooterText  string        `json:"footerText"`
 	Sections    []menuSection `json:"sections"`
 }
 
@@ -45,14 +47,14 @@ func (m *Messenger) SendText(conversation repo.Conversation, message string) err
 		MessageBaseEVO: repo.MessageBaseEVO{Number: contact.Number},
 		Text:           message,
 	}
-	status, _, err := msg.Send(m.Connection.EvolutionAPIKey())
+	status, responseBody, err := msg.Send(m.Connection.EvolutionAPIKey())
 	if err != nil {
 		return err
 	}
 	if status != 200 {
 		return fmt.Errorf("send text failed with status %d", status)
 	}
-	return nil
+	return repo.SaveFlowMessage(conversation.Id, evolutionMessageID(responseBody), message)
 }
 
 func (m *Messenger) SendMedia(conversation repo.Conversation, mediaType, mediaURL, caption string) error {
@@ -89,7 +91,31 @@ func (m *Messenger) SendMedia(conversation repo.Conversation, mediaType, mediaUR
 	if r.StatusCode != 200 {
 		return fmt.Errorf("send media failed with status %d: %s", r.StatusCode, string(r.Body))
 	}
-	return nil
+	text := caption
+	if strings.TrimSpace(text) == "" {
+		text = fmt.Sprintf("%s enviado pelo fluxo", mediaType)
+	}
+	return repo.SaveFlowMessage(conversation.Id, evolutionMessageID(r.Body), text)
+}
+
+func evolutionMessageID(body []byte) string {
+	var response struct {
+		Data struct {
+			Info struct {
+				ID string `json:"ID"`
+			} `json:"Info"`
+			Key struct {
+				ID string `json:"id"`
+			} `json:"key"`
+		} `json:"data"`
+	}
+	if json.Unmarshal(body, &response) != nil {
+		return ""
+	}
+	if response.Data.Info.ID != "" {
+		return response.Data.Info.ID
+	}
+	return response.Data.Key.ID
 }
 
 func (m *Messenger) SendMenu(conversation repo.Conversation, data map[string]interface{}, ctx ExecutionContext) error {
@@ -117,6 +143,12 @@ func (m *Messenger) SendMenu(conversation repo.Conversation, data map[string]int
 	}
 	if strings.TrimSpace(payload.Description) == "" {
 		return fmt.Errorf("menu description is required")
+	}
+	if strings.TrimSpace(payload.Title) == "" {
+		payload.Title = "Menu"
+	}
+	if strings.TrimSpace(payload.FooterText) == "" {
+		payload.FooterText = "Sophus"
 	}
 	if strings.TrimSpace(payload.ButtonText) == "" {
 		payload.ButtonText = "Ver Menu"
@@ -146,23 +178,42 @@ func (m *Messenger) SendMenu(conversation repo.Conversation, data map[string]int
 		}
 	}
 
-	r := requests.Request{
-		URL:     repo.ApiBaseURL + "/send/list",
-		Method:  "POST",
-		Payload: payload,
-		Headers: map[string]string{
-			"Content-Type": "application/json",
-			"apikey":       m.Connection.EvolutionAPIKey(),
-		},
-		Response: requests.Response{},
-	}
-	if err := r.Do(); err != nil {
+	startedAt := time.Now()
+	log.Printf("sending flow text menu: conversation=%d connection=%d sections=%d", conversation.Id, m.Connection.Id, len(payload.Sections))
+	if err := m.SendText(conversation, formatMenuAsText(payload)); err != nil {
+		log.Printf("failed to send flow text menu: conversation=%d connection=%d duration=%s error=%v", conversation.Id, m.Connection.Id, time.Since(startedAt).Round(time.Millisecond), err)
 		return err
 	}
-	if r.StatusCode != 200 {
-		return fmt.Errorf("send menu failed with status %d: %s", r.StatusCode, string(r.Body))
-	}
+	log.Printf("flow text menu sent: conversation=%d connection=%d duration=%s", conversation.Id, m.Connection.Id, time.Since(startedAt).Round(time.Millisecond))
 	return nil
+}
+
+func formatMenuAsText(payload menuPayload) string {
+	var text strings.Builder
+	if payload.Title != "" {
+		fmt.Fprintf(&text, "*%s*\n", payload.Title)
+	}
+	if payload.Description != "" {
+		fmt.Fprintf(&text, "%s\n", payload.Description)
+	}
+	option := 1
+	for _, section := range payload.Sections {
+		if section.Title != "" {
+			fmt.Fprintf(&text, "\n*%s*\n", section.Title)
+		}
+		for _, row := range section.Rows {
+			fmt.Fprintf(&text, "%d. %s\n", option, row.Title)
+			if row.Description != "" {
+				fmt.Fprintf(&text, "   %s\n", row.Description)
+			}
+			option++
+		}
+	}
+	text.WriteString("\nResponda com o número da opção.")
+	if payload.FooterText != "" {
+		fmt.Fprintf(&text, "\n_%s_", payload.FooterText)
+	}
+	return text.String()
 }
 
 func (m *Messenger) ExecuteHTTPRequest(data map[string]interface{}, ctx ExecutionContext) map[string]interface{} {

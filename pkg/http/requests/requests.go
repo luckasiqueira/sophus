@@ -6,13 +6,17 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"time"
 )
+
+const defaultTimeout = 30 * time.Second
 
 type Request struct {
 	URL     string            `json:"url"`
 	Payload interface{}       `json:"payload"` //map[string]any
 	Headers map[string]string `json:"headers"`
 	Method  string            `json:"method"`
+	Timeout time.Duration     `json:"-"`
 	Response
 }
 
@@ -30,7 +34,12 @@ func (r *Request) Do() error {
 	for k, v := range r.Headers {
 		req.Header.Set(k, v)
 	}
-	resp, err := http.DefaultClient.Do(req)
+	timeout := r.Timeout
+	if timeout <= 0 {
+		timeout = defaultTimeout
+	}
+	client := http.Client{Timeout: timeout}
+	resp, err := client.Do(req)
 	if err != nil {
 		return err
 	}

@@ -25,11 +25,12 @@ import (
 var qrConnectionLocks sync.Map
 
 func Webhook(ctx iris.Context) {
-	connection, event, body, err := middlewares.ValidateWebhook(ctx)
-	if err != nil {
-		ctx.StopWithStatus(iris.StatusBadRequest)
+	connection, event, body, ok := middlewares.WebhookPayload(ctx)
+	if !ok {
+		ctx.StopWithStatus(iris.StatusInternalServerError)
 		return
 	}
+	var err error
 	saveBody(body)
 	eventType := strings.NewReplacer("_", "", "-", "").Replace(strings.ToLower(event.EventType))
 	log.Printf("Evolution GO webhook received: connection=%d event=%s", connection.Id, eventType)
@@ -125,7 +126,6 @@ func Webhook(ctx iris.Context) {
 		}
 		msg.FullJSON = body
 		err = repo.SaveEvoMessage(msg, connection)
-		fmt.Println(err)
 		if err != nil {
 			ctx.StopWithStatus(iris.StatusInternalServerError)
 			return
@@ -134,10 +134,13 @@ func Webhook(ctx iris.Context) {
 			conversation, convErr := repo.GetConversationByMessage(msg.Data.Info.ID)
 			if convErr == nil {
 				messageText := repo.CheckMessageText(msg)
+				log.Printf("dispatching inbound message to flows: connection=%d conversation=%d status=%s text_length=%d", connection.Id, conversation.Id, conversation.Status, len(strings.TrimSpace(messageText)))
 				flowengine.HandleIncomingMessage(conversation, connection, messageText, msg.Data.Info.PushName)
+			} else {
+				log.Printf("failed to find conversation for flow dispatch: connection=%d message=%s error=%v", connection.Id, msg.Data.Info.ID, convErr)
 			}
 		}
-		prepareSSEData(ctx, msg)
+		prepareSSEData(ctx, msg, connection.CompanyID)
 	case "buttonclick":
 		click := repo.EventButtonClickEVO{}
 		if err = json.Unmarshal(body, &click); err != nil {
@@ -203,13 +206,15 @@ func qrConnectionLock(connectionID int) *sync.Mutex {
 	return lock.(*sync.Mutex)
 }
 
-func prepareSSEData(ctx iris.Context, msg repo.EventMessageEVO) {
+func prepareSSEData(ctx iris.Context, msg repo.EventMessageEVO, companyID int) {
 	//u := ctx.URLParam("url")
 	//url, err := uuid.Parse(u)
 	msgText := repo.CheckMessageText(msg)
 	msgType := repo.CheckMessageType(msg)
 	t, err := utils.TimeFromTimestamp(msg.Data.Info.Timestamp)
-	fmt.Println(t, err)
+	if err != nil {
+		log.Printf("invalid message timestamp: message=%s timestamp=%q error=%v", msg.Data.Info.ID, msg.Data.Info.Timestamp, err)
+	}
 	msgData := repo.MessageData{
 		MessageId:      msg.Data.Info.ID,
 		Text:           msgText,
@@ -223,11 +228,6 @@ func prepareSSEData(ctx iris.Context, msg repo.EventMessageEVO) {
 		MediaPath:      msg.MediaPath,
 	}
 
-	agent, err := repo.GetAgentByMessage(msg.Data.Info.ID)
-	if err != nil {
-		ctx.StopWithStatus(iris.StatusInternalServerError)
-		return
-	}
 	conversation, err := repo.GetConversationByMessage(msg.Data.Info.ID)
 	if err != nil {
 		ctx.StopWithStatus(iris.StatusInternalServerError)
@@ -246,9 +246,9 @@ func prepareSSEData(ctx iris.Context, msg repo.EventMessageEVO) {
 		}
 	}
 	if msg.Data.Info.IsFromMe {
-		component = components.MessageSent(msgData, agent.CompanyId)
+		component = components.MessageSent(msgData, companyID)
 	} else {
-		component = components.MessageReceived(msgData, agent.CompanyId)
+		component = components.MessageReceived(msgData, companyID)
 	}
 
 	html, err := renderComponent(component)

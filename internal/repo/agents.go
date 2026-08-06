@@ -1,15 +1,14 @@
 package repo
 
-import (
-	"fmt"
-	"time"
-)
+import "time"
+
+const RoleAdmin = "admin"
 
 type Agent struct {
 	Id        int       `json:"id"`
 	Name      string    `json:"name"`
 	Email     string    `json:"email"`
-	Password  string    `json:"password"`
+	Password  string    `json:"-"`
 	Role      string    `json:"role"`
 	IsActive  bool      `json:"isActive"`
 	CompanyId int       `json:"companyId"`
@@ -18,23 +17,23 @@ type Agent struct {
 }
 
 func GetAgentByEmail(email string) (Agent, error) {
-	query := fmt.Sprintf(`SELECT * FROM agents WHERE email = $1`)
+	query := `SELECT id, name, email, password, role, "isActive", "companyId", "createdAt", "updatedAt" FROM agents WHERE email = $1`
 	return getAgent(query, email)
 }
 
 func GetAgentById(id int) (Agent, error) {
-	query := fmt.Sprintf(`SELECT * FROM agents WHERE id = $1`, id)
+	query := `SELECT id, name, email, password, role, "isActive", "companyId", "createdAt", "updatedAt" FROM agents WHERE id = $1`
 	return getAgent(query, id)
 }
 
 func GetAgentByMessage(message string) (Agent, error) {
-	query := fmt.Sprintf(`SELECT a.*
+	query := `SELECT a.id, a.name, a.email, a.password, a.role, a."isActive", a."companyId", a."createdAt", a."updatedAt"
 	FROM messages m
 	INNER JOIN conversations c
 		ON c.id = m."conversationId"
 	INNER JOIN agents a
 		ON a.id = c."agentId"
-	WHERE m."messageId" = $1`)
+	WHERE m."messageId" = $1`
 	return getAgent(query, message)
 }
 
@@ -46,5 +45,9 @@ func getAgent(query string, args ...interface{}) (Agent, error) {
 	}
 	defer stmt.Close()
 	err = stmt.QueryRow(args...).Scan(&a.Id, &a.Name, &a.Email, &a.Password, &a.Role, &a.IsActive, &a.CompanyId, &a.CreatedAt, &a.UpdatedAt)
-	return a, nil
+	return a, err
+}
+
+func (a Agent) IsAdmin() bool {
+	return a.Role == RoleAdmin
 }

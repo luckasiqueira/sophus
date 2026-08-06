@@ -1,0 +1,128 @@
+package web
+
+templ DepartmentSettings() {
+@base("departments") {
+<main class="flex-1 bg-stone-50 rounded-2xl shadow-sm overflow-y-auto p-6">
+    <div class="max-w-5xl mx-auto">
+        <div class="flex items-center justify-between mb-6">
+            <div>
+                <h1 class="text-2xl font-bold text-gray-900">Setores</h1>
+                <p class="text-sm text-gray-500 mt-1">Configure os setores da empresa e os vínculos dos agentes.</p>
+            </div>
+            <a href="/messages" class="px-4 py-2 rounded-xl bg-stone-100 text-gray-700 hover:bg-stone-200 text-sm font-medium">Voltar</a>
+        </div>
+
+        <section class="bg-white rounded-2xl border border-stone-200 p-5 mb-6">
+            <h2 class="font-semibold text-gray-900 mb-3">Novo setor</h2>
+            <form id="department-form" class="flex gap-3">
+                <input id="department-name" required maxlength="80" placeholder="Ex: Suporte" class="flex-1 px-4 py-2.5 border border-stone-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-purple-400"/>
+                <button class="px-5 py-2.5 rounded-xl bg-purple-600 text-white font-medium hover:bg-purple-700">Adicionar</button>
+            </form>
+        </section>
+
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <section class="bg-white rounded-2xl border border-stone-200 p-5">
+                <h2 class="font-semibold text-gray-900 mb-4">Setores ativos</h2>
+                <div id="departments-list" class="space-y-2"></div>
+            </section>
+            <section class="bg-white rounded-2xl border border-stone-200 p-5">
+                <h2 class="font-semibold text-gray-900 mb-4">Agentes por setor</h2>
+                <div id="agents-list" class="space-y-4"></div>
+            </section>
+        </div>
+    </div>
+</main>
+<script>
+let departmentState = { departments: [], agents: [] };
+
+async function departmentAPI(method, url, body) {
+    const response = await fetch(url, {
+        method: method,
+        headers: { 'Content-Type': 'application/json' },
+        body: body === undefined ? undefined : JSON.stringify(body)
+    });
+    if (!response.ok) {
+        const data = await response.json().catch(() => ({}));
+        throw new Error(data.error || ('Erro ' + response.status));
+    }
+    if (response.status === 204) return null;
+    return response.json();
+}
+
+async function loadDepartmentSettings() {
+    const response = await departmentAPI('GET', '/api/departments');
+    departmentState = response.data;
+    renderDepartmentSettings();
+}
+
+function renderDepartmentSettings() {
+    const departmentList = document.getElementById('departments-list');
+    departmentList.innerHTML = '';
+    departmentState.departments.forEach(department => {
+        const row = document.createElement('div');
+        row.className = 'flex items-center justify-between p-3 bg-stone-50 rounded-xl';
+        const name = document.createElement('span');
+        name.className = 'text-sm font-medium text-gray-800';
+        name.textContent = department.name;
+        const remove = document.createElement('button');
+        remove.className = 'text-red-600 hover:bg-red-50 px-3 py-1.5 rounded-lg text-sm';
+        remove.textContent = 'Excluir';
+        remove.onclick = async () => {
+            if (!confirm('Excluir este setor? As conversas ficarão sem setor.')) return;
+            await departmentAPI('DELETE', '/api/departments/' + department.id);
+            await loadDepartmentSettings();
+        };
+        row.append(name, remove);
+        departmentList.appendChild(row);
+    });
+    if (!departmentState.departments.length) departmentList.textContent = 'Nenhum setor cadastrado.';
+
+    const agentList = document.getElementById('agents-list');
+    agentList.innerHTML = '';
+    departmentState.agents.forEach(agent => {
+        const card = document.createElement('div');
+        card.className = 'p-4 border border-stone-200 rounded-xl';
+        const title = document.createElement('div');
+        title.className = 'font-medium text-gray-900 mb-3';
+        title.textContent = agent.name;
+        card.appendChild(title);
+        departmentState.departments.forEach(department => {
+            const label = document.createElement('label');
+            label.className = 'flex items-center gap-2 py-1.5 text-sm text-gray-700';
+            const checkbox = document.createElement('input');
+            checkbox.type = 'checkbox';
+            checkbox.value = String(department.id);
+            checkbox.checked = agent.departmentIds.includes(department.id);
+            label.append(checkbox, document.createTextNode(department.name));
+            card.appendChild(label);
+        });
+        const save = document.createElement('button');
+        save.className = 'mt-3 px-4 py-2 rounded-lg bg-purple-100 text-purple-700 hover:bg-purple-200 text-sm font-medium';
+        save.textContent = 'Salvar vínculos';
+        save.onclick = async () => {
+            const ids = Array.from(card.querySelectorAll('input:checked')).map(input => Number(input.value));
+            await departmentAPI('PUT', '/api/departments/agents/' + agent.id, { departmentIds: ids });
+            save.textContent = 'Salvo';
+            setTimeout(() => save.textContent = 'Salvar vínculos', 1000);
+        };
+        card.appendChild(save);
+        agentList.appendChild(card);
+    });
+}
+
+document.getElementById('department-form').addEventListener('submit', async event => {
+    event.preventDefault();
+    const input = document.getElementById('department-name');
+    try {
+        await departmentAPI('POST', '/api/departments', { name: input.value });
+        input.value = '';
+        await loadDepartmentSettings();
+    } catch (error) {
+        alert(error.message);
+    }
+});
+
+loadDepartmentSettings().catch(error => alert(error.message));
+</script>
+}
+}

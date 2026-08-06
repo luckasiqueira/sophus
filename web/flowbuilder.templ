@@ -1,3 +1,6 @@
+package web
+
+templ FlowBuilder() {
 <!DOCTYPE html>
 <html lang="pt-BR">
 <head>
@@ -98,7 +101,7 @@ const NODE_TYPES = {
   switch:          { label: 'Múltipla Escolha',     icon: 'fa-list',            color: '#f59e0b', category: 'Lógica' },
   delay:           { label: 'Aguardar',             icon: 'fa-clock',           color: '#f59e0b', category: 'Lógica' },
   changeStatus:    { label: 'Mudar Status',         icon: 'fa-tag',             color: '#8b5cf6', category: 'Sistema' },
-  assign:          { label: 'Atribuir Agente',      icon: 'fa-user-check',      color: '#8b5cf6', category: 'Sistema' },
+  assign:          { label: 'Transferir conversa',  icon: 'fa-user-check',      color: '#8b5cf6', category: 'Sistema' },
   httpRequest:     { label: 'HTTP Request',         icon: 'fa-globe',           color: '#8b5cf6', category: 'Sistema' },
   waitForResponse: { label: 'Esperar Resposta',     icon: 'fa-hourglass-half',  color: '#ec4899', category: 'Interação' },
   input:           { label: 'Capturar Resposta',    icon: 'fa-keyboard',        color: '#ec4899', category: 'Interação' },
@@ -131,10 +134,10 @@ function customSelectHTML(role, options, selected, placeholder) {
   const panelItems = options.map((o, i) => {
     const radioId = base + '_opt' + i;
     return '<label for="' + radioId + '" class="cursor-pointer w-full px-4 py-2.5 text-left text-sm text-gray-700 hover:bg-purple-50 hover:text-purple-700 transition-colors flex items-center gap-2.5 dd-item" data-radio="' + radioId + '">' +
-      (o.dot ? '<span class="w-2 h-2 rounded-full flex-shrink-0" style="background:' + o.dot + '"></span>' : '') +
-      '<span class="truncate">' + escapeHtml(o.label) + '</span>' +
-      '<i class="fas fa-check ml-auto text-purple-600 opacity-0 dd-check" data-radio="' + radioId + '"></i>' +
-      '</label>';
+      (o.dot ? '<span class="w-2 h-2 rounded-full flex-shrink-0" style="background:' + o.dot + '"><\/span>' : '') +
+      '<span class="truncate">' + escapeHtml(o.label) + '<\/span>' +
+      '<i class="fas fa-check ml-auto text-purple-600 opacity-0 dd-check" data-radio="' + radioId + '"><\/i>' +
+      '<\/label>';
   }).join('');
 
   const hasRules = options.map((o, i) =>
@@ -149,18 +152,18 @@ function customSelectHTML(role, options, selected, placeholder) {
       radios +
       '<input type="checkbox" id="' + toggleId + '" class="hidden peer">' +
       '<label for="' + toggleId + '" class="cursor-pointer min-w-[170px] px-3 py-2 bg-white border border-stone-200 rounded-xl text-sm transition-all flex items-center justify-between gap-2 hover:border-purple-300 peer-checked:ring-2 peer-checked:ring-purple-400 peer-checked:rounded-b-none shadow-sm">' +
-        '<span class="dd-placeholder text-gray-400 truncate">' + escapeHtml(placeholder) + '</span>' +
+        '<span class="dd-placeholder text-gray-400 truncate">' + escapeHtml(placeholder) + '<\/span>' +
         '<span class="dd-selected hidden text-gray-900 items-center gap-2 truncate">' +
-          (selectedOpt && selectedOpt.dot ? '<span class="w-2 h-2 rounded-full flex-shrink-0" style="background:' + selectedOpt.dot + '"></span>' : '') +
-          '<span class="truncate">' + escapeHtml(selectedOpt ? selectedOpt.label : '') + '</span>' +
-        '</span>' +
-        '<i class="fas fa-chevron-down text-gray-400 text-xs transition-transform peer-checked:rotate-180 flex-shrink-0"></i>' +
-      '</label>' +
+          (selectedOpt && selectedOpt.dot ? '<span class="w-2 h-2 rounded-full flex-shrink-0" style="background:' + selectedOpt.dot + '"><\/span>' : '') +
+          '<span class="truncate">' + escapeHtml(selectedOpt ? selectedOpt.label : '') + '<\/span>' +
+        '<\/span>' +
+        '<i class="fas fa-chevron-down text-gray-400 text-xs transition-transform peer-checked:rotate-180 flex-shrink-0"><\/i>' +
+      '<\/label>' +
       '<div class="hidden peer-checked:flex absolute left-0 right-0 top-full flex-col bg-white rounded-b-xl shadow-lg border border-t-0 border-stone-200 overflow-hidden z-50 py-1.5 max-h-64 overflow-y-auto">' +
         panelItems +
-      '</div>' +
-      '<style>' + hasRules + '</style>' +
-    '</div>';
+      '<\/div>' +
+      '<style>' + hasRules + '<\/style>' +
+    '<\/div>';
 }
 
 // close any open custom dropdown when clicking outside it
@@ -179,6 +182,8 @@ document.addEventListener('click', (e) => {
 const state = {
   flows: [],
   connections: [],
+  agents: [],
+  departments: [],
   currentFlow: null,      // {id, name, description, connectionId, triggerType, triggerValue, isActive}
   flowData: { nodes: [], edges: [] },
   selectedNodeId: null,
@@ -213,9 +218,9 @@ async function loadFlowsList() {
 }
 
 function triggerBadge(flow) {
-  if (flow.triggerType === 'always') return '<span class="px-2 py-0.5 rounded-full bg-blue-100 text-blue-700 text-xs font-medium">Sempre responde</span>';
-  if (flow.triggerType === 'exact') return `<span class="px-2 py-0.5 rounded-full bg-amber-100 text-amber-700 text-xs font-medium">Mensagem exata: "${escapeHtml(flow.triggerValue||'')}"</span>`;
-  return `<span class="px-2 py-0.5 rounded-full bg-purple-100 text-purple-700 text-xs font-medium">Palavra-chave: "${escapeHtml(flow.triggerValue||'')}"</span>`;
+  if (flow.triggerType === 'always') return '<span class="px-2 py-0.5 rounded-full bg-blue-100 text-blue-700 text-xs font-medium">Sempre responde<\/span>';
+  if (flow.triggerType === 'exact') return `<span class="px-2 py-0.5 rounded-full bg-amber-100 text-amber-700 text-xs font-medium">Mensagem exata: "${escapeHtml(flow.triggerValue||'')}"<\/span>`;
+  return `<span class="px-2 py-0.5 rounded-full bg-purple-100 text-purple-700 text-xs font-medium">Palavra-chave: "${escapeHtml(flow.triggerValue||'')}"<\/span>`;
 }
 
 function renderFlowsList() {
@@ -230,25 +235,25 @@ function renderFlowsList() {
     card.style.borderTopColor = flow.isActive ? '#22c55e' : '#d6d3d1';
     card.innerHTML = `
       <div class="flex items-start justify-between mb-2">
-        <h3 class="text-base font-bold text-gray-900">${escapeHtml(flow.name)}</h3>
+        <h3 class="text-base font-bold text-gray-900">${escapeHtml(flow.name)}<\/h3>
         <span class="text-xs font-medium px-2 py-0.5 rounded-full ${flow.isActive ? 'bg-green-100 text-green-700' : 'bg-stone-100 text-gray-500'}">
           ${flow.isActive ? 'Ativo' : 'Inativo'}
-        </span>
-      </div>
-      <p class="text-xs text-gray-500 mb-3 flex-1">${escapeHtml(flow.description || 'Sem descrição')}</p>
-      <div class="flex items-center gap-2 flex-wrap mb-3">${triggerBadge(flow)}</div>
+        <\/span>
+      <\/div>
+      <p class="text-xs text-gray-500 mb-3 flex-1">${escapeHtml(flow.description || 'Sem descrição')}<\/p>
+      <div class="flex items-center gap-2 flex-wrap mb-3">${triggerBadge(flow)}<\/div>
       <div class="text-xs text-gray-500 mb-4 flex items-center gap-1.5">
-        <i class="fab fa-whatsapp ${conn ? 'text-green-600' : 'text-gray-300'}"></i>
+        <i class="fab fa-whatsapp ${conn ? 'text-green-600' : 'text-gray-300'}"><\/i>
         ${conn ? escapeHtml(conn.name) : 'Nenhuma conexão vinculada'}
-      </div>
+      <\/div>
       <div class="flex gap-2">
         <button data-edit="${flow.id}" class="flex-1 p-2 bg-stone-100 hover:bg-stone-200 rounded-lg transition-colors text-xs font-medium text-gray-700">
-          <i class="fas fa-edit mr-1"></i>Editar
-        </button>
+          <i class="fas fa-edit mr-1"><\/i>Editar
+        <\/button>
         <button data-del="${flow.id}" class="p-2 bg-red-50 hover:bg-red-100 text-red-500 rounded-lg transition-colors">
-          <i class="fas fa-trash text-xs"></i>
-        </button>
-      </div>`;
+          <i class="fas fa-trash text-xs"><\/i>
+        <\/button>
+      <\/div>`;
     grid.appendChild(card);
   }
   grid.querySelectorAll('[data-edit]').forEach(btn => btn.onclick = () => openEditor(Number(btn.dataset.edit)));
@@ -334,7 +339,7 @@ function flashSaved() {
   const btn = document.getElementById('btn-save');
   if (!btn) return;
   const original = btn.innerHTML;
-  btn.innerHTML = '<i class="fas fa-check"></i> Salvo';
+  btn.innerHTML = '<i class="fas fa-check"><\/i> Salvo';
   setTimeout(() => { btn.innerHTML = original; }, 1200);
 }
 
@@ -376,16 +381,16 @@ function renderTopbarExtra() {
       class="px-3 py-2 rounded-xl text-sm bg-white bg-opacity-90 text-gray-900 placeholder-gray-400 focus:outline-none w-32 shadow-sm ${f.triggerType==='always'?'hidden':''}">
     <label class="flex items-center gap-1.5 text-white text-sm px-2">
       <input id="chk-active" type="checkbox" ${f.isActive?'checked':''}> Ativo
-    </label>
+    <\/label>
     <button id="btn-test" class="px-3 py-1.5 rounded-lg text-sm font-medium text-white bg-white bg-opacity-20 hover:bg-opacity-30 transition-colors">
-      <i class="fas fa-vial mr-1"></i>Testar
-    </button>
+      <i class="fas fa-vial mr-1"><\/i>Testar
+    <\/button>
     <button id="btn-save" class="px-4 py-1.5 rounded-lg text-sm font-bold text-purple-700 bg-white hover:bg-purple-50 transition-colors shadow-sm">
-      <i class="fas fa-save mr-1"></i>Salvar
-    </button>
+      <i class="fas fa-save mr-1"><\/i>Salvar
+    <\/button>
     <button id="btn-close-editor" class="p-2 hover:bg-white hover:bg-opacity-20 rounded-lg text-white transition-colors">
-      <i class="fas fa-times"></i>
-    </button>
+      <i class="fas fa-times"><\/i>
+    <\/button>
   `;
   document.getElementById('inp-name').oninput = e => { f.name = e.target.value; };
 
@@ -425,18 +430,18 @@ function renderPalette() {
     const items = Object.entries(NODE_TYPES).filter(([,m]) => m.category === cat);
     return `
       <div class="mb-4">
-        <div class="text-xs font-bold text-gray-400 uppercase tracking-wide mb-2 px-1">${cat}</div>
+        <div class="text-xs font-bold text-gray-400 uppercase tracking-wide mb-2 px-1">${cat}<\/div>
         <div class="flex flex-col gap-1.5">
           ${items.map(([type, meta]) => `
             <button data-add="${type}" class="palette-item flex items-center gap-2 px-3 py-2 rounded-xl text-sm text-left hover:shadow-md transition-all border border-stone-100"
               style="background: color-mix(in srgb, ${meta.color} 8%, white);">
               <span class="w-7 h-7 rounded-lg flex items-center justify-center flex-shrink-0" style="background:${meta.color}22;">
-                <i class="fas ${meta.icon}" style="color:${meta.color};"></i>
-              </span>
-              <span class="font-medium text-gray-700">${meta.label}</span>
-            </button>`).join('')}
-        </div>
-      </div>`;
+                <i class="fas ${meta.icon}" style="color:${meta.color};"><\/i>
+              <\/span>
+              <span class="font-medium text-gray-700">${meta.label}<\/span>
+            <\/button>`).join('')}
+        <\/div>
+      <\/div>`;
   }).join('');
   el.querySelectorAll('[data-add]').forEach(btn => btn.onclick = () => addNode(btn.dataset.add));
 }
@@ -463,7 +468,7 @@ function addNode(type) {
 function defaultDataFor(type) {
   switch (type) {
     case 'sendMenu': return {
-      title: '', description: '', buttonText: 'Ver Menu', footerText: '', useFallback: false,
+      title: 'Menu', description: '', buttonText: 'Ver Menu', footerText: 'Sophus', useFallback: false,
       sections: [{ title: 'Opções', rows: [{ title: 'Opção 1', description: '', rowId: 'opcao_1', _handleId: uid('mh') }] }],
     };
     case 'switch': return { cases: [{ label: 'Opção 1', condition: '' }] };
@@ -530,7 +535,11 @@ function nodeSummary(node) {
     case 'switch': return (d.cases || []).length + ' opção(ões)';
     case 'delay': return d.delayType === 'range' ? (d.minSeconds||0) + 's - ' + (d.maxSeconds||0) + 's' : (d.seconds||0) + 's';
     case 'changeStatus': return d.status ? ('→ ' + d.status) : 'Sem status definido';
-    case 'assign': return d.assignId ? ('Agente #' + d.assignId) : 'Sem agente definido';
+    case 'assign': {
+      const options = d.assignType === 'department' ? state.departments : state.agents;
+      const selected = options.find(option => option.id === Number(d.assignId));
+      return selected ? ((d.assignType === 'department' ? 'Setor: ' : 'Agente: ') + selected.name) : 'Sem destino definido';
+    }
     case 'httpRequest': return d.url ? truncate((d.method||'POST') + ' ' + d.url, 50) : 'Sem URL configurada';
     case 'input': return d.variableName ? ('Salva em: ' + d.variableName) : 'Captura resposta livre';
     case 'waitForResponse': return d.timeout ? ('Timeout: ' + d.timeout + 's') : 'Sem timeout';
@@ -547,15 +556,15 @@ function nodeBodyHTML(node, outs) {
     const title = node.data.title || 'Sem título';
     const message = node.data.description || 'Sem mensagem configurada';
     return '<div class="px-3 py-2 text-xs leading-snug overflow-hidden" style="height:52px">' +
-      '<div class="font-semibold text-gray-700 truncate">' + escapeHtml(title) + '</div>' +
-      '<div class="text-gray-500 mt-0.5 line-clamp-2">' + escapeHtml(message) + '</div>' +
-    '</div>' +
+      '<div class="font-semibold text-gray-700 truncate">' + escapeHtml(title) + '<\/div>' +
+      '<div class="text-gray-500 mt-0.5 line-clamp-2">' + escapeHtml(message) + '<\/div>' +
+    '<\/div>' +
     '<div class="px-3 pb-2 text-[10px] text-gray-400 flex flex-col">' +
-      outs.map(o => '<div class="truncate flex items-center" style="height:28px">↳ ' + escapeHtml(o.label) + '</div>').join('') +
-    '</div>';
+      outs.map(o => '<div class="truncate flex items-center" style="height:28px">↳ ' + escapeHtml(o.label) + '<\/div>').join('') +
+    '<\/div>';
   }
-  return '<div class="px-3 py-2 text-xs text-gray-500 leading-snug">' + escapeHtml(nodeSummary(node)) + '</div>' +
-    (node.type === 'switch' ? '<div class="px-3 text-[10px] text-gray-400 flex flex-col gap-0.5">' + outs.map(o=>'<div class="truncate">↳ ' + escapeHtml(o.label) + '</div>').join('') + '</div>' : '');
+  return '<div class="px-3 py-2 text-xs text-gray-500 leading-snug">' + escapeHtml(nodeSummary(node)) + '<\/div>' +
+    (node.type === 'switch' ? '<div class="px-3 text-[10px] text-gray-400 flex flex-col gap-0.5">' + outs.map(o=>'<div class="truncate">↳ ' + escapeHtml(o.label) + '<\/div>').join('') + '<\/div>' : '');
 }
 
 function outputY(node, index, count) {
@@ -581,11 +590,11 @@ function renderCanvas() {
     card.innerHTML = `
       <div class="flex items-center gap-2 px-3 py-2 border-b border-stone-100 rounded-t-xl" style="background:${meta.color}14;">
         <span class="w-6 h-6 rounded-lg flex items-center justify-center flex-shrink-0" style="background:${meta.color}22;">
-          <i class="fas ${meta.icon} text-xs" style="color:${meta.color};"></i>
-        </span>
-        <span class="text-xs font-bold text-gray-700 flex-1 truncate">${meta.label}</span>
-        ${node.type !== 'start' ? '<button data-del-node="' + node.id + '" class="text-gray-300 hover:text-red-500 transition-colors"><i class="fas fa-times text-xs"></i></button>' : ''}
-      </div>
+          <i class="fas ${meta.icon} text-xs" style="color:${meta.color};"><\/i>
+        <\/span>
+        <span class="text-xs font-bold text-gray-700 flex-1 truncate">${meta.label}<\/span>
+        ${node.type !== 'start' ? '<button data-del-node="' + node.id + '" class="text-gray-300 hover:text-red-500 transition-colors"><i class="fas fa-times text-xs"><\/i><\/button>' : ''}
+      <\/div>
       ${nodeBodyHTML(node, outs)}
     `;
 
@@ -827,23 +836,23 @@ function renderInspector() {
   el.innerHTML = `
     <div class="flex items-center gap-2 mb-4">
       <span class="w-8 h-8 rounded-lg flex items-center justify-center" style="background:${meta.color}22;">
-        <i class="fas ${meta.icon}" style="color:${meta.color};"></i>
-      </span>
-      <h3 class="font-bold text-gray-800">${meta.label}</h3>
-    </div>
-    <div id="inspector-fields" class="flex flex-col gap-3"></div>
+        <i class="fas ${meta.icon}" style="color:${meta.color};"><\/i>
+      <\/span>
+      <h3 class="font-bold text-gray-800">${meta.label}<\/h3>
+    <\/div>
+    <div id="inspector-fields" class="flex flex-col gap-3"><\/div>
   `;
   renderFieldsFor(node);
 }
 
 function field(label, inputHtml, hint) {
-  return '<div><label class="block text-xs font-medium text-gray-600 mb-1">' + label + '</label>' + inputHtml + (hint ? '<p class="text-[11px] text-gray-400 mt-1">' + hint + '</p>' : '') + '</div>';
+  return '<div><label class="block text-xs font-medium text-gray-600 mb-1">' + label + '<\/label>' + inputHtml + (hint ? '<p class="text-[11px] text-gray-400 mt-1">' + hint + '<\/p>' : '') + '<\/div>';
 }
 function textInput(val, name) {
   return '<input data-field="' + name + '" value="' + escapeAttr(val||'') + '" class="w-full px-3 py-2 bg-stone-50 border border-stone-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-purple-400">';
 }
 function textArea(val, name, rows) {
-  return '<textarea data-field="' + name + '" rows="' + (rows||3) + '" class="w-full px-3 py-2 bg-stone-50 border border-stone-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-purple-400">' + escapeHtml(val||'') + '</textarea>';
+  return '<textarea data-field="' + name + '" rows="' + (rows||3) + '" class="w-full px-3 py-2 bg-stone-50 border border-stone-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-purple-400">' + escapeHtml(val||'') + '<\/textarea>';
 }
 function numberInput(val, name) {
   return '<input type="number" data-field="' + name + '" value="' + (val ?? '') + '" class="w-full px-3 py-2 bg-stone-50 border border-stone-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-purple-400">';
@@ -858,14 +867,14 @@ function renderFieldsFor(node) {
     case 'start': {
       d.businessHours = d.businessHours || {};
       const bh = d.businessHours;
-      html += field('Horário de atendimento', '<label class="flex items-center gap-2 text-sm text-gray-700"><input type="checkbox" data-field="businessHours.enabled" ' + (bh.enabled?'checked':'') + '> Restringir a um horário</label>');
+      html += field('Horário de atendimento', '<label class="flex items-center gap-2 text-sm text-gray-700"><input type="checkbox" data-field="businessHours.enabled" ' + (bh.enabled?'checked':'') + '> Restringir a um horário<\/label>');
       if (bh.enabled) {
         html += field('Início', textInput(bh.startTime||'08:00', 'businessHours.startTime'));
         html += field('Fim', textInput(bh.endTime||'18:00', 'businessHours.endTime'));
         html += field('Fuso horário', textInput(bh.timezone||'America/Sao_Paulo', 'businessHours.timezone'));
         html += field('Fora do horário', '<select data-field="businessHours.outsideAction" class="w-full px-3 py-2 bg-stone-50 border border-stone-200 rounded-lg text-sm">' +
-            '<option value="block" ' + (bh.outsideAction==='block'?'selected':'') + '>Ignorar mensagem</option>' +
-            '<option value="message" ' + (bh.outsideAction==='message'?'selected':'') + '>Enviar aviso automático</option></select>');
+            '<option value="block" ' + (bh.outsideAction==='block'?'selected':'') + '>Ignorar mensagem<\/option>' +
+            '<option value="message" ' + (bh.outsideAction==='message'?'selected':'') + '>Enviar aviso automático<\/option><\/select>');
         if (bh.outsideAction === 'message') {
           html += field('Mensagem de aviso', textArea(bh.outsideMessage, 'businessHours.outsideMessage'));
         }
@@ -873,7 +882,7 @@ function renderFieldsFor(node) {
       break;
     }
     case 'sendText':
-      html += field('Mensagem', textArea(d.message, 'message', 4), 'Use {{variavel}} para inserir dados capturados no fluxo.');
+      html += field('Mensagem', textArea(d.message, 'message', 4), 'Use {' + '{variavel}' + '} para inserir dados capturados no fluxo.');
       break;
     case 'sendImage':
       html += field('URL da imagem', textInput(d.imageUrl, 'imageUrl'));
@@ -889,50 +898,58 @@ function renderFieldsFor(node) {
       break;
     case 'sendMenu':
       d.sections = d.sections || [];
-      html += field('Título (opcional)', textInput(d.title, 'title'));
-      html += field('Mensagem', textArea(d.description, 'description', 3), 'Use {{variavel}} para inserir dados capturados no fluxo.');
+      html += field('Título', textInput(d.title || 'Menu', 'title'));
+      html += field('Mensagem', textArea(d.description, 'description', 3), 'Use {' + '{variavel}' + '} para inserir dados capturados no fluxo.');
       html += field('Texto do botão', textInput(d.buttonText || 'Ver Menu', 'buttonText'));
-      html += field('Rodapé (opcional)', textInput(d.footerText, 'footerText'));
-      html += field('Caminho padrão', '<label class="flex items-center gap-2 text-sm text-gray-700"><input type="checkbox" data-field="useFallback" ' + (d.useFallback?'checked':'') + '> Adicionar saída para respostas inválidas</label>');
-      html += '<div class="text-xs font-medium text-gray-600 mt-1">Seções e opções</div>';
-      html += '<div id="menu-sections" class="flex flex-col gap-3"></div>';
-      html += '<button id="btn-add-menu-section" class="text-xs text-purple-600 font-medium hover:underline"><i class="fas fa-plus mr-1"></i>Adicionar seção</button>';
+      html += field('Rodapé', textInput(d.footerText || 'Sophus', 'footerText'));
+      html += field('Caminho padrão', '<label class="flex items-center gap-2 text-sm text-gray-700"><input type="checkbox" data-field="useFallback" ' + (d.useFallback?'checked':'') + '> Adicionar saída para respostas inválidas<\/label>');
+      html += '<div class="text-xs font-medium text-gray-600 mt-1">Seções e opções<\/div>';
+      html += '<div id="menu-sections" class="flex flex-col gap-3"><\/div>';
+      html += '<button id="btn-add-menu-section" class="text-xs text-purple-600 font-medium hover:underline"><i class="fas fa-plus mr-1"><\/i>Adicionar seção<\/button>';
       break;
     case 'condition':
       html += field('Condição', textArea(d.condition, 'condition', 3), 'Ex: response == "1"  ·  response.includes("sim")  ·  score &gt; 10');
       break;
     case 'switch':
       d.cases = d.cases || [];
-      html += '<div class="text-xs font-medium text-gray-600 mb-1">Opções (avaliadas na ordem)</div>';
-      html += '<div id="switch-cases" class="flex flex-col gap-2"></div>';
-      html += '<button id="btn-add-case" class="mt-1 text-xs text-purple-600 font-medium hover:underline"><i class="fas fa-plus mr-1"></i>Adicionar opção</button>';
+      html += '<div class="text-xs font-medium text-gray-600 mb-1">Opções (avaliadas na ordem)<\/div>';
+      html += '<div id="switch-cases" class="flex flex-col gap-2"><\/div>';
+      html += '<button id="btn-add-case" class="mt-1 text-xs text-purple-600 font-medium hover:underline"><i class="fas fa-plus mr-1"><\/i>Adicionar opção<\/button>';
       html += field('Timeout (segundos, opcional)', numberInput(d.timeout, 'timeout'), 'Se o contato não responder nesse tempo, segue pelo "Nenhuma opção".');
       break;
     case 'delay':
       html += field('Tipo', '<select data-field="delayType" class="w-full px-3 py-2 bg-stone-50 border border-stone-200 rounded-lg text-sm">' +
-          '<option value="fixed" ' + (d.delayType!=='range'?'selected':'') + '>Tempo fixo</option>' +
-          '<option value="range" ' + (d.delayType==='range'?'selected':'') + '>Intervalo aleatório</option></select>');
+          '<option value="fixed" ' + (d.delayType!=='range'?'selected':'') + '>Tempo fixo<\/option>' +
+          '<option value="range" ' + (d.delayType==='range'?'selected':'') + '>Intervalo aleatório<\/option><\/select>');
       if (d.delayType === 'range') {
         html += field('Mínimo (s)', numberInput(d.minSeconds, 'minSeconds'));
         html += field('Máximo (s)', numberInput(d.maxSeconds, 'maxSeconds'));
       } else {
         html += field('Segundos', numberInput(d.seconds, 'seconds'));
       }
-      html += '<p class="text-[11px] text-gray-400">Limitado a 60s no máximo.</p>';
+      html += '<p class="text-[11px] text-gray-400">Limitado a 60s no máximo.<\/p>';
       break;
     case 'changeStatus':
       html += field('Novo status', '<select data-field="status" class="w-full px-3 py-2 bg-stone-50 border border-stone-200 rounded-lg text-sm">' +
-          '<option value="">Selecione</option>' +
-          '<option value="open" ' + (d.status==='open'?'selected':'') + '>Aberta</option>' +
-          '<option value="pending" ' + (d.status==='pending'?'selected':'') + '>Pendente</option>' +
-          '<option value="closed" ' + (d.status==='closed'?'selected':'') + '>Fechada</option></select>');
+          '<option value="">Selecione<\/option>' +
+          '<option value="open" ' + (d.status==='open'?'selected':'') + '>Aberta<\/option>' +
+          '<option value="pending" ' + (d.status==='pending'?'selected':'') + '>Pendente<\/option>' +
+          '<option value="closed" ' + (d.status==='closed'?'selected':'') + '>Fechada<\/option><\/select>');
       break;
     case 'assign':
-      html += field('ID do agente', numberInput(d.assignId, 'assignId'), 'Atribui a conversa a esse agente (ID numérico).');
+      html += field('Transferir para', '<select data-field="assignType" class="w-full px-3 py-2 bg-stone-50 border border-stone-200 rounded-lg text-sm">' +
+          '<option value="agent" ' + ((d.assignType||'agent')==='agent'?'selected':'') + '>Agente<\/option>' +
+          '<option value="department" ' + (d.assignType==='department'?'selected':'') + '>Setor<\/option><\/select>');
+      const assignmentOptions = d.assignType === 'department' ? state.departments : state.agents;
+      html += field(d.assignType === 'department' ? 'Setor' : 'Agente',
+          '<select data-field="assignId" class="w-full px-3 py-2 bg-stone-50 border border-stone-200 rounded-lg text-sm">' +
+          '<option value="">Selecione<\/option>' + assignmentOptions.map(option =>
+            '<option value="' + option.id + '" ' + (Number(d.assignId)===option.id?'selected':'') + '>' + escapeHtml(option.name) + '<\/option>'
+          ).join('') + '<\/select>');
       break;
     case 'httpRequest':
       html += field('Método', '<select data-field="method" class="w-full px-3 py-2 bg-stone-50 border border-stone-200 rounded-lg text-sm">' +
-          ['GET','POST','PUT','PATCH','DELETE'].map(m=>'<option value="' + m + '" ' + ((d.method||'POST')===m?'selected':'') + '>' + m + '</option>').join('') + '</select>');
+          ['GET','POST','PUT','PATCH','DELETE'].map(m=>'<option value="' + m + '" ' + ((d.method||'POST')===m?'selected':'') + '>' + m + '<\/option>').join('') + '<\/select>');
       html += field('URL', textInput(d.url, 'url'));
       html += field('Corpo (JSON, opcional)', textArea(d.body, 'body', 3));
       html += field('Salvar resposta em', textInput(d.saveResponseTo, 'saveResponseTo'), 'Nome da variável, ex: apiResult');
@@ -950,7 +967,7 @@ function renderFieldsFor(node) {
       html += field('Salvar resultado em (opcional)', textInput(d.saveResponseTo, 'saveResponseTo'));
       break;
     case 'end':
-      html += '<p class="text-sm text-gray-500">Fim do fluxo. Nenhuma configuração necessária.</p>';
+      html += '<p class="text-sm text-gray-500">Fim do fluxo. Nenhuma configuração necessária.<\/p>';
       break;
   }
 
@@ -961,8 +978,10 @@ function renderFieldsFor(node) {
     const handler = () => {
       const val = input.type === 'checkbox' ? input.checked
         : input.type === 'number' ? (input.value === '' ? undefined : Number(input.value))
+        : path === 'assignId' ? (input.value === '' ? undefined : Number(input.value))
         : input.value;
       setPath(d, path, val);
+      if (node.type === 'assign' && path === 'assignType') delete d.assignId;
       if (node.type === 'sendMenu' && path === 'useFallback' && !val) {
         state.flowData.edges = state.flowData.edges.filter(edge => edge.source !== node.id || (edge.sourceHandle !== 'fallback' && !!edge.sourceHandle));
         if (state.armedHandle?.nodeId === node.id && state.armedHandle.handle === 'fallback') state.armedHandle = null;
@@ -984,20 +1003,20 @@ function renderMenuSections(node) {
     '<div class="p-2.5 bg-stone-50 rounded-xl border border-stone-200 flex flex-col gap-2">' +
       '<div class="flex items-center gap-1.5">' +
         '<input data-menu-section-title="' + sectionIndex + '" value="' + escapeAttr(section.title||'') + '" placeholder="Nome da seção" class="flex-1 px-2 py-1.5 bg-white border border-stone-200 rounded text-xs font-medium">' +
-        '<button data-menu-section-del="' + sectionIndex + '" class="text-gray-300 hover:text-red-500"><i class="fas fa-trash text-xs"></i></button>' +
-      '</div>' +
+        '<button data-menu-section-del="' + sectionIndex + '" class="text-gray-300 hover:text-red-500"><i class="fas fa-trash text-xs"><\/i><\/button>' +
+      '<\/div>' +
       '<div class="flex flex-col gap-2">' + (section.rows || []).map((row, rowIndex) =>
         '<div class="p-2 bg-white rounded-lg border border-stone-100 flex flex-col gap-1.5">' +
           '<div class="flex items-center gap-1.5">' +
             '<input data-menu-row-title="' + sectionIndex + ':' + rowIndex + '" value="' + escapeAttr(row.title||'') + '" placeholder="Texto da opção" class="flex-1 px-2 py-1.5 bg-stone-50 border border-stone-200 rounded text-xs">' +
-            '<button data-menu-row-del="' + sectionIndex + ':' + rowIndex + '" class="text-gray-300 hover:text-red-500"><i class="fas fa-times text-xs"></i></button>' +
-          '</div>' +
+            '<button data-menu-row-del="' + sectionIndex + ':' + rowIndex + '" class="text-gray-300 hover:text-red-500"><i class="fas fa-times text-xs"><\/i><\/button>' +
+          '<\/div>' +
           '<input data-menu-row-description="' + sectionIndex + ':' + rowIndex + '" value="' + escapeAttr(row.description||'') + '" placeholder="Descrição (opcional)" class="px-2 py-1.5 bg-stone-50 border border-stone-200 rounded text-xs">' +
           '<input data-menu-row-id="' + sectionIndex + ':' + rowIndex + '" value="' + escapeAttr(row.rowId||'') + '" placeholder="ID da resposta, ex: vendas" class="px-2 py-1.5 bg-stone-50 border border-stone-200 rounded text-xs font-mono">' +
-        '</div>'
-      ).join('') + '</div>' +
-      '<button data-menu-row-add="' + sectionIndex + '" class="text-left text-xs text-purple-600 font-medium hover:underline"><i class="fas fa-plus mr-1"></i>Adicionar opção</button>' +
-    '</div>'
+        '<\/div>'
+      ).join('') + '<\/div>' +
+      '<button data-menu-row-add="' + sectionIndex + '" class="text-left text-xs text-purple-600 font-medium hover:underline"><i class="fas fa-plus mr-1"><\/i>Adicionar opção<\/button>' +
+    '<\/div>'
   ).join('');
 
   wrap.querySelectorAll('[data-menu-section-title]').forEach(input => input.oninput = () => {
@@ -1051,10 +1070,10 @@ function renderSwitchCases(node) {
     '<div class="flex flex-col gap-1 p-2 bg-stone-50 rounded-lg border border-stone-100">' +
       '<div class="flex items-center gap-1.5">' +
         '<input data-case-label="' + i + '" value="' + escapeAttr(c.label||'') + '" placeholder="Nome da opção" class="flex-1 px-2 py-1.5 bg-white border border-stone-200 rounded text-xs">' +
-        '<button data-case-del="' + i + '" class="text-gray-300 hover:text-red-500"><i class="fas fa-times text-xs"></i></button>' +
-      '</div>' +
+        '<button data-case-del="' + i + '" class="text-gray-300 hover:text-red-500"><i class="fas fa-times text-xs"><\/i><\/button>' +
+      '<\/div>' +
       '<input data-case-cond="' + i + '" value="' + escapeAttr(c.condition||'') + '" placeholder=\'condição, ex: response == "1"\' class="px-2 py-1.5 bg-white border border-stone-200 rounded text-xs">' +
-    '</div>'
+    '<\/div>'
   ).join('');
   wrap.querySelectorAll('[data-case-label]').forEach(inp => inp.oninput = () => { node.data.cases[Number(inp.dataset.caseLabel)].label = inp.value; renderCanvas(); });
   wrap.querySelectorAll('[data-case-cond]').forEach(inp => inp.oninput = () => { node.data.cases[Number(inp.dataset.caseCond)].condition = inp.value; });
@@ -1112,12 +1131,18 @@ async function boot() {
     state.connections = await api('GET', '/flows/api/connections');
   } catch (e) { console.error(e); state.connections = []; }
   try {
+    const options = await api('GET', '/flows/api/assignment-options');
+    state.agents = options.agents || [];
+    state.departments = options.departments || [];
+  } catch (e) { console.error(e); state.agents = []; state.departments = []; }
+  try {
     await loadFlowsList();
   } catch (e) {
-    document.getElementById('flows-grid').innerHTML = '<p class="text-red-500 text-sm">Erro ao carregar automações: ' + escapeHtml(e.message) + '</p>';
+    document.getElementById('flows-grid').innerHTML = '<p class="text-red-500 text-sm">Erro ao carregar automações: ' + escapeHtml(e.message) + '<\/p>';
   }
 }
 boot();
 </script>
 </body>
 </html>
+}

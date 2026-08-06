@@ -58,10 +58,6 @@ func CancelTimeout(executionID int) {
 }
 
 func HandleIncomingMessage(conversation repo.Conversation, connection repo.ConnectionEVO, messageText, senderName string) {
-	if strings.TrimSpace(messageText) == "" {
-		return
-	}
-
 	waiting, err := repo.GetWaitingExecutionByConversation(conversation.Id)
 	if err == nil && waiting.Id > 0 {
 		if conversation.Status == repo.ConversationStatusClosed {
@@ -90,9 +86,25 @@ func HandleIncomingMessage(conversation repo.Conversation, connection repo.Conne
 		return
 	}
 	if active, activeErr := repo.GetActiveFlowExecutionByConversation(conversation.Id); activeErr == nil && active.Id > 0 {
-		return
+		if active.Status == "running" && time.Since(active.UpdatedAt) > maxExecutionTime {
+			now := time.Now()
+			message := "execução running recuperada após exceder o tempo máximo"
+			active.Status = "failed"
+			active.ErrorMessage = &message
+			active.CompletedAt = &now
+			if err := repo.FinalizeFlowExecution(active); err != nil {
+				log.Printf("failed to recover stale flow execution: execution=%d conversation=%d error=%v", active.Id, conversation.Id, err)
+				return
+			}
+			conversation.Status = repo.ConversationStatusOpen
+			log.Printf("recovered stale flow execution: execution=%d conversation=%d", active.Id, conversation.Id)
+		} else {
+			log.Printf("flow dispatch skipped: conversation=%d active_execution=%d status=%s", conversation.Id, active.Id, active.Status)
+			return
+		}
 	}
 	if conversation.Status != repo.ConversationStatusOpen {
+		log.Printf("flow dispatch skipped: conversation=%d status=%s", conversation.Id, conversation.Status)
 		return
 	}
 
@@ -101,12 +113,17 @@ func HandleIncomingMessage(conversation repo.Conversation, connection repo.Conne
 		log.Printf("erro ao buscar flows: %v", err)
 		return
 	}
+	if len(flows) == 0 {
+		log.Printf("flow dispatch skipped: conversation=%d connection=%d no active flows", conversation.Id, connection.Id)
+		return
+	}
 
 	for _, flow := range flows {
 		if !matchesTrigger(flow, messageText) {
 			continue
 		}
 		flowID := flow.Id
+		log.Printf("flow dispatch matched: flow=%d conversation=%d connection=%d trigger=%s", flowID, conversation.Id, connection.Id, flow.TriggerType)
 		go func() {
 			engine := NewEngine(connection)
 			ctx := ExecutionContext{
@@ -120,11 +137,12 @@ func HandleIncomingMessage(conversation repo.Conversation, connection repo.Conne
 		}()
 		break
 	}
+	log.Printf("flow dispatch finished: conversation=%d candidates=%d", conversation.Id, len(flows))
 }
 
 func matchesTrigger(flow repo.ChatbotFlow, messageText string) bool {
 	text := strings.ToLower(strings.TrimSpace(messageText))
-	switch flow.TriggerType {
+	switch strings.ToLower(strings.TrimSpace(flow.TriggerType)) {
 	case "keyword":
 		trigger := strings.ToLower(strings.TrimSpace(flow.TriggerValue))
 		if trigger == "" {
@@ -132,7 +150,8 @@ func matchesTrigger(flow repo.ChatbotFlow, messageText string) bool {
 		}
 		return strings.Contains(text, trigger)
 	case "exact":
-		return text == strings.ToLower(strings.TrimSpace(flow.TriggerValue))
+		trigger := strings.ToLower(strings.TrimSpace(flow.TriggerValue))
+		return trigger != "" && text == trigger
 	case "always":
 		return true
 	default:

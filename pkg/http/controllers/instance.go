@@ -38,10 +38,6 @@ func InstancePopup(ctx iris.Context) {
 }
 
 func NewInstance(ctx iris.Context) {
-	if !middlewares.IsValidJWT(ctx) {
-		ctx.StopWithStatus(iris.StatusUnauthorized)
-		return
-	}
 	agent, err := middlewares.AgentIdentifier(ctx)
 	if err != nil {
 		ctx.StopWithStatus(iris.StatusUnauthorized)
@@ -124,6 +120,10 @@ func NewInstance(ctx iris.Context) {
 }
 
 func awaitInitialQRCode(connectionID int, instance instances.InstanceEVO) {
+	// Connect starts the Evolution GO client asynchronously. Give it time to
+	// register the client before /instance/qr attempts to start another one.
+	time.Sleep(2 * time.Second)
+
 	publishedCount := 0
 	for attempt := 1; attempt <= 90; attempt++ {
 		connection, err := repo.GetConnectionById(connectionID)

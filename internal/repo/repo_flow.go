@@ -1,6 +1,7 @@
 package repo
 
 import (
+	"database/sql"
 	"encoding/json"
 	"time"
 )
@@ -245,12 +246,20 @@ func FinalizeFlowExecution(e FlowExecution) error {
 	if err != nil {
 		return err
 	}
+	conversationStatus := conversationStatusAfterExecution(e.Status)
 	_, err = tx.Exec(`UPDATE conversations SET status = $1, "updatedAt" = now()
-		WHERE id = $2 AND status = $3`, ConversationStatusOpen, e.ConversationId, ConversationStatusRunning)
+		WHERE id = $2 AND status = $3`, conversationStatus, e.ConversationId, ConversationStatusRunning)
 	if err != nil {
 		return err
 	}
 	return tx.Commit()
+}
+
+func conversationStatusAfterExecution(executionStatus string) string {
+	if executionStatus == "completed" {
+		return ConversationStatusCompleted
+	}
+	return ConversationStatusOpen
 }
 
 func UpdateConversationStatus(conversationId int, status string) error {
@@ -273,25 +282,57 @@ func ClaimConversationForFlow(conversationId int) (bool, error) {
 	return rows == 1, err
 }
 
-func AssignConversationAgent(conversationId, agentId int) error {
-	stmt, err := db.Prepare(`UPDATE conversations SET "agentId" = $1, "updatedAt" = now() WHERE id = $2`)
+func AssignConversationAgent(conversationID, agentID, companyID int) error {
+	result, err := db.Exec(`UPDATE conversations cv
+		SET "agentId" = a.id,
+			"departmentId" = CASE WHEN cv."departmentId" IS NULL OR EXISTS (
+				SELECT 1 FROM agent_departments ad WHERE ad."agentId" = a.id AND ad."departmentId" = cv."departmentId"
+			) THEN cv."departmentId" ELSE NULL END,
+			status = $1, "updatedAt" = now()
+		FROM agents a, connections co
+		WHERE cv.id = $2 AND a.id = $3 AND a."companyId" = $4 AND a."isActive" = true
+		AND co.id = cv."connectionId" AND co."companyId" = $4`, ConversationStatusOpen, conversationID, agentID, companyID)
 	if err != nil {
 		return err
 	}
-	defer stmt.Close()
-	_, err = stmt.Exec(agentId, conversationId)
-	return err
+	rows, err := result.RowsAffected()
+	if err != nil {
+		return err
+	}
+	if rows != 1 {
+		return sql.ErrNoRows
+	}
+	return nil
+}
+
+func AssignConversationDepartment(conversationID, departmentID, companyID int) error {
+	result, err := db.Exec(`UPDATE conversations cv
+		SET "departmentId" = d.id, "agentId" = NULL, status = $1, "updatedAt" = now()
+		FROM departments d, connections co
+		WHERE cv.id = $2 AND d.id = $3 AND d."companyId" = $4 AND d."isActive" = true
+		AND co.id = cv."connectionId" AND co."companyId" = $4`, ConversationStatusPending, conversationID, departmentID, companyID)
+	if err != nil {
+		return err
+	}
+	rows, err := result.RowsAffected()
+	if err != nil {
+		return err
+	}
+	if rows != 1 {
+		return sql.ErrNoRows
+	}
+	return nil
 }
 
 func GetConversationById(id int) (Conversation, error) {
 	var c Conversation
-	stmt, err := db.Prepare(`SELECT id, status, "contactId", "connectionId", "agentId", url, "createdAt", "updatedAt"
+	stmt, err := db.Prepare(`SELECT id, status, "contactId", "connectionId", "agentId", "departmentId", url, "createdAt", "updatedAt"
 		FROM conversations WHERE id = $1`)
 	if err != nil {
 		return c, err
 	}
 	defer stmt.Close()
-	err = stmt.QueryRow(id).Scan(&c.Id, &c.Status, &c.Contact.Id, &c.ConnectionID, &c.AgentID, &c.URL, &c.CreatedAt, &c.UpdatedAt)
+	err = stmt.QueryRow(id).Scan(&c.Id, &c.Status, &c.Contact.Id, &c.ConnectionID, &c.AgentID, &c.DepartmentID, &c.URL, &c.CreatedAt, &c.UpdatedAt)
 	return c, err
 }
 

@@ -3,6 +3,7 @@ package routers
 import (
 	"sophus/pkg/http/controllers"
 	"sophus/pkg/http/middlewares"
+	"sophus/utils/env"
 
 	"github.com/kataras/iris/v12"
 )
@@ -11,7 +12,7 @@ func Router(r *iris.Application) {
 	r.Get("/login", controllers.Login)
 	r.Post("/dologin", controllers.DoLogin)
 
-	r.Post("/webhook/{webhookId:uuid}", controllers.Webhook)
+	r.Post("/webhook/{webhookId:uuid}", middlewares.AuthWebhook, controllers.Webhook)
 
 	api := r.Party("/api")
 	api.Use(middlewares.AuthAPI)
@@ -20,17 +21,32 @@ func Router(r *iris.Application) {
 		{
 			message.Post("/send", controllers.SendMessage)
 		}
-
+		api.Get("/departments", controllers.GetDepartmentSettings)
+		api.Post("/departments", controllers.CreateDepartment)
+		api.Delete("/departments/{id:int}", controllers.DeleteDepartment)
+		api.Put("/departments/agents/{id:int}", controllers.UpdateAgentDepartments)
 	}
 
-	r.Use(middlewares.AuthLogin)
+	web := r.Party("/")
+	web.Use(middlewares.AuthLogin)
 
-	r.Get("/sse", middlewares.SSEMessages)
+	medias := web.Party("/medias")
+	medias.Use(middlewares.AuthMediaCompany)
+	medias.HandleDir("/", iris.Dir(env.Backend["MEDIA_DIRECTORY"]), iris.DirOptions{
+		Attachments: iris.Attachments{Enable: true},
+	})
 
-	r.Get("/messages", controllers.Messages)
-	r.Get("/messages/{url:uuid}", controllers.MessageOpen)
+	web.Get("/sse", middlewares.SSEMessages)
 
-	flows := r.Party("/flows")
+	web.Get("/messages", controllers.Messages)
+	web.Get("/messages/{url:uuid}", controllers.MessageOpen)
+	web.Post("/messages/{url:uuid}/close", controllers.CloseConversation)
+	web.Post("/messages/{url:uuid}/accept", controllers.AcceptConversation)
+	web.Post("/messages/{url:uuid}/ignore", controllers.IgnoreConversation)
+
+	web.Get("/departments", controllers.DepartmentSettingsPage)
+
+	flows := web.Party("/flows")
 	{
 		// HTML page (the visual builder SPA)
 		flows.Get("/", controllers.FlowBuilderPage)
@@ -42,6 +58,7 @@ func Router(r *iris.Application) {
 		{
 			flowsAPI.Get("/", controllers.ListFlows)
 			flowsAPI.Get("/connections", controllers.ListConnectionsForFlows)
+			flowsAPI.Get("/assignment-options", controllers.ListAssignmentOptions)
 			flowsAPI.Get("/{id:int}", controllers.GetFlow)
 			flowsAPI.Post("/", controllers.CreateFlow)
 			flowsAPI.Put("/{id:int}", controllers.UpdateFlow)
@@ -50,7 +67,7 @@ func Router(r *iris.Application) {
 		}
 	}
 
-	instance := r.Party("/instances")
+	instance := web.Party("/instances")
 	{
 		instance.Get("/", controllers.Instances)
 		instance.Get("/create", controllers.InstancePopup)

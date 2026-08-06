@@ -1,0 +1,84 @@
+package web
+
+import "sophus/internal/repo"
+import "fmt"
+
+templ messagesDefault(conversations []repo.Conversation, tab string) {
+@base("messages") {
+    <div class="w-96 bg-stone-50 rounded-2xl shadow-sm flex flex-col overflow-hidden">
+        <div class="p-4 border-b border-stone-200">
+            <h1 class="text-xl font-medium text-gray-800">Conversas</h1>
+        </div>
+        <div class="p-4">
+            <div class="relative">
+                <i class="fas fa-search text-gray-400 absolute left-3 top-1/2 -translate-y-1/2"></i>
+                <input type="text" placeholder="Buscar" class="w-full pl-10 pr-4 py-2.5 bg-stone-100 border border-stone-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-purple-400 transition-all"/>
+            </div>
+        </div>
+        <div class="px-4 py-3 flex gap-2">
+            <a href="/messages?tab=active" class={ "flex-1 px-3 py-2 rounded-full text-sm font-medium text-center transition-colors", templ.KV("bg-purple-100 text-purple-700", tab == "active"), templ.KV("bg-stone-100 text-gray-600", tab != "active") }>Ativas</a>
+            <a href="/messages?tab=pending" class={ "flex-1 px-3 py-2 rounded-full text-sm font-medium text-center transition-colors", templ.KV("bg-purple-100 text-purple-700", tab == "pending"), templ.KV("bg-stone-100 text-gray-600", tab != "pending") }>Pendentes</a>
+            <a href="/messages?tab=closed" class={ "flex-1 px-3 py-2 rounded-full text-sm font-medium text-center transition-colors", templ.KV("bg-purple-100 text-purple-700", tab == "closed"), templ.KV("bg-stone-100 text-gray-600", tab != "closed") }>Fechadas</a>
+        </div>
+        <div class="flex-1 overflow-y-auto p-2">
+            for _, conversation := range conversations {
+                <div class="mb-2 bg-white rounded-2xl hover:shadow-md transition-all border border-stone-200 overflow-hidden">
+                    <a href={ fmt.Sprintf("/messages/%s", conversation.URL.String()) } class="block p-3 cursor-pointer">
+                        <div class="flex items-center gap-3">
+                            <img src="https://i.pravatar.cc/40?img=1" alt="Avatar" class="w-10 h-10 rounded-full"/>
+                            <div class="flex-1 min-w-0">
+                                <div class="flex items-center justify-between">
+                                    <span class="text-sm font-medium text-gray-900 truncate">{ conversation.Contact.Name }</span>
+                                    <span class="text-xs text-gray-500">{ conversation.UpdatedAt.Format("15:04") }</span>
+                                </div>
+                                <div class="text-xs text-gray-500 mt-1">{ conversation.Status }</div>
+                                <div class="flex items-center gap-2 flex-wrap mt-2">
+                                    <span class="inline-flex items-center gap-1 px-2 py-1 bg-stone-100 text-gray-700 rounded-full text-xs">
+                                        <i class="fas fa-user-circle"></i>
+                                        if conversation.AgentName != "" {
+                                            { conversation.AgentName }
+                                        } else {
+                                            Sem agente
+                                        }
+                                    </span>
+                                    <span class="inline-flex items-center gap-1 px-2 py-1 bg-blue-50 text-blue-700 rounded-full text-xs">
+                                        <i class="fas fa-layer-group"></i>
+                                        if conversation.DepartmentName != "" {
+                                            { conversation.DepartmentName }
+                                        } else {
+                                            Sem setor
+                                        }
+                                    </span>
+                                </div>
+                            </div>
+                        </div>
+                    </a>
+                    if tab == "pending" {
+                        <div class="px-3 pb-3 grid grid-cols-2 gap-2">
+                            <button type="button" hx-post={ fmt.Sprintf("/messages/%s/accept", conversation.URL.String()) } hx-swap="none" class="px-3 py-2 rounded-xl bg-green-600 text-white hover:bg-green-700 text-sm font-medium">
+                                <i class="fas fa-check mr-1"></i>Aceitar
+                            </button>
+                            <button type="button" hx-post={ fmt.Sprintf("/messages/%s/ignore", conversation.URL.String()) } hx-swap="none" hx-confirm="Recusar e fechar esta conversa?" class="px-3 py-2 rounded-xl bg-stone-100 text-gray-700 hover:bg-red-50 hover:text-red-700 text-sm font-medium">
+                                <i class="fas fa-times mr-1"></i>Recusar
+                            </button>
+                        </div>
+                    }
+                    <div class="bg-blue-100 px-3 py-1 text-center">
+                        <span class="text-xs font-medium text-blue-900">
+                            if conversation.DepartmentName != "" {
+                                { conversation.DepartmentName }
+                            } else {
+                                Sem setor
+                            }
+                        </span>
+                    </div>
+                </div>
+            }
+            if len(conversations) == 0 {
+                <div class="text-center text-sm text-gray-400 py-10">Nenhuma conversa nesta área.</div>
+            }
+        </div>
+    </div>
+    { children... }
+}
+}

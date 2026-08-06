@@ -11,7 +11,31 @@ import (
 	"github.com/kataras/iris/v12"
 )
 
-func ValidateWebhook(ctx iris.Context) (repo2.ConnectionEVO, repo2.EventEVO, []byte, error) {
+const (
+	webhookConnectionContextKey = "webhookConnection"
+	webhookEventContextKey      = "webhookEvent"
+	webhookBodyContextKey       = "webhookBody"
+)
+
+func AuthWebhook(ctx iris.Context) {
+	connection, event, body, err := validateWebhook(ctx)
+	if err != nil {
+		return
+	}
+	ctx.Values().Set(webhookConnectionContextKey, connection)
+	ctx.Values().Set(webhookEventContextKey, event)
+	ctx.Values().Set(webhookBodyContextKey, body)
+	ctx.Next()
+}
+
+func WebhookPayload(ctx iris.Context) (repo2.ConnectionEVO, repo2.EventEVO, []byte, bool) {
+	connection, connectionOK := ctx.Values().Get(webhookConnectionContextKey).(repo2.ConnectionEVO)
+	event, eventOK := ctx.Values().Get(webhookEventContextKey).(repo2.EventEVO)
+	body, bodyOK := ctx.Values().Get(webhookBodyContextKey).([]byte)
+	return connection, event, body, connectionOK && eventOK && bodyOK
+}
+
+func validateWebhook(ctx iris.Context) (repo2.ConnectionEVO, repo2.EventEVO, []byte, error) {
 	webhookId := ctx.Params().Get("webhookId")
 	_, err := uuid.Parse(webhookId)
 	if webhookId == "" || err != nil {
@@ -22,7 +46,7 @@ func ValidateWebhook(ctx iris.Context) (repo2.ConnectionEVO, repo2.EventEVO, []b
 	connection, err := repo2.GetConnectionByWebhook(webhookId)
 	if err != nil {
 		log.Printf("Evolution GO webhook rejected: connection not found for webhook %s: %v", webhookId, err)
-		ctx.StopWithStatus(iris.StatusInternalServerError)
+		ctx.StopWithStatus(iris.StatusUnauthorized)
 		return repo2.ConnectionEVO{}, repo2.EventEVO{}, nil, err
 	}
 	body, err := io.ReadAll(ctx.Request().Body)
@@ -35,7 +59,7 @@ func ValidateWebhook(ctx iris.Context) (repo2.ConnectionEVO, repo2.EventEVO, []b
 	err = json.Unmarshal(body, &event)
 	if err != nil {
 		log.Printf("Evolution GO webhook rejected: invalid JSON for connection %d: %v", connection.Id, err)
-		ctx.StopWithStatus(iris.StatusInternalServerError)
+		ctx.StopWithStatus(iris.StatusBadRequest)
 		return repo2.ConnectionEVO{}, repo2.EventEVO{}, nil, err
 	}
 	if event.InstanceID != connection.InstanceID {

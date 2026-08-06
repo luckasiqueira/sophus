@@ -8,26 +8,30 @@ import (
 )
 
 const (
-	ConversationStatusOpen    = "open"
-	ConversationStatusRunning = "running"
-	ConversationStatusClosed  = "closed"
+	ConversationStatusOpen      = "open"
+	ConversationStatusRunning   = "running"
+	ConversationStatusPending   = "pending"
+	ConversationStatusClosed    = "closed"
+	ConversationStatusCompleted = "completed"
 )
 
 type Conversation struct {
-	Id           int
-	Status       string
-	Contact      Contact // possible needed to use contact as struct
-	ConnectionID int
-	AgentID      int
-	// Department // department as struct
-	URL       uuid.UUID
-	CreatedAt time.Time
-	UpdatedAt time.Time
+	Id             int
+	Status         string
+	Contact        Contact
+	ConnectionID   int
+	AgentID        *int
+	DepartmentID   *int
+	AgentName      string
+	DepartmentName string
+	URL            uuid.UUID
+	CreatedAt      time.Time
+	UpdatedAt      time.Time
 }
 
 func GetConversationByMessage(message string) (Conversation, error) {
 	var conversation Conversation
-	stmt, err := db.Prepare(`SELECT c.*
+	stmt, err := db.Prepare(`SELECT c.id, c.status, c."contactId", c."connectionId", c."agentId", c."departmentId", c.url, c."createdAt", c."updatedAt"
 		FROM messages m
 		INNER JOIN conversations c
 			ON c.id = m."conversationId"
@@ -42,6 +46,7 @@ func GetConversationByMessage(message string) (Conversation, error) {
 		&conversation.Contact.Id,
 		&conversation.ConnectionID,
 		&conversation.AgentID,
+		&conversation.DepartmentID,
 		&conversation.URL,
 		&conversation.CreatedAt,
 		&conversation.UpdatedAt,
@@ -51,7 +56,7 @@ func GetConversationByMessage(message string) (Conversation, error) {
 
 func GetOpenConversationByContact(connectionID int, number, jid string) (Conversation, error) {
 	var conversation Conversation
-	stmt, err := db.Prepare(`SELECT c.id, c.status, c."contactId", c."connectionId", c."agentId", c.url, c."createdAt", c."updatedAt"
+	stmt, err := db.Prepare(`SELECT c.id, c.status, c."contactId", c."connectionId", c."agentId", c."departmentId", c.url, c."createdAt", c."updatedAt"
 		FROM conversations c
 		INNER JOIN contacts ct ON ct.id = c."contactId"
 		WHERE c."connectionId" = $1
@@ -67,6 +72,7 @@ func GetOpenConversationByContact(connectionID int, number, jid string) (Convers
 		&conversation.Contact.Id,
 		&conversation.ConnectionID,
 		&conversation.AgentID,
+		&conversation.DepartmentID,
 		&conversation.URL,
 		&conversation.CreatedAt,
 		&conversation.UpdatedAt,
@@ -76,7 +82,7 @@ func GetOpenConversationByContact(connectionID int, number, jid string) (Convers
 
 func GetConversationByURL(url uuid.UUID) (Conversation, error) {
 	var conversation Conversation
-	stmt, err := db.Prepare(`SELECT * FROM conversations WHERE url = $1`)
+	stmt, err := db.Prepare(`SELECT id, status, "contactId", "connectionId", "agentId", "departmentId", url, "createdAt", "updatedAt" FROM conversations WHERE url = $1`)
 	if err != nil {
 		return conversation, err
 	}
@@ -87,35 +93,48 @@ func GetConversationByURL(url uuid.UUID) (Conversation, error) {
 		&conversation.Contact.Id,
 		&conversation.ConnectionID,
 		&conversation.AgentID,
+		&conversation.DepartmentID,
 		&conversation.URL,
 		&conversation.CreatedAt,
 		&conversation.UpdatedAt,
 	)
-	return conversation, nil
+	return conversation, err
 }
 
-func GetConversationsByAgent(agent Agent) ([]Conversation, error) {
+func GetConversationsByAgent(agent Agent, tab string) ([]Conversation, error) {
 	conversations := []Conversation{}
-	stmt, err := db.Prepare(`SELECT 
-    conversations.*,
-    contacts.*
-FROM conversations
-INNER JOIN contacts 
-    ON contacts.id = conversations."contactId"
-WHERE conversations."agentId" = $1;
-`)
+	statusFilter := conversationListFilter(tab)
+	stmt, err := db.Prepare(`SELECT
+		cv.id, cv.status, cv."contactId", cv."connectionId", cv."agentId", cv."departmentId", cv.url, cv."createdAt", cv."updatedAt",
+		ct.id, ct.name, ct.number, ct."connectionId", ct.jid, ct.lid, ct."isGroup", ct."isBlocked",
+		COALESCE(owner.name, ''), COALESCE(d.name, '')
+		FROM conversations cv
+		INNER JOIN connections co ON co.id = cv."connectionId" AND co."companyId" = $1
+		INNER JOIN contacts ct ON ct.id = cv."contactId"
+		LEFT JOIN agents owner ON owner.id = cv."agentId"
+		LEFT JOIN departments d ON d.id = cv."departmentId"
+		WHERE (` + statusFilter + `)
+		AND ($2 OR cv."agentId" = $3
+			OR cv."departmentId" IN (SELECT ad."departmentId" FROM agent_departments ad WHERE ad."agentId" = $3)
+			OR (cv."agentId" IS NULL AND cv."departmentId" IS NULL AND cv.status NOT IN ('closed', 'running')))
+		ORDER BY cv."updatedAt" DESC`)
 	if err != nil {
 		return nil, err
 	}
 	defer stmt.Close()
-	rows, err := stmt.Query(agent.Id)
+	rows, err := stmt.Query(agent.CompanyId, agent.IsAdmin(), agent.Id)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
 	for rows.Next() {
 		var conversation Conversation
-		rows.Scan(&conversation.Id,
+		if err := rows.Scan(&conversation.Id,
 			&conversation.Status,
 			&conversation.Contact.Id,
 			&conversation.ConnectionID,
 			&conversation.AgentID,
+			&conversation.DepartmentID,
 			&conversation.URL,
 			&conversation.CreatedAt,
 			&conversation.UpdatedAt,
@@ -127,15 +146,53 @@ WHERE conversations."agentId" = $1;
 			&conversation.Contact.LID,
 			&conversation.Contact.IsGroup,
 			&conversation.Contact.IsBlocked,
-		)
+			&conversation.AgentName,
+			&conversation.DepartmentName,
+		); err != nil {
+			return nil, err
+		}
 		conversations = append(conversations, conversation)
 	}
-	return conversations, nil
+	return conversations, rows.Err()
+}
+
+func conversationListFilter(tab string) string {
+	switch tab {
+	case "pending":
+		return `cv."agentId" IS NULL AND cv.status NOT IN ('closed', 'running')`
+	case "closed":
+		return `cv.status = 'closed'`
+	default:
+		return `cv."agentId" = $3 AND cv.status NOT IN ('closed', 'pending')`
+	}
+}
+
+func GetVisibleConversationByURL(url uuid.UUID, agent Agent) (Conversation, error) {
+	var conversation Conversation
+	err := db.QueryRow(`SELECT cv.id, cv.status, cv."contactId", cv."connectionId", cv."agentId", cv."departmentId", cv.url, cv."createdAt", cv."updatedAt",
+		ct.id, ct.name, ct.number, ct."connectionId", ct.jid, ct.lid, ct."isGroup", ct."isBlocked",
+		COALESCE(owner.name, ''), COALESCE(d.name, '')
+		FROM conversations cv
+		INNER JOIN connections co ON co.id = cv."connectionId" AND co."companyId" = $2
+		INNER JOIN contacts ct ON ct.id = cv."contactId"
+		LEFT JOIN agents owner ON owner.id = cv."agentId"
+		LEFT JOIN departments d ON d.id = cv."departmentId"
+		WHERE cv.url = $1 AND ($3 OR cv."agentId" = $4
+			OR cv."departmentId" IN (SELECT ad."departmentId" FROM agent_departments ad WHERE ad."agentId" = $4)
+			OR (cv."agentId" IS NULL AND cv."departmentId" IS NULL AND cv.status NOT IN ('closed', 'running')))`,
+		url, agent.CompanyId, agent.IsAdmin(), agent.Id).Scan(
+		&conversation.Id, &conversation.Status, &conversation.Contact.Id, &conversation.ConnectionID,
+		&conversation.AgentID, &conversation.DepartmentID, &conversation.URL, &conversation.CreatedAt, &conversation.UpdatedAt,
+		&conversation.Contact.Id, &conversation.Contact.Name, &conversation.Contact.Number, &conversation.Contact.ConnectionId,
+		&conversation.Contact.JID, &conversation.Contact.LID, &conversation.Contact.IsGroup, &conversation.Contact.IsBlocked,
+		&conversation.AgentName, &conversation.DepartmentName,
+	)
+	return conversation, err
 }
 
 func CreateConversation(conversation Conversation) (int, error) {
-	stmt, err := db.Prepare(`INSERT INTO public.conversations (id, status, "contactId", "connectionId", "agentId", url, "createdAt", "updatedAt")
-VALUES (DEFAULT, $1, $2, $3, $4, $5, $6, $7) RETURNING id;`)
+	stmt, err := db.Prepare(`INSERT INTO public.conversations (id, status, "contactId", "connectionId", "agentId", "departmentId", url, "createdAt", "updatedAt")
+VALUES (DEFAULT, $1, $2, $3, $4, $5, $6, $7, $8) RETURNING id;`)
 	if err != nil {
 		return 0, err
 	}
@@ -146,6 +203,7 @@ VALUES (DEFAULT, $1, $2, $3, $4, $5, $6, $7) RETURNING id;`)
 		conversation.Contact.Id,
 		conversation.ConnectionID,
 		conversation.AgentID,
+		conversation.DepartmentID,
 		conversation.URL,
 		conversation.CreatedAt,
 		conversation.UpdatedAt,
@@ -213,7 +271,7 @@ func checkExistentConversation(connectionId int, contact Contact, reopenClosed b
 			return 0, err
 		}
 	} else if reopenClosed && (status == ConversationStatusClosed || status == "resolved") {
-		if err := UpdateConversationStatus(conversationId, ConversationStatusOpen); err != nil {
+		if err := ReopenConversation(conversationId); err != nil {
 			return 0, err
 		}
 	}
@@ -222,7 +280,119 @@ func checkExistentConversation(connectionId int, contact Contact, reopenClosed b
 }
 
 func ReopenConversation(id int) error {
-	_, err := db.Exec(`UPDATE conversations SET status = $1, "updatedAt" = now()
+	tx, err := db.Begin()
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+
+	_, err = tx.Exec(`UPDATE flow_executions
+		SET status = 'failed',
+			"errorMessage" = 'execução cancelada porque a conversa foi fechada',
+			"completedAt" = now(),
+			"updatedAt" = now()
+		WHERE "conversationId" = $1 AND status IN ('running', 'waiting')`, id)
+	if err != nil {
+		return err
+	}
+	result, err := tx.Exec(`UPDATE conversations SET status = $1, "updatedAt" = now()
 		WHERE id = $2 AND status IN ($3, 'resolved')`, ConversationStatusOpen, id, ConversationStatusClosed)
-	return err
+	if err != nil {
+		return err
+	}
+	rows, err := result.RowsAffected()
+	if err != nil {
+		return err
+	}
+	if rows != 1 {
+		return sql.ErrNoRows
+	}
+	return tx.Commit()
+}
+
+func CloseConversationByURL(url uuid.UUID, companyID, agentID int, isAdmin bool) error {
+	tx, err := db.Begin()
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+
+	var conversationID int
+	err = tx.QueryRow(`SELECT cv.id
+		FROM conversations cv
+		INNER JOIN connections c ON c.id = cv."connectionId"
+		WHERE cv.url = $1 AND c."companyId" = $2
+		AND (cv."agentId" = $3 OR $4)
+		FOR UPDATE`, url, companyID, agentID, isAdmin).Scan(&conversationID)
+	if err != nil {
+		return err
+	}
+
+	_, err = tx.Exec(`UPDATE flow_executions
+		SET status = 'failed',
+			"errorMessage" = 'execução cancelada porque a conversa foi fechada',
+			"completedAt" = now(),
+			"updatedAt" = now()
+		WHERE "conversationId" = $1 AND status IN ('running', 'waiting')`, conversationID)
+	if err != nil {
+		return err
+	}
+	_, err = tx.Exec(`UPDATE conversations
+		SET status = $1, "updatedAt" = now()
+		WHERE id = $2`, ConversationStatusClosed, conversationID)
+	if err != nil {
+		return err
+	}
+	return tx.Commit()
+}
+
+func AcceptConversation(url uuid.UUID, agent Agent) (bool, error) {
+	result, err := db.Exec(`UPDATE conversations cv
+		SET "agentId" = $1, status = $2, "updatedAt" = now()
+		FROM connections co
+		WHERE cv.url = $3 AND co.id = cv."connectionId" AND co."companyId" = $4
+		AND cv."agentId" IS NULL AND cv.status NOT IN ('closed', 'running')
+		AND ($5 OR cv."departmentId" IS NULL OR EXISTS (
+			SELECT 1 FROM agent_departments ad
+			WHERE ad."agentId" = $1 AND ad."departmentId" = cv."departmentId"
+		))`, agent.Id, ConversationStatusOpen, url, agent.CompanyId, agent.IsAdmin())
+	if err != nil {
+		return false, err
+	}
+	rows, err := result.RowsAffected()
+	return rows == 1, err
+}
+
+func IgnoreConversation(url uuid.UUID, agent Agent) (bool, error) {
+	tx, err := db.Begin()
+	if err != nil {
+		return false, err
+	}
+	defer tx.Rollback()
+
+	var conversationID int
+	err = tx.QueryRow(`SELECT cv.id
+		FROM conversations cv
+		INNER JOIN connections co ON co.id = cv."connectionId" AND co."companyId" = $2
+		WHERE cv.url = $1 AND cv."agentId" IS NULL AND cv.status NOT IN ('closed', 'running')
+		AND ($3 OR cv."departmentId" IS NULL OR EXISTS (
+			SELECT 1 FROM agent_departments ad
+			WHERE ad."agentId" = $4 AND ad."departmentId" = cv."departmentId"
+		)) FOR UPDATE`, url, agent.CompanyId, agent.IsAdmin(), agent.Id).Scan(&conversationID)
+	if err != nil {
+		return false, err
+	}
+	if _, err := tx.Exec(`UPDATE flow_executions SET status = 'failed',
+		"errorMessage" = 'execução cancelada porque a conversa foi ignorada',
+		"completedAt" = now(), "updatedAt" = now()
+		WHERE "conversationId" = $1 AND status IN ('running', 'waiting')`, conversationID); err != nil {
+		return false, err
+	}
+	if _, err := tx.Exec(`UPDATE conversations SET status = $1, "updatedAt" = now() WHERE id = $2`, ConversationStatusClosed, conversationID); err != nil {
+		return false, err
+	}
+	if err := tx.Commit(); err != nil {
+		return false, err
+	}
+	return true, nil
 }
