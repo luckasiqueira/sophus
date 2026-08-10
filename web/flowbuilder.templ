@@ -95,6 +95,7 @@ const NODE_TYPES = {
   sendText:        { label: 'Enviar Texto',         icon: 'fa-comment',         color: '#3b82f6', category: 'Mensagens' },
   sendImage:       { label: 'Enviar Imagem',        icon: 'fa-image',           color: '#3b82f6', category: 'Mensagens' },
   sendVideo:       { label: 'Enviar Vídeo',          icon: 'fa-video',           color: '#3b82f6', category: 'Mensagens' },
+  sendAudio:       { label: 'Enviar Áudio',         icon: 'fa-microphone',      color: '#3b82f6', category: 'Mensagens' },
   sendFile:        { label: 'Enviar Arquivo',       icon: 'fa-paperclip',       color: '#3b82f6', category: 'Mensagens' },
   sendMenu:        { label: 'Enviar Menu',          icon: 'fa-list-ul',         color: '#3b82f6', category: 'Mensagens' },
   condition:       { label: 'Condição',             icon: 'fa-code-branch',     color: '#f59e0b', category: 'Lógica' },
@@ -309,6 +310,17 @@ async function saveFlow() {
   if (!f.name || !f.name.trim()) { alert('Dá um nome pra essa automação antes de salvar.'); return; }
   const startNodes = state.flowData.nodes.filter(n => n.type === 'start');
   if (startNodes.length !== 1) { alert('O fluxo precisa ter exatamente um node de Início.'); return; }
+  const requiredMediaFields = {
+    sendImage: { url: 'imageUrl', path: 'imagePath' },
+    sendVideo: { url: 'videoUrl', path: 'videoPath' },
+    sendAudio: { url: 'audioUrl', path: 'audioPath' },
+    sendFile: { url: 'fileUrl' },
+  };
+  const missingMedia = state.flowData.nodes.find(node => {
+    const fields = requiredMediaFields[node.type];
+    return fields && !String(node.data[fields.url] || '').trim() && (!fields.path || !String(node.data[fields.path] || '').trim());
+  });
+  if (missingMedia) { alert('Configure a mídia do bloco "' + NODE_TYPES[missingMedia.type].label + '" antes de salvar.'); return; }
 
   const payload = {
     name: f.name,
@@ -473,6 +485,9 @@ function defaultDataFor(type) {
     };
     case 'switch': return { cases: [{ label: 'Opção 1', condition: '' }] };
     case 'delay': return { delayType: 'fixed', seconds: 2 };
+    case 'sendImage': return { imageUrl: '', imagePath: '', imageMimeType: '', mediaPreviewUrl: '', mediaName: '' };
+    case 'sendVideo': return { videoUrl: '', videoPath: '', videoMimeType: '', mediaPreviewUrl: '', mediaName: '' };
+    case 'sendAudio': return { audioUrl: '', audioPath: '', audioMimeType: '', mediaPreviewUrl: '', mediaName: '' };
     case 'assign': return { assignType: 'agent' };
     case 'httpRequest': return { method: 'POST' };
     default: return {};
@@ -527,8 +542,9 @@ function nodeSummary(node) {
   const d = node.data || {};
   switch (node.type) {
     case 'sendText': return d.message ? truncate(d.message, 60) : 'Sem mensagem configurada';
-    case 'sendImage': return d.imageUrl ? truncate(d.imageUrl, 40) : 'Sem imagem configurada';
-    case 'sendVideo': return d.videoUrl ? truncate(d.videoUrl, 40) : 'Sem vídeo configurado';
+    case 'sendImage': return d.mediaName || (d.imageUrl ? truncate(d.imageUrl, 40) : 'Sem imagem configurada');
+    case 'sendVideo': return d.mediaName || (d.videoUrl ? truncate(d.videoUrl, 40) : 'Sem vídeo configurado');
+    case 'sendAudio': return d.mediaName || (d.audioUrl ? truncate(d.audioUrl, 40) : 'Sem áudio configurado');
     case 'sendFile': return d.fileUrl ? truncate(d.fileUrl, 40) : 'Sem arquivo configurado';
     case 'sendMenu': return [d.title, d.description].filter(Boolean).join(' — ') || 'Sem mensagem configurada';
     case 'condition': return d.condition ? truncate(d.condition, 60) : 'Sem condição configurada';
@@ -858,6 +874,38 @@ function numberInput(val, name) {
   return '<input type="number" data-field="' + name + '" value="' + (val ?? '') + '" class="w-full px-3 py-2 bg-stone-50 border border-stone-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-purple-400">';
 }
 
+function mediaNodeConfig(type) {
+  if (type === 'sendImage') return { kind: 'image', urlField: 'imageUrl', pathField: 'imagePath', mimeField: 'imageMimeType', accept: 'image/jpeg,image/png,image/gif,image/webp', label: 'uma imagem', hint: 'JPG, PNG, GIF ou WEBP · até 10 MB' };
+  if (type === 'sendVideo') return { kind: 'video', urlField: 'videoUrl', pathField: 'videoPath', mimeField: 'videoMimeType', accept: 'video/mp4,video/webm,video/quicktime', label: 'um vídeo', hint: 'MP4, WEBM ou MOV · até 50 MB' };
+  if (type === 'sendAudio') return { kind: 'audio', urlField: 'audioUrl', pathField: 'audioPath', mimeField: 'audioMimeType', accept: 'audio/webm,audio/ogg,audio/mpeg,audio/mp4,audio/wav', label: 'um áudio', hint: 'WEBM, OGG, MP3, M4A ou WAV · até 20 MB' };
+  return null;
+}
+
+function mediaUploadHTML(kind, data, options) {
+  const url = data[options.urlField] || '';
+  const uploaded = !!data[options.pathField];
+  const previewUrl = data.mediaPreviewUrl || url;
+  let preview = '';
+  if (uploaded && previewUrl) {
+    if (kind === 'image') preview = '<img src="' + escapeAttr(previewUrl) + '" class="w-full h-28 object-cover rounded-lg border border-stone-200">';
+    if (kind === 'video') preview = '<video src="' + escapeAttr(previewUrl) + '" controls class="w-full max-h-36 rounded-lg border border-stone-200"><\/video>';
+    if (kind === 'audio') preview = '<audio src="' + escapeAttr(previewUrl) + '" controls class="w-full"><\/audio>';
+    preview += '<div class="flex items-center justify-between gap-2 mt-2"><span class="text-[11px] text-gray-500 truncate">' + escapeHtml(data.mediaName || options.label) + '<\/span>' +
+      '<button type="button" data-media-remove class="text-xs text-red-600 hover:underline">Remover<\/button><\/div>';
+  }
+  return '<div data-media-upload>' +
+    '<label class="block border-2 border-dashed border-stone-300 hover:border-purple-400 rounded-xl p-4 text-center cursor-pointer transition-colors" data-media-dropzone>' +
+      '<input type="file" accept="' + options.accept + '" class="hidden" data-media-file>' +
+      '<i class="fas fa-cloud-arrow-up text-2xl text-purple-500 mb-2"><\/i>' +
+      '<div class="text-sm font-medium text-gray-700">Arraste ou selecione ' + options.label + '<\/div>' +
+      '<div class="text-[11px] text-gray-400 mt-1">' + options.hint + '<\/div>' +
+    '<\/label>' +
+    (kind === 'audio' ? '<button type="button" data-record-audio class="mt-2 w-full px-3 py-2 rounded-lg bg-purple-100 text-purple-700 hover:bg-purple-200 text-sm font-medium"><i class="fas fa-microphone mr-1"><\/i>Gravar agora<\/button>' : '') +
+    '<div data-media-status class="text-xs text-gray-500 mt-2"><\/div>' +
+    (preview ? '<div class="mt-3">' + preview + '<\/div>' : '') +
+  '<\/div>';
+}
+
 function renderFieldsFor(node) {
   const box = document.getElementById('inspector-fields');
   const d = node.data;
@@ -885,12 +933,18 @@ function renderFieldsFor(node) {
       html += field('Mensagem', textArea(d.message, 'message', 4), 'Use {' + '{variavel}' + '} para inserir dados capturados no fluxo.');
       break;
     case 'sendImage':
-      html += field('URL da imagem', textInput(d.imageUrl, 'imageUrl'));
+      html += mediaUploadHTML('image', d, mediaNodeConfig(node.type));
+      if (!d.imagePath) html += field('Ou use uma URL externa', textInput(d.imageUrl, 'imageUrl'));
       html += field('Legenda (opcional)', textArea(d.caption, 'caption', 2));
       break;
     case 'sendVideo':
-      html += field('URL do vídeo', textInput(d.videoUrl, 'videoUrl'));
+      html += mediaUploadHTML('video', d, mediaNodeConfig(node.type));
+      if (!d.videoPath) html += field('Ou use uma URL externa', textInput(d.videoUrl, 'videoUrl'));
       html += field('Legenda (opcional)', textArea(d.caption, 'caption', 2));
+      break;
+    case 'sendAudio':
+      html += mediaUploadHTML('audio', d, mediaNodeConfig(node.type));
+      if (!d.audioPath) html += field('Ou use uma URL externa', textInput(d.audioUrl, 'audioUrl'));
       break;
     case 'sendFile':
       html += field('URL do arquivo', textInput(d.fileUrl, 'fileUrl'));
@@ -981,19 +1035,120 @@ function renderFieldsFor(node) {
         : path === 'assignId' ? (input.value === '' ? undefined : Number(input.value))
         : input.value;
       setPath(d, path, val);
+      const mediaConfig = mediaNodeConfig(node.type);
+      if (mediaConfig && path === mediaConfig.urlField) {
+        delete d[mediaConfig.pathField];
+        delete d[mediaConfig.mimeField];
+        delete d.mediaPreviewUrl;
+        delete d.mediaName;
+      }
       if (node.type === 'assign' && path === 'assignType') delete d.assignId;
       if (node.type === 'sendMenu' && path === 'useFallback' && !val) {
         state.flowData.edges = state.flowData.edges.filter(edge => edge.source !== node.id || (edge.sourceHandle !== 'fallback' && !!edge.sourceHandle));
         if (state.armedHandle?.nodeId === node.id && state.armedHandle.handle === 'fallback') state.armedHandle = null;
       }
       renderCanvas();
-      if (node.type !== 'sendMenu') renderInspector();
+      if (node.type !== 'sendMenu' && (input.tagName === 'SELECT' || input.type === 'checkbox')) renderInspector();
     };
     input.addEventListener((input.tagName === 'SELECT' || input.type === 'checkbox') ? 'change' : 'input', handler);
   });
 
   if (node.type === 'switch') renderSwitchCases(node);
   if (node.type === 'sendMenu') renderMenuSections(node);
+  bindMediaUploads(node, box);
+}
+
+function bindMediaUploads(node, box) {
+  const wrapper = box.querySelector('[data-media-upload]');
+  if (!wrapper) return;
+  const config = mediaNodeConfig(node.type);
+  const input = wrapper.querySelector('[data-media-file]');
+  const dropzone = wrapper.querySelector('[data-media-dropzone]');
+  const status = wrapper.querySelector('[data-media-status]');
+
+  async function uploadMedia(file) {
+    if (!file) return;
+    status.textContent = 'Enviando mídia...';
+    status.className = 'text-xs text-gray-500 mt-2';
+    const form = new FormData();
+    form.append('kind', config.kind);
+    form.append('file', file, file.name || ('gravacao.' + (file.type.includes('ogg') ? 'ogg' : 'webm')));
+    try {
+      const response = await fetch('/flows/api/media', { method: 'POST', body: form });
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(payload.error || ('Erro ' + response.status));
+      const stored = payload.data;
+      delete node.data[config.urlField];
+      node.data[config.pathField] = stored.path;
+      node.data[config.mimeField] = stored.mimeType;
+      node.data.mediaPreviewUrl = stored.url;
+      node.data.mediaName = stored.name;
+      renderCanvas();
+      renderInspector();
+    } catch (error) {
+      status.textContent = error.message;
+      status.className = 'text-xs text-red-600 mt-2';
+    }
+  }
+
+  input.addEventListener('change', () => uploadMedia(input.files[0]));
+  dropzone.addEventListener('dragover', event => {
+    event.preventDefault();
+    dropzone.classList.add('border-purple-500', 'bg-purple-50');
+  });
+  dropzone.addEventListener('dragleave', () => dropzone.classList.remove('border-purple-500', 'bg-purple-50'));
+  dropzone.addEventListener('drop', event => {
+    event.preventDefault();
+    dropzone.classList.remove('border-purple-500', 'bg-purple-50');
+    uploadMedia(event.dataTransfer.files[0]);
+  });
+
+  const remove = wrapper.querySelector('[data-media-remove]');
+  if (remove) remove.onclick = () => {
+    delete node.data[config.urlField];
+    delete node.data[config.pathField];
+    delete node.data[config.mimeField];
+    delete node.data.mediaPreviewUrl;
+    delete node.data.mediaName;
+    renderCanvas();
+    renderInspector();
+  };
+
+  const record = wrapper.querySelector('[data-record-audio]');
+  if (record) record.onclick = async () => {
+    if (record._recorder && record._recorder.state === 'recording') {
+      record._recorder.stop();
+      return;
+    }
+    if (!navigator.mediaDevices || !window.MediaRecorder) {
+      status.textContent = 'Gravação de áudio não suportada neste navegador.';
+      return;
+    }
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const candidates = ['audio/webm;codecs=opus', 'audio/ogg;codecs=opus', 'audio/webm'];
+      const mimeType = candidates.find(type => MediaRecorder.isTypeSupported(type)) || '';
+      const recorder = new MediaRecorder(stream, mimeType ? { mimeType } : undefined);
+      const chunks = [];
+      record._recorder = recorder;
+      recorder.ondataavailable = event => { if (event.data.size) chunks.push(event.data); };
+      recorder.onstop = () => {
+        stream.getTracks().forEach(track => track.stop());
+        record.innerHTML = '<i class="fas fa-microphone mr-1"><\/i>Gravar agora';
+        record.className = 'mt-2 w-full px-3 py-2 rounded-lg bg-purple-100 text-purple-700 hover:bg-purple-200 text-sm font-medium';
+        const type = recorder.mimeType || 'audio/webm';
+        const extension = type.includes('ogg') ? 'ogg' : 'webm';
+        uploadMedia(new File(chunks, 'gravacao-' + Date.now() + '.' + extension, { type }));
+      };
+      recorder.start();
+      record.innerHTML = '<i class="fas fa-stop mr-1"><\/i>Parar gravação';
+      record.className = 'mt-2 w-full px-3 py-2 rounded-lg bg-red-100 text-red-700 hover:bg-red-200 text-sm font-medium';
+      status.textContent = 'Gravando...';
+    } catch (error) {
+      status.textContent = 'Não foi possível acessar o microfone: ' + error.message;
+      status.className = 'text-xs text-red-600 mt-2';
+    }
+  };
 }
 
 function renderMenuSections(node) {

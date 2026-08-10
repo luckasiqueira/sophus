@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"log"
+	"sophus/internal/media"
 	"sophus/internal/repo"
 	"sophus/pkg/http/middlewares/sse"
 	"strconv"
@@ -204,6 +205,8 @@ func (e *Engine) processNode(executionID int, node FlowNode, ctx ExecutionContex
 		return ProcessResult{}, e.executeSendImage(node, ctx, conversation)
 	case NodeSendVideo:
 		return ProcessResult{}, e.executeSendVideo(node, ctx, conversation)
+	case NodeSendAudio:
+		return ProcessResult{}, e.executeSendAudio(node, ctx, conversation)
 	case NodeSendFile:
 		return ProcessResult{}, e.executeSendFile(node, ctx, conversation)
 	case NodeSendMenu:
@@ -369,30 +372,54 @@ func (e *Engine) executeSendText(node FlowNode, ctx ExecutionContext, conversati
 }
 
 func (e *Engine) executeSendImage(node FlowNode, ctx ExecutionContext, conversation repo.Conversation) error {
-	url := stringVal(node.Data, "imageUrl")
-	if url == "" {
+	source, err := flowMediaSource(node.Data, "imagePath", "imageUrl", e.messenger.Connection.CompanyID, ctx)
+	if err != nil {
+		return err
+	}
+	if source == "" {
 		return nil
 	}
 	caption := ReplaceVariables(stringVal(node.Data, "caption"), ctx)
-	return e.messenger.SendMedia(conversation, "image", url, caption)
+	return e.messenger.SendMedia(conversation, "image", source, caption)
 }
 
 func (e *Engine) executeSendVideo(node FlowNode, ctx ExecutionContext, conversation repo.Conversation) error {
-	url := stringVal(node.Data, "videoUrl")
-	if url == "" {
+	source, err := flowMediaSource(node.Data, "videoPath", "videoUrl", e.messenger.Connection.CompanyID, ctx)
+	if err != nil {
+		return err
+	}
+	if source == "" {
 		return nil
 	}
 	caption := ReplaceVariables(stringVal(node.Data, "caption"), ctx)
-	return e.messenger.SendMedia(conversation, "video", url, caption)
+	return e.messenger.SendMedia(conversation, "video", source, caption)
+}
+
+func (e *Engine) executeSendAudio(node FlowNode, ctx ExecutionContext, conversation repo.Conversation) error {
+	source, err := flowMediaSource(node.Data, "audioPath", "audioUrl", e.messenger.Connection.CompanyID, ctx)
+	if err != nil {
+		return err
+	}
+	if source == "" {
+		return nil
+	}
+	return e.messenger.SendAudio(conversation, source)
 }
 
 func (e *Engine) executeSendFile(node FlowNode, ctx ExecutionContext, conversation repo.Conversation) error {
-	url := stringVal(node.Data, "fileUrl")
+	url := ReplaceVariables(stringVal(node.Data, "fileUrl"), ctx)
 	if url == "" {
 		return nil
 	}
 	caption := ReplaceVariables(stringVal(node.Data, "caption"), ctx)
 	return e.messenger.SendMedia(conversation, "document", url, caption)
+}
+
+func flowMediaSource(data map[string]interface{}, pathKey, urlKey string, companyID int, ctx ExecutionContext) (string, error) {
+	if path := strings.TrimSpace(stringVal(data, pathKey)); path != "" {
+		return media.SignedURL(companyID, path)
+	}
+	return ReplaceVariables(strings.TrimSpace(stringVal(data, urlKey)), ctx), nil
 }
 
 func (e *Engine) executeDelay(data map[string]interface{}) error {

@@ -4,6 +4,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
+	"net/url"
+	"path"
 	"sophus/internal/repo"
 	"sophus/pkg/http/requests"
 	"strings"
@@ -58,26 +60,24 @@ func (m *Messenger) SendText(conversation repo.Conversation, message string) err
 }
 
 func (m *Messenger) SendMedia(conversation repo.Conversation, mediaType, mediaURL, caption string) error {
+	return m.sendMedia(conversation, mediaType, mediaURL, caption)
+}
+
+func (m *Messenger) SendAudio(conversation repo.Conversation, mediaURL string) error {
+	return m.sendMedia(conversation, "audio", mediaURL, "")
+}
+
+func (m *Messenger) sendMedia(conversation repo.Conversation, mediaType, mediaURL, caption string) error {
 	contact, err := repo.GetContactById(conversation.Contact.Id)
 	if err != nil {
 		return err
 	}
-	payload := map[string]interface{}{
-		"number":    contact.Number,
-		"mediatype": mediaType,
-		"media":     mediaURL,
-	}
-	if caption != "" {
-		payload["caption"] = caption
-	}
-	if mediaType == "document" {
-		parts := strings.Split(mediaURL, "/")
-		payload["fileName"] = parts[len(parts)-1]
-	}
+	payload := buildMediaPayload(contact.Number, mediaType, mediaURL, caption)
 	r := requests.Request{
 		URL:     repo.ApiBaseURL + "/send/media",
 		Method:  "POST",
 		Payload: payload,
+		Timeout: 2 * time.Minute,
 		Headers: map[string]string{
 			"Content-Type": "application/json",
 			"apikey":       m.Connection.EvolutionAPIKey(),
@@ -88,7 +88,7 @@ func (m *Messenger) SendMedia(conversation repo.Conversation, mediaType, mediaUR
 	if err != nil {
 		return err
 	}
-	if r.StatusCode != 200 {
+	if r.StatusCode < 200 || r.StatusCode >= 300 {
 		return fmt.Errorf("send media failed with status %d: %s", r.StatusCode, string(r.Body))
 	}
 	text := caption
@@ -96,6 +96,24 @@ func (m *Messenger) SendMedia(conversation repo.Conversation, mediaType, mediaUR
 		text = fmt.Sprintf("%s enviado pelo fluxo", mediaType)
 	}
 	return repo.SaveFlowMessage(conversation.Id, evolutionMessageID(r.Body), text)
+}
+
+func buildMediaPayload(number, mediaType, mediaURL, caption string) map[string]interface{} {
+	payload := map[string]interface{}{
+		"number": number,
+		"type":   mediaType,
+		"url":    mediaURL,
+	}
+	if caption != "" {
+		payload["caption"] = caption
+	}
+	if mediaType == "document" {
+		parsed, err := url.Parse(mediaURL)
+		if err == nil {
+			payload["filename"] = path.Base(parsed.Path)
+		}
+	}
+	return payload
 }
 
 func evolutionMessageID(body []byte) string {

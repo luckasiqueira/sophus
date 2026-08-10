@@ -1,6 +1,10 @@
 package flowengine
 
-import "encoding/json"
+import (
+	"encoding/json"
+	"fmt"
+	"strings"
+)
 
 type FlowNodeType string
 
@@ -9,6 +13,7 @@ const (
 	NodeSendText        FlowNodeType = "sendText"
 	NodeSendImage       FlowNodeType = "sendImage"
 	NodeSendVideo       FlowNodeType = "sendVideo"
+	NodeSendAudio       FlowNodeType = "sendAudio"
 	NodeSendFile        FlowNodeType = "sendFile"
 	NodeSendMenu        FlowNodeType = "sendMenu"
 	NodeCondition       FlowNodeType = "condition"
@@ -74,6 +79,31 @@ func ParseFlowData(raw json.RawMessage) (FlowData, error) {
 	}
 	err := json.Unmarshal(raw, &data)
 	return data, err
+}
+
+func ValidateFlowData(raw json.RawMessage) error {
+	data, err := ParseFlowData(raw)
+	if err != nil {
+		return err
+	}
+	type mediaFields struct {
+		URL  string
+		Path string
+	}
+	requiredMediaFields := map[FlowNodeType]mediaFields{
+		NodeSendImage: {URL: "imageUrl", Path: "imagePath"},
+		NodeSendVideo: {URL: "videoUrl", Path: "videoPath"},
+		NodeSendAudio: {URL: "audioUrl", Path: "audioPath"},
+		NodeSendFile:  {URL: "fileUrl"},
+	}
+	for _, node := range data.Nodes {
+		fields, requiresMedia := requiredMediaFields[node.Type]
+		if requiresMedia && strings.TrimSpace(stringVal(node.Data, fields.URL)) == "" &&
+			(fields.Path == "" || strings.TrimSpace(stringVal(node.Data, fields.Path)) == "") {
+			return fmt.Errorf("node %s requer uma mídia", node.Type)
+		}
+	}
+	return nil
 }
 
 func ParseContext(raw json.RawMessage) (ExecutionContext, error) {

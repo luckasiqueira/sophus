@@ -81,6 +81,10 @@ func CreateFlow(ctx iris.Context) {
 	if req.TriggerType == "" {
 		req.TriggerType = "keyword"
 	}
+	if err := flowengine.ValidateFlowData(req.FlowData); err != nil {
+		ctx.StopWithJSON(iris.StatusBadRequest, iris.Map{"error": err.Error()})
+		return
+	}
 	createdBy := agent.Id
 	flow := repo.ChatbotFlow{
 		Name:         req.Name,
@@ -140,6 +144,10 @@ func UpdateFlow(ctx iris.Context) {
 		flow.TriggerValue = *req.TriggerValue
 	}
 	if req.FlowData != nil {
+		if err := flowengine.ValidateFlowData(*req.FlowData); err != nil {
+			ctx.StopWithJSON(iris.StatusBadRequest, iris.Map{"error": err.Error()})
+			return
+		}
 		flow.FlowData = *req.FlowData
 	}
 	if req.IsActive != nil {

@@ -13,6 +13,7 @@ func Router(r *iris.Application) {
 	r.Post("/dologin", controllers.DoLogin)
 
 	r.Post("/webhook/{webhookId:uuid}", middlewares.AuthWebhook, controllers.Webhook)
+	r.Get("/medias/{companyId:int}/flows/{file:string}", middlewares.AuthFlowMedia, controllers.ServeFlowMedia)
 
 	api := r.Party("/api")
 	api.Use(middlewares.AuthAPI)
@@ -32,9 +33,7 @@ func Router(r *iris.Application) {
 
 	medias := web.Party("/medias")
 	medias.Use(middlewares.AuthMediaCompany)
-	medias.HandleDir("/", iris.Dir(env.Backend["MEDIA_DIRECTORY"]), iris.DirOptions{
-		Attachments: iris.Attachments{Enable: true},
-	})
+	medias.HandleDir("/", iris.Dir(env.Backend["MEDIA_DIRECTORY"]), iris.DirOptions{})
 
 	web.Get("/sse", middlewares.SSEMessages)
 	web.Get("/sse/conversations", middlewares.SSEConversations)
@@ -61,6 +60,7 @@ func Router(r *iris.Application) {
 			flowsAPI.Get("/", controllers.ListFlows)
 			flowsAPI.Get("/connections", controllers.ListConnectionsForFlows)
 			flowsAPI.Get("/assignment-options", controllers.ListAssignmentOptions)
+			flowsAPI.Post("/media", controllers.UploadFlowMedia)
 			flowsAPI.Get("/{id:int}", controllers.GetFlow)
 			flowsAPI.Post("/", controllers.CreateFlow)
 			flowsAPI.Put("/{id:int}", controllers.UpdateFlow)
