@@ -181,6 +181,9 @@ func SendMessage(ctx iris.Context) {
 		ctx.StopWithStatus(iris.StatusBadRequest)
 		return
 	}
+	if msg.Delay <= 0 {
+		msg.Delay = repo.TypingDelayMilliseconds(msg.Text)
+	}
 	status, fullJson, err := msg.Send(connection.EvolutionAPIKey()) // coletar a resposta, pra puxar o data e o messageid e salvar corretamente no banco de dados
 	if err != nil || status != 200 {
 		if status < 100 {

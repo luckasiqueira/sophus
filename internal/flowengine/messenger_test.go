@@ -1,6 +1,10 @@
 package flowengine
 
-import "testing"
+import (
+	"testing"
+
+	"sophus/internal/repo"
+)
 
 func TestBuildMediaPayloadIncludesEvolutionURL(t *testing.T) {
 	mediaURL := "https://example.com/medias/1/flows/image.png?token=signed"
@@ -11,6 +15,9 @@ func TestBuildMediaPayloadIncludesEvolutionURL(t *testing.T) {
 	}
 	if payload["type"] != "image" {
 		t.Fatalf("type = %#v, want image", payload["type"])
+	}
+	if payload["delay"] != repo.TypingDelayMilliseconds("Legenda") {
+		t.Fatalf("delay = %#v, want proportional typing delay", payload["delay"])
 	}
 	if _, exists := payload["mediatype"]; exists {
 		t.Fatal("payload must not contain unsupported mediatype field")

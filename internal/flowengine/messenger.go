@@ -46,8 +46,11 @@ func (m *Messenger) SendText(conversation repo.Conversation, message string) err
 		return err
 	}
 	msg := repo.TextMessageEVO{
-		MessageBaseEVO: repo.MessageBaseEVO{Number: contact.Number},
-		Text:           message,
+		MessageBaseEVO: repo.MessageBaseEVO{
+			Number: contact.Number,
+			Delay:  repo.TypingDelayMilliseconds(message),
+		},
+		Text: message,
 	}
 	status, responseBody, err := msg.Send(m.Connection.EvolutionAPIKey())
 	if err != nil {
@@ -103,6 +106,7 @@ func buildMediaPayload(number, mediaType, mediaURL, caption string) map[string]i
 		"number": number,
 		"type":   mediaType,
 		"url":    mediaURL,
+		"delay":  repo.TypingDelayMilliseconds(caption),
 	}
 	if caption != "" {
 		payload["caption"] = caption
