@@ -72,8 +72,11 @@ func Router(r *iris.Application) {
 	instance := web.Party("/instances")
 	{
 		instance.Get("/", controllers.Instances)
+		instance.Get("/list", controllers.InstanceList)
+		instance.Get("/events", middlewares.SSEInstances)
 		instance.Get("/create", controllers.InstancePopup)
 		instance.Post("/create", controllers.NewInstance)
+		instance.Post("/{id:int}/reconnect", controllers.ReconnectInstance)
 		instance.Get("/{id:int}/qrcode/events", middlewares.SSEQRCode)
 	}
 

@@ -5,13 +5,16 @@ import (
 	"log"
 	"net/http"
 	"net/url"
+	"strings"
+	"time"
+
+	"sophus/internal/instancesync"
 	"sophus/internal/repo"
 	"sophus/internal/repo/instances"
 	"sophus/pkg/http/middlewares"
+	"sophus/pkg/http/middlewares/sse"
 	"sophus/utils/env"
 	"sophus/web"
-	"strings"
-	"time"
 
 	"github.com/google/uuid"
 	"github.com/kataras/iris/v12"
@@ -30,7 +33,23 @@ func Instances(ctx iris.Context) {
 		ctx.StopWithStatus(http.StatusBadRequest)
 		return
 	}
+	go instancesync.SyncCompany(agent.CompanyId)
 	ctx.RenderComponent(web.Instances(connectionsList))
+}
+
+func InstanceList(ctx iris.Context) {
+	agent, err := middlewares.AgentIdentifier(ctx)
+	if err != nil {
+		ctx.StopWithStatus(iris.StatusUnauthorized)
+		return
+	}
+	connections, err := repo.GetConnectionListByCompany(agent.CompanyId)
+	if err != nil {
+		ctx.StopWithStatus(iris.StatusInternalServerError)
+		return
+	}
+	ctx.Header("Cache-Control", "no-store")
+	ctx.RenderComponent(web.InstanceList(connections))
 }
 
 func InstancePopup(ctx iris.Context) {
@@ -49,20 +68,11 @@ func NewInstance(ctx iris.Context) {
 		return
 	}
 	webhookID := uuid.New()
-	publicURL := strings.TrimSpace(env.Backend["APP_DOMAIN"])
-	if publicURL == "" {
-		ctx.StopWithJSON(iris.StatusInternalServerError, iris.Map{"error": "APP_DOMAIN não configurada"})
+	publicURL, err := applicationPublicURL()
+	if err != nil {
+		ctx.StopWithJSON(iris.StatusInternalServerError, iris.Map{"error": err.Error()})
 		return
 	}
-	if !strings.Contains(publicURL, "://") {
-		publicURL = "https://" + publicURL
-	}
-	parsedPublicURL, err := url.Parse(publicURL)
-	if err != nil || parsedPublicURL.Host == "" || (parsedPublicURL.Scheme != "http" && parsedPublicURL.Scheme != "https") {
-		ctx.StopWithJSON(iris.StatusInternalServerError, iris.Map{"error": "APP_DOMAIN inválida"})
-		return
-	}
-	publicURL = strings.TrimRight(parsedPublicURL.Scheme+"://"+parsedPublicURL.Host, "/")
 	i := instances.InstanceEVO{
 		Name:          strings.TrimSpace(ctx.FormValue("connection_name")),
 		Type:          connectionType,
@@ -117,6 +127,68 @@ func NewInstance(ctx iris.Context) {
 	log.Printf("Evolution GO instance connected to webhook configuration: connection=%d", connectionID)
 	go awaitInitialQRCode(connectionID, i)
 	ctx.RenderComponent(web.InstanceQRCodePanel(connectionID, i.Name))
+}
+
+func ReconnectInstance(ctx iris.Context) {
+	agent, err := middlewares.AgentIdentifier(ctx)
+	if err != nil {
+		ctx.StopWithStatus(iris.StatusUnauthorized)
+		return
+	}
+	connectionID, err := ctx.Params().GetInt("id")
+	if err != nil {
+		ctx.StopWithStatus(iris.StatusBadRequest)
+		return
+	}
+	connection, err := repo.GetConnectionById(connectionID)
+	if err != nil {
+		ctx.StopWithStatus(iris.StatusNotFound)
+		return
+	}
+	if connection.CompanyID != agent.CompanyId {
+		ctx.StopWithStatus(iris.StatusForbidden)
+		return
+	}
+	publicURL, err := applicationPublicURL()
+	if err != nil {
+		ctx.StopWithJSON(iris.StatusInternalServerError, iris.Map{"error": err.Error()})
+		return
+	}
+	instance := instances.InstanceEVO{
+		Name:          connection.Name,
+		WebhookURL:    fmt.Sprintf("%s/webhook/%s", publicURL, connection.Webhook.String()),
+		InstanceID:    connection.InstanceID,
+		ConnectionKey: connection.ConnectionKey,
+		APIToken:      connection.EvolutionAPIKey(),
+	}
+	if err := repo.UpdateConnectionStatus(connectionID, repo.ConnectionStatusConnecting); err != nil {
+		ctx.StopWithStatus(iris.StatusInternalServerError)
+		return
+	}
+	sse.NotifyInstances(agent.CompanyId)
+	if err := instance.Connect(); err != nil {
+		_ = repo.UpdateConnectionStatus(connectionID, repo.ConnectionStatusDisconnected)
+		sse.NotifyInstances(agent.CompanyId)
+		ctx.StopWithJSON(iris.StatusBadGateway, iris.Map{"error": err.Error()})
+		return
+	}
+	go awaitInitialQRCode(connectionID, instance)
+	ctx.RenderComponent(web.InstanceReconnectPopup(connectionID, connection.Name))
+}
+
+func applicationPublicURL() (string, error) {
+	publicURL := strings.TrimSpace(env.Backend["APP_DOMAIN"])
+	if publicURL == "" {
+		return "", fmt.Errorf("APP_DOMAIN não configurada")
+	}
+	if !strings.Contains(publicURL, "://") {
+		publicURL = "https://" + publicURL
+	}
+	parsedPublicURL, err := url.Parse(publicURL)
+	if err != nil || parsedPublicURL.Host == "" || (parsedPublicURL.Scheme != "http" && parsedPublicURL.Scheme != "https") {
+		return "", fmt.Errorf("APP_DOMAIN inválida")
+	}
+	return strings.TrimRight(parsedPublicURL.Scheme+"://"+parsedPublicURL.Host, "/"), nil
 }
 
 func awaitInitialQRCode(connectionID int, instance instances.InstanceEVO) {

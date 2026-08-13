@@ -1,8 +1,10 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"os"
+	"sophus/internal/instancesync"
 	"sophus/internal/repo"
 	"sophus/pkg/http/routers"
 	"sophus/utils/env"
@@ -18,6 +20,7 @@ func main() {
 	}
 	srv := iris.Default()
 	routers.Router(srv)
+	instancesync.Start(context.Background())
 	err = srv.Listen(":" + env.Backend["SERVER_PORT"])
 	if err != nil {
 		panic(err)

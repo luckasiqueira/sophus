@@ -33,9 +33,14 @@ func NewHub(retained bool) *Hub {
 var Global = NewHub(false)
 var QRGlobal = NewHub(true)
 var Conversations = NewHub(false)
+var Instances = NewHub(false)
 
 func NotifyConversations(companyID int) {
 	Conversations.SendEvent(strconv.Itoa(companyID), "conversation", "refresh")
+}
+
+func NotifyInstances(companyID int) {
+	Instances.SendEvent(strconv.Itoa(companyID), "instance-status", "refresh")
 }
 
 func (h *Hub) Register(key string) *Client {

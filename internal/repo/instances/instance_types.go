@@ -7,6 +7,7 @@ import (
 	"sophus/pkg/http/requests"
 	"sophus/utils/env"
 	"strings"
+	"time"
 
 	"github.com/google/uuid"
 )
@@ -35,6 +36,12 @@ type QRCode struct {
 	QRCode   string
 	Count    int
 	MaxCount int
+}
+
+type Status struct {
+	Connected bool
+	State     string
+	Number    string
 }
 
 func (i *InstanceEVO) Create() error {
@@ -133,6 +140,79 @@ func (i *InstanceEVO) GetQRCode() (QRCode, error) {
 		return QRCode{}, fmt.Errorf("Evolution GO returned an empty QR Code")
 	}
 	return result, nil
+}
+
+func (i *InstanceEVO) GetStatus() (Status, error) {
+	r := requests.Request{
+		URL: repo.ApiBaseURL + "/instance/status",
+		Headers: map[string]string{
+			"apikey": i.APIToken,
+		},
+		Method:  "GET",
+		Timeout: 5 * time.Second,
+	}
+	if err := r.Do(); err != nil {
+		return Status{}, err
+	}
+	var response map[string]interface{}
+	if err := json.Unmarshal(r.Body, &response); err != nil {
+		return Status{}, err
+	}
+	status, ok := parseStatus(response)
+	if !ok {
+		return Status{}, fmt.Errorf("Evolution GO returned an unknown status response: %s", string(r.Body))
+	}
+	return status, nil
+}
+
+func parseStatus(value interface{}) (Status, bool) {
+	object, ok := value.(map[string]interface{})
+	if !ok {
+		return Status{}, false
+	}
+	for _, key := range []string{"connected", "isConnected", "is_connected"} {
+		if connected, exists := object[key].(bool); exists {
+			return Status{Connected: connected, State: connectedState(connected), Number: statusNumber(object)}, true
+		}
+	}
+	for _, key := range []string{"status", "state", "connectionState", "connection_state"} {
+		if raw, exists := object[key].(string); exists {
+			state := strings.ToLower(strings.TrimSpace(raw))
+			switch state {
+			case "connected", "open", "online", "ready":
+				return Status{Connected: true, State: "connected", Number: statusNumber(object)}, true
+			case "disconnected", "close", "closed", "offline", "loggedout", "logged_out":
+				return Status{Connected: false, State: "disconnected", Number: statusNumber(object)}, true
+			}
+		}
+	}
+	for _, key := range []string{"data", "instance", "connection"} {
+		if nested, exists := object[key]; exists {
+			if status, found := parseStatus(nested); found {
+				if status.Number == "" {
+					status.Number = statusNumber(object)
+				}
+				return status, true
+			}
+		}
+	}
+	return Status{}, false
+}
+
+func statusNumber(object map[string]interface{}) string {
+	for _, key := range []string{"number", "phone", "jid", "JID"} {
+		if value, ok := object[key].(string); ok && value != "" {
+			return strings.Split(value, "@")[0]
+		}
+	}
+	return ""
+}
+
+func connectedState(connected bool) string {
+	if connected {
+		return "connected"
+	}
+	return "disconnected"
 }
 
 //stmt, err := repo.DB.Prepare("RETURNING id;")

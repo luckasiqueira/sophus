@@ -78,6 +78,7 @@ func Webhook(ctx iris.Context) {
 			return
 		}
 		if !updated {
+			sse.NotifyInstances(connection.CompanyID)
 			ctx.StatusCode(iris.StatusOK)
 			return
 		}
@@ -85,6 +86,7 @@ func Webhook(ctx iris.Context) {
 		sse.QRGlobal.Clear(key)
 		payload, _ := json.Marshal(iris.Map{"status": "connected", "number": number})
 		sse.QRGlobal.SendEvent(key, "connection", string(payload))
+		sse.NotifyInstances(connection.CompanyID)
 		ctx.StatusCode(iris.StatusOK)
 	case "qrtimeout":
 		lock := qrConnectionLock(connection.Id)
@@ -103,6 +105,7 @@ func Webhook(ctx iris.Context) {
 		sse.QRGlobal.Clear(key)
 		payload, _ := json.Marshal(iris.Map{"status": eventType})
 		sse.QRGlobal.SendEvent(key, "connection", string(payload))
+		sse.NotifyInstances(connection.CompanyID)
 		ctx.StatusCode(iris.StatusOK)
 	case "disconnected", "loggedout":
 		lock := qrConnectionLock(connection.Id)
@@ -116,6 +119,7 @@ func Webhook(ctx iris.Context) {
 		sse.QRGlobal.Clear(key)
 		payload, _ := json.Marshal(iris.Map{"status": eventType})
 		sse.QRGlobal.SendEvent(key, "connection", string(payload))
+		sse.NotifyInstances(connection.CompanyID)
 		ctx.StatusCode(iris.StatusOK)
 	case "message":
 		msg := repo.EventMessageEVO{}

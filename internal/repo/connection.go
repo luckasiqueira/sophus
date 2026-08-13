@@ -7,6 +7,14 @@ import (
 	"github.com/google/uuid"
 )
 
+const (
+	ConnectionStatusCreating     = "creating"
+	ConnectionStatusConnecting   = "connecting"
+	ConnectionStatusConnected    = "connected"
+	ConnectionStatusDisconnected = "disconnected"
+	ConnectionStatusError        = "error"
+)
+
 type ConnectionEVO struct {
 	Id            int
 	Name          string
@@ -51,6 +59,20 @@ func UpdateConnectionStatus(id int, status string) error {
 	return err
 }
 
+func ReconcileConnectionStatus(id int, status, number string) (bool, error) {
+	result, err := db.Exec(`UPDATE connections
+		SET status = $1,
+			number = CASE WHEN $2 <> '' THEN $2 ELSE number END,
+			qrcode = CASE WHEN $1 IN ('connected', 'disconnected') THEN '' ELSE qrcode END
+		WHERE id = $3 AND (status <> $1 OR ($2 <> '' AND number <> $2))
+		AND NOT (status IN ('creating', 'connecting') AND $1 = 'disconnected')`, status, number, id)
+	if err != nil {
+		return false, err
+	}
+	rows, err := result.RowsAffected()
+	return rows == 1, err
+}
+
 func MarkConnectionQRTimeout(id int) (bool, error) {
 	result, err := db.Exec(`UPDATE connections SET status = 'disconnected', qrcode = ''
 		WHERE id = $1 AND status IN ('creating', 'connecting')`, id)
@@ -68,7 +90,7 @@ func UpdateConnectionCredentials(id int, instanceID, connectionKey uuid.UUID) er
 
 func SetConnectionConnected(id int, number string) (bool, error) {
 	result, err := db.Exec(`UPDATE connections SET status = 'connected', number = $1, qrcode = ''
-		WHERE id = $2 AND status IN ('creating', 'connecting')`, number, id)
+		WHERE id = $2 AND (status <> 'connected' OR number <> $1 OR qrcode <> '')`, number, id)
 	if err != nil {
 		return false, err
 	}
@@ -126,6 +148,10 @@ func GetConnectionListByCompany(companyId int) ([]ConnectionEVO, error) {
 	defer stmt.Close()
 	connectionsList := []ConnectionEVO{}
 	rows, err := stmt.Query(companyId)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
 	for rows.Next() {
 		var c ConnectionEVO
 		err = rows.Scan(&c.Id, &c.Name, &c.Number, &c.Status, &c.CompanyID, &c.QRCode, &c.CreatedAt, &c.InstanceID, &c.Webhook, &c.APIToken, &c.ConnectionKey)
@@ -134,5 +160,31 @@ func GetConnectionListByCompany(companyId int) ([]ConnectionEVO, error) {
 		}
 		connectionsList = append(connectionsList, c)
 	}
-	return connectionsList, nil
+	return connectionsList, rows.Err()
+}
+
+func GetConnectionList() ([]ConnectionEVO, error) {
+	stmt, err := db.Prepare(`SELECT id, name, number, status, "companyId", COALESCE(qrcode,''), "createdAt",
+		"instanceId", webhook, COALESCE("apiToken", ''), "connectionKey"
+		FROM connections ORDER BY id`)
+	if err != nil {
+		return nil, err
+	}
+	defer stmt.Close()
+	rows, err := stmt.Query()
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	connections := []ConnectionEVO{}
+	for rows.Next() {
+		var connection ConnectionEVO
+		if err := rows.Scan(&connection.Id, &connection.Name, &connection.Number, &connection.Status, &connection.CompanyID,
+			&connection.QRCode, &connection.CreatedAt, &connection.InstanceID, &connection.Webhook, &connection.APIToken,
+			&connection.ConnectionKey); err != nil {
+			return nil, err
+		}
+		connections = append(connections, connection)
+	}
+	return connections, rows.Err()
 }

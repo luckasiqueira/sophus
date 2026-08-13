@@ -51,3 +51,22 @@ func TestNotifyConversationsPublishesCompanyRefresh(t *testing.T) {
 		t.Fatal("conversation refresh event was not published")
 	}
 }
+
+func TestNotifyInstancesPublishesCompanyRefresh(t *testing.T) {
+	original := Instances
+	Instances = NewHub(false)
+	defer func() { Instances = original }()
+
+	client := Instances.Register("42")
+	defer Instances.Unregister(client)
+	NotifyInstances(42)
+
+	select {
+	case event := <-client.Ch:
+		if event.Name != "instance-status" || event.Data != "refresh" {
+			t.Fatalf("unexpected instance event: %#v", event)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("instance refresh event was not published")
+	}
+}

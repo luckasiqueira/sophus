@@ -43,6 +43,15 @@ func SSEConversations(ctx iris.Context) {
 	streamSSE(ctx, sse.Conversations, strconv.Itoa(agent.CompanyId), "conversation")
 }
 
+func SSEInstances(ctx iris.Context) {
+	agent, err := AgentIdentifier(ctx)
+	if err != nil {
+		ctx.StopWithStatus(iris.StatusUnauthorized)
+		return
+	}
+	streamSSE(ctx, sse.Instances, strconv.Itoa(agent.CompanyId), "instance-status")
+}
+
 func SSEQRCode(ctx iris.Context) {
 	agent, err := AgentIdentifier(ctx)
 	if err != nil {
