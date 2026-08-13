@@ -7,8 +7,8 @@ func TestConversationStatusForFinalizedExecution(t *testing.T) {
 		executionStatus string
 		want            string
 	}{
-		{executionStatus: "completed", want: ConversationStatusCompleted},
-		{executionStatus: "failed", want: ConversationStatusOpen},
+		{executionStatus: "completed", want: ConversationStatusPending},
+		{executionStatus: "failed", want: ConversationStatusPending},
 	}
 
 	for _, test := range tests {

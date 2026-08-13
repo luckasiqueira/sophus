@@ -267,7 +267,8 @@ func FinalizeFlowExecution(e FlowExecution) error {
 		return ErrFlowExecutionInactive
 	}
 	conversationStatus := conversationStatusAfterExecution(e.Status)
-	_, err = tx.Exec(`UPDATE conversations SET status = $1, "updatedAt" = now()
+	_, err = tx.Exec(`UPDATE conversations
+		SET status = $1, "agentId" = NULL, "updatedAt" = now()
 		WHERE id = $2 AND status = $3`, conversationStatus, e.ConversationId, ConversationStatusRunning)
 	if err != nil {
 		return err
@@ -276,10 +277,7 @@ func FinalizeFlowExecution(e FlowExecution) error {
 }
 
 func conversationStatusAfterExecution(executionStatus string) string {
-	if executionStatus == "completed" {
-		return ConversationStatusCompleted
-	}
-	return ConversationStatusOpen
+	return ConversationStatusPending
 }
 
 func UpdateConversationStatus(conversationID, executionID int, status string) error {

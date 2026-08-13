@@ -8,11 +8,10 @@ import (
 )
 
 const (
-	ConversationStatusOpen      = "open"
-	ConversationStatusRunning   = "running"
-	ConversationStatusPending   = "pending"
-	ConversationStatusClosed    = "closed"
-	ConversationStatusCompleted = "completed"
+	ConversationStatusOpen    = "open"
+	ConversationStatusRunning = "running"
+	ConversationStatusPending = "pending"
+	ConversationStatusClosed  = "closed"
 )
 
 type Conversation struct {
