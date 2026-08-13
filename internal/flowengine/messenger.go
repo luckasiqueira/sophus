@@ -63,19 +63,23 @@ func (m *Messenger) SendText(conversation repo.Conversation, message string) err
 }
 
 func (m *Messenger) SendMedia(conversation repo.Conversation, mediaType, mediaURL, caption string) error {
-	return m.sendMedia(conversation, mediaType, mediaURL, caption)
+	return m.sendMedia(conversation, mediaType, mediaURL, caption, "")
 }
 
 func (m *Messenger) SendAudio(conversation repo.Conversation, mediaURL string) error {
-	return m.sendMedia(conversation, "audio", mediaURL, "")
+	return m.sendMedia(conversation, "audio", mediaURL, "", "")
 }
 
-func (m *Messenger) sendMedia(conversation repo.Conversation, mediaType, mediaURL, caption string) error {
+func (m *Messenger) SendDocument(conversation repo.Conversation, mediaURL, caption, fileName string) error {
+	return m.sendMedia(conversation, "document", mediaURL, caption, fileName)
+}
+
+func (m *Messenger) sendMedia(conversation repo.Conversation, mediaType, mediaURL, caption, fileName string) error {
 	contact, err := repo.GetContactById(conversation.Contact.Id)
 	if err != nil {
 		return err
 	}
-	payload := buildMediaPayload(contact.Number, mediaType, mediaURL, caption)
+	payload := buildMediaPayload(contact.Number, mediaType, mediaURL, caption, fileName)
 	r := requests.Request{
 		URL:     repo.ApiBaseURL + "/send/media",
 		Method:  "POST",
@@ -101,7 +105,7 @@ func (m *Messenger) sendMedia(conversation repo.Conversation, mediaType, mediaUR
 	return repo.SaveFlowMessage(conversation.Id, evolutionMessageID(r.Body), text)
 }
 
-func buildMediaPayload(number, mediaType, mediaURL, caption string) map[string]interface{} {
+func buildMediaPayload(number, mediaType, mediaURL, caption, fileName string) map[string]interface{} {
 	payload := map[string]interface{}{
 		"number": number,
 		"type":   mediaType,
@@ -112,10 +116,13 @@ func buildMediaPayload(number, mediaType, mediaURL, caption string) map[string]i
 		payload["caption"] = caption
 	}
 	if mediaType == "document" {
-		parsed, err := url.Parse(mediaURL)
-		if err == nil {
-			payload["filename"] = path.Base(parsed.Path)
+		if strings.TrimSpace(fileName) == "" {
+			parsed, err := url.Parse(mediaURL)
+			if err == nil {
+				fileName = path.Base(parsed.Path)
+			}
 		}
+		payload["filename"] = path.Base(fileName)
 	}
 	return payload
 }

@@ -65,3 +65,22 @@ func TestVerifyRejectsChangedCompany(t *testing.T) {
 		t.Fatal("signature must not be valid for another company")
 	}
 }
+
+func TestSaveDocument(t *testing.T) {
+	original := env.Backend["MEDIA_DIRECTORY"]
+	originalSecret := env.Backend["SALT_JWT"]
+	env.Backend["MEDIA_DIRECTORY"] = t.TempDir()
+	env.Backend["SALT_JWT"] = "test-secret"
+	defer func() {
+		env.Backend["MEDIA_DIRECTORY"] = original
+		env.Backend["SALT_JWT"] = originalSecret
+	}()
+
+	stored, err := Save(5, "document", "contrato.pdf", "application/pdf", strings.NewReader("%PDF-1.7"))
+	if err != nil {
+		t.Fatalf("save document: %v", err)
+	}
+	if filepath.Ext(stored.Path) != ".pdf" || stored.Name != "contrato.pdf" {
+		t.Fatalf("unexpected stored document: %#v", stored)
+	}
+}

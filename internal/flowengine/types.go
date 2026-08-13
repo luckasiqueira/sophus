@@ -94,7 +94,7 @@ func ValidateFlowData(raw json.RawMessage) error {
 		NodeSendImage: {URL: "imageUrl", Path: "imagePath"},
 		NodeSendVideo: {URL: "videoUrl", Path: "videoPath"},
 		NodeSendAudio: {URL: "audioUrl", Path: "audioPath"},
-		NodeSendFile:  {URL: "fileUrl"},
+		NodeSendFile:  {URL: "fileUrl", Path: "filePath"},
 	}
 	for _, node := range data.Nodes {
 		fields, requiresMedia := requiredMediaFields[node.Type]

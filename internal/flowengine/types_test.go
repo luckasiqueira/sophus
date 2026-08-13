@@ -18,3 +18,10 @@ func TestValidateFlowDataAcceptsUploadedImage(t *testing.T) {
 		t.Fatalf("expected uploaded image to be accepted: %v", err)
 	}
 }
+
+func TestValidateFlowDataAcceptsUploadedDocument(t *testing.T) {
+	raw := json.RawMessage(`{"nodes":[{"id":"document","type":"sendFile","data":{"filePath":"contract.pdf"}}],"edges":[]}`)
+	if err := ValidateFlowData(raw); err != nil {
+		t.Fatalf("expected uploaded document to be accepted: %v", err)
+	}
+}

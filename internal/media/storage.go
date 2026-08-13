@@ -34,12 +34,20 @@ var allowedTypes = map[string]map[string]string{
 		"audio/webm": ".webm", "audio/ogg": ".ogg", "audio/mpeg": ".mp3", "audio/mp4": ".m4a",
 		"audio/wav": ".wav", "audio/x-wav": ".wav",
 	},
+	"document": {
+		"application/pdf": ".pdf", "text/plain": ".txt", "text/csv": ".csv",
+		"application/msword": ".doc", "application/vnd.openxmlformats-officedocument.wordprocessingml.document": ".docx",
+		"application/vnd.ms-excel": ".xls", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet": ".xlsx",
+		"application/vnd.ms-powerpoint": ".ppt", "application/vnd.openxmlformats-officedocument.presentationml.presentation": ".pptx",
+		"application/zip": ".zip",
+	},
 }
 
 var maxSizes = map[string]int64{
-	"image": 10 << 20,
-	"video": 50 << 20,
-	"audio": 20 << 20,
+	"image":    10 << 20,
+	"video":    50 << 20,
+	"audio":    20 << 20,
+	"document": 50 << 20,
 }
 
 type Stored struct {

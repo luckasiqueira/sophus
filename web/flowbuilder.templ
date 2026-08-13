@@ -314,7 +314,7 @@ async function saveFlow() {
     sendImage: { url: 'imageUrl', path: 'imagePath' },
     sendVideo: { url: 'videoUrl', path: 'videoPath' },
     sendAudio: { url: 'audioUrl', path: 'audioPath' },
-    sendFile: { url: 'fileUrl' },
+    sendFile: { url: 'fileUrl', path: 'filePath' },
   };
   const missingMedia = state.flowData.nodes.find(node => {
     const fields = requiredMediaFields[node.type];
@@ -488,6 +488,7 @@ function defaultDataFor(type) {
     case 'sendImage': return { imageUrl: '', imagePath: '', imageMimeType: '', mediaPreviewUrl: '', mediaName: '' };
     case 'sendVideo': return { videoUrl: '', videoPath: '', videoMimeType: '', mediaPreviewUrl: '', mediaName: '' };
     case 'sendAudio': return { audioUrl: '', audioPath: '', audioMimeType: '', mediaPreviewUrl: '', mediaName: '' };
+    case 'sendFile': return { fileUrl: '', filePath: '', fileMimeType: '', mediaPreviewUrl: '', mediaName: '' };
     case 'assign': return { assignType: 'agent' };
     case 'httpRequest': return { method: 'POST' };
     default: return {};
@@ -545,7 +546,7 @@ function nodeSummary(node) {
     case 'sendImage': return d.mediaName || (d.imageUrl ? truncate(d.imageUrl, 40) : 'Sem imagem configurada');
     case 'sendVideo': return d.mediaName || (d.videoUrl ? truncate(d.videoUrl, 40) : 'Sem vídeo configurado');
     case 'sendAudio': return d.mediaName || (d.audioUrl ? truncate(d.audioUrl, 40) : 'Sem áudio configurado');
-    case 'sendFile': return d.fileUrl ? truncate(d.fileUrl, 40) : 'Sem arquivo configurado';
+    case 'sendFile': return d.mediaName || (d.fileUrl ? truncate(d.fileUrl, 40) : 'Sem arquivo configurado');
     case 'sendMenu': return [d.title, d.description].filter(Boolean).join(' — ') || 'Sem mensagem configurada';
     case 'condition': return d.condition ? truncate(d.condition, 60) : 'Sem condição configurada';
     case 'switch': return (d.cases || []).length + ' opção(ões)';
@@ -870,6 +871,20 @@ function textInput(val, name) {
 function textArea(val, name, rows) {
   return '<textarea data-field="' + name + '" rows="' + (rows||3) + '" class="w-full px-3 py-2 bg-stone-50 border border-stone-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-purple-400">' + escapeHtml(val||'') + '<\/textarea>';
 }
+function formattedTextArea(val, name, rows) {
+  const formats = [
+    { token: '*', icon: 'fa-bold', title: 'Negrito' },
+    { token: '_', icon: 'fa-italic', title: 'Itálico' },
+    { token: '~', icon: 'fa-strikethrough', title: 'Tachado' },
+    { token: '```', icon: 'fa-code', title: 'Monoespaçado' },
+  ];
+  return '<div class="rounded-lg border border-stone-200 overflow-hidden bg-stone-50">' +
+    '<div class="flex items-center gap-1 px-2 py-1.5 border-b border-stone-200 bg-white">' +
+      formats.map(format => '<button type="button" data-format-token="' + format.token + '" title="' + format.title + '" class="w-8 h-8 rounded-md text-gray-600 hover:bg-purple-50 hover:text-purple-700"><i class="fas ' + format.icon + '"><\/i><\/button>').join('') +
+    '<\/div>' +
+    '<textarea data-field="' + name + '" data-formatted-text rows="' + (rows||4) + '" class="w-full px-3 py-2 bg-stone-50 text-sm focus:outline-none focus:ring-2 focus:ring-inset focus:ring-purple-400">' + escapeHtml(val||'') + '<\/textarea>' +
+  '<\/div>';
+}
 function numberInput(val, name) {
   return '<input type="number" data-field="' + name + '" value="' + (val ?? '') + '" class="w-full px-3 py-2 bg-stone-50 border border-stone-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-purple-400">';
 }
@@ -878,6 +893,7 @@ function mediaNodeConfig(type) {
   if (type === 'sendImage') return { kind: 'image', urlField: 'imageUrl', pathField: 'imagePath', mimeField: 'imageMimeType', accept: 'image/jpeg,image/png,image/gif,image/webp', label: 'uma imagem', hint: 'JPG, PNG, GIF ou WEBP · até 10 MB' };
   if (type === 'sendVideo') return { kind: 'video', urlField: 'videoUrl', pathField: 'videoPath', mimeField: 'videoMimeType', accept: 'video/mp4,video/webm,video/quicktime', label: 'um vídeo', hint: 'MP4, WEBM ou MOV · até 50 MB' };
   if (type === 'sendAudio') return { kind: 'audio', urlField: 'audioUrl', pathField: 'audioPath', mimeField: 'audioMimeType', accept: 'audio/webm,audio/ogg,audio/mpeg,audio/mp4,audio/wav', label: 'um áudio', hint: 'WEBM, OGG, MP3, M4A ou WAV · até 20 MB' };
+  if (type === 'sendFile') return { kind: 'document', urlField: 'fileUrl', pathField: 'filePath', mimeField: 'fileMimeType', accept: '.pdf,.txt,.csv,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.zip', label: 'um documento', hint: 'PDF, Office, TXT, CSV ou ZIP · até 50 MB' };
   return null;
 }
 
@@ -890,6 +906,7 @@ function mediaUploadHTML(kind, data, options) {
     if (kind === 'image') preview = '<img src="' + escapeAttr(previewUrl) + '" class="w-full h-28 object-cover rounded-lg border border-stone-200">';
     if (kind === 'video') preview = '<video src="' + escapeAttr(previewUrl) + '" controls class="w-full max-h-36 rounded-lg border border-stone-200"><\/video>';
     if (kind === 'audio') preview = '<audio src="' + escapeAttr(previewUrl) + '" controls class="w-full"><\/audio>';
+    if (kind === 'document') preview = '<a href="' + escapeAttr(previewUrl) + '" target="_blank" class="flex items-center gap-2 p-3 rounded-lg border border-stone-200 bg-stone-50 text-sm text-purple-700"><i class="fas fa-file-lines text-xl"><\/i><span class="truncate">' + escapeHtml(data.mediaName || 'Documento') + '<\/span><\/a>';
     preview += '<div class="flex items-center justify-between gap-2 mt-2"><span class="text-[11px] text-gray-500 truncate">' + escapeHtml(data.mediaName || options.label) + '<\/span>' +
       '<button type="button" data-media-remove class="text-xs text-red-600 hover:underline">Remover<\/button><\/div>';
   }
@@ -930,7 +947,7 @@ function renderFieldsFor(node) {
       break;
     }
     case 'sendText':
-      html += field('Mensagem', textArea(d.message, 'message', 4), 'Use {' + '{variavel}' + '} para inserir dados capturados no fluxo.');
+      html += field('Mensagem', formattedTextArea(d.message, 'message', 5), 'Selecione um trecho e use a barra de formatação. Variáveis continuam disponíveis com {' + '{variavel}' + '}.');
       break;
     case 'sendImage':
       html += mediaUploadHTML('image', d, mediaNodeConfig(node.type));
@@ -947,7 +964,8 @@ function renderFieldsFor(node) {
       if (!d.audioPath) html += field('Ou use uma URL externa', textInput(d.audioUrl, 'audioUrl'));
       break;
     case 'sendFile':
-      html += field('URL do arquivo', textInput(d.fileUrl, 'fileUrl'));
+      html += mediaUploadHTML('document', d, mediaNodeConfig(node.type));
+      if (!d.filePath) html += field('Ou use uma URL externa', textInput(d.fileUrl, 'fileUrl'));
       html += field('Legenda (opcional)', textArea(d.caption, 'caption', 2));
       break;
     case 'sendMenu':
@@ -1051,6 +1069,20 @@ function renderFieldsFor(node) {
       if (node.type !== 'sendMenu' && (input.tagName === 'SELECT' || input.type === 'checkbox')) renderInspector();
     };
     input.addEventListener((input.tagName === 'SELECT' || input.type === 'checkbox') ? 'change' : 'input', handler);
+  });
+
+  box.querySelectorAll('[data-format-token]').forEach(button => button.onclick = () => {
+    const input = box.querySelector('[data-formatted-text]');
+    if (!input) return;
+    const token = button.dataset.formatToken;
+    const start = input.selectionStart;
+    const end = input.selectionEnd;
+    const selected = input.value.slice(start, end) || 'texto';
+    const replacement = token + selected + token;
+    input.setRangeText(replacement, start, end, 'end');
+    node.data.message = input.value;
+    input.focus();
+    renderCanvas();
   });
 
   if (node.type === 'switch') renderSwitchCases(node);

@@ -407,12 +407,15 @@ func (e *Engine) executeSendAudio(node FlowNode, ctx ExecutionContext, conversat
 }
 
 func (e *Engine) executeSendFile(node FlowNode, ctx ExecutionContext, conversation repo.Conversation) error {
-	url := ReplaceVariables(stringVal(node.Data, "fileUrl"), ctx)
-	if url == "" {
+	source, err := flowMediaSource(node.Data, "filePath", "fileUrl", e.messenger.Connection.CompanyID, ctx)
+	if err != nil {
+		return err
+	}
+	if source == "" {
 		return nil
 	}
 	caption := ReplaceVariables(stringVal(node.Data, "caption"), ctx)
-	return e.messenger.SendMedia(conversation, "document", url, caption)
+	return e.messenger.SendDocument(conversation, source, caption, stringVal(node.Data, "mediaName"))
 }
 
 func flowMediaSource(data map[string]interface{}, pathKey, urlKey string, companyID int, ctx ExecutionContext) (string, error) {
