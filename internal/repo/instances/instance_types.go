@@ -1,6 +1,7 @@
 package instances
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"sophus/internal/repo"
@@ -123,7 +124,7 @@ func (i *InstanceEVO) GetQRCode() (QRCode, error) {
 			MaxCount int    `json:"maxCount"`
 		} `json:"data"`
 	}
-	if err := json.Unmarshal(r.Body, &response); err != nil {
+	if err := json.Unmarshal(r.Response.Body, &response); err != nil {
 		return QRCode{}, err
 	}
 	result := QRCode{
@@ -143,26 +144,38 @@ func (i *InstanceEVO) GetQRCode() (QRCode, error) {
 }
 
 func (i *InstanceEVO) GetStatus() (Status, error) {
-	r := requests.Request{
-		URL: repo.ApiBaseURL + "/instance/status",
-		Headers: map[string]string{
-			"apikey": i.APIToken,
-		},
-		Method:  "GET",
-		Timeout: 5 * time.Second,
+	const attempts = 2
+	var lastErr error
+	for attempt := 1; attempt <= attempts; attempt++ {
+		r := requests.Request{
+			URL: repo.ApiBaseURL + "/instance/status",
+			Headers: map[string]string{
+				"apikey": i.APIToken,
+			},
+			Method:  "GET",
+			Timeout: 5 * time.Second,
+		}
+		if err := r.Do(); err != nil {
+			return Status{}, fmt.Errorf("Evolution GO status request failed: %w", err)
+		}
+		body := bytes.TrimSpace(r.Response.Body)
+		if len(body) == 0 {
+			lastErr = fmt.Errorf("Evolution GO status returned an empty body with HTTP %d", r.StatusCode)
+		} else {
+			var response map[string]interface{}
+			if err := json.Unmarshal(body, &response); err != nil {
+				lastErr = fmt.Errorf("Evolution GO status returned invalid JSON with HTTP %d: %w", r.StatusCode, err)
+			} else if status, ok := parseStatus(response); ok {
+				return status, nil
+			} else {
+				return Status{}, fmt.Errorf("Evolution GO returned an unknown status response with HTTP %d: %s", r.StatusCode, string(body))
+			}
+		}
+		if attempt < attempts {
+			time.Sleep(200 * time.Millisecond)
+		}
 	}
-	if err := r.Do(); err != nil {
-		return Status{}, err
-	}
-	var response map[string]interface{}
-	if err := json.Unmarshal(r.Body, &response); err != nil {
-		return Status{}, err
-	}
-	status, ok := parseStatus(response)
-	if !ok {
-		return Status{}, fmt.Errorf("Evolution GO returned an unknown status response: %s", string(r.Body))
-	}
-	return status, nil
+	return Status{}, lastErr
 }
 
 func parseStatus(value interface{}) (Status, bool) {

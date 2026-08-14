@@ -25,3 +25,22 @@ func TestValidateFlowDataAcceptsUploadedDocument(t *testing.T) {
 		t.Fatalf("expected uploaded document to be accepted: %v", err)
 	}
 }
+
+func TestValidateFlowDataRejectsUnsafeHTTPConfiguration(t *testing.T) {
+	tests := []struct {
+		name string
+		data string
+	}{
+		{name: "arbitrary method", data: `{"method":"CONNECT","url":"https://example.com"}`},
+		{name: "unsafe header", data: `{"method":"GET","url":"https://example.com","headerMode":"fields","headerFields":[{"key":"X-Forwarded-For","value":"127.0.0.1"}]}`},
+		{name: "unbounded timeout", data: `{"method":"GET","url":"https://example.com","timeout":60001}`},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			raw := json.RawMessage(`{"nodes":[{"id":"http","type":"httpRequest","data":` + test.data + `}],"edges":[]}`)
+			if err := ValidateFlowData(raw); err == nil {
+				t.Fatal("expected unsafe HTTP configuration to be rejected")
+			}
+		})
+	}
+}

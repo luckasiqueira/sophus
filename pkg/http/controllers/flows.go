@@ -2,13 +2,16 @@ package controllers
 
 import (
 	"encoding/json"
+	"net/http"
 	"sophus/internal/flowengine"
 	"sophus/internal/repo"
-	"sophus/pkg/http/middlewares"
 	"sophus/web"
+	"strings"
 
 	"github.com/kataras/iris/v12"
 )
+
+const maxFlowAPIRequestBytes = 2 << 20
 
 type createFlowRequest struct {
 	Name         string          `json:"name"`
@@ -31,9 +34,8 @@ type updateFlowRequest struct {
 }
 
 func ListFlows(ctx iris.Context) {
-	agent, err := middlewares.AgentIdentifier(ctx)
-	if err != nil {
-		ctx.StopWithStatus(iris.StatusUnauthorized)
+	agent, ok := requireAdmin(ctx)
+	if !ok {
 		return
 	}
 	flows, err := repo.GetChatbotFlowsByCompany(agent.CompanyId)
@@ -45,9 +47,8 @@ func ListFlows(ctx iris.Context) {
 }
 
 func GetFlow(ctx iris.Context) {
-	agent, err := middlewares.AgentIdentifier(ctx)
-	if err != nil {
-		ctx.StopWithStatus(iris.StatusUnauthorized)
+	agent, ok := requireAdmin(ctx)
+	if !ok {
 		return
 	}
 	id, err := ctx.Params().GetInt("id")
@@ -64,12 +65,12 @@ func GetFlow(ctx iris.Context) {
 }
 
 func CreateFlow(ctx iris.Context) {
-	agent, err := middlewares.AgentIdentifier(ctx)
-	if err != nil {
-		ctx.StopWithStatus(iris.StatusUnauthorized)
+	agent, ok := requireAdmin(ctx)
+	if !ok {
 		return
 	}
 	var req createFlowRequest
+	ctx.Request().Body = http.MaxBytesReader(ctx.ResponseWriter(), ctx.Request().Body, maxFlowAPIRequestBytes)
 	if err := ctx.ReadJSON(&req); err != nil {
 		ctx.StopWithStatus(iris.StatusBadRequest)
 		return
@@ -80,6 +81,10 @@ func CreateFlow(ctx iris.Context) {
 	}
 	if req.TriggerType == "" {
 		req.TriggerType = "keyword"
+	}
+	if !flowConnectionBelongsToCompany(req.ConnectionId, agent.CompanyId) {
+		ctx.StopWithJSON(iris.StatusBadRequest, iris.Map{"error": "conexão inválida para esta empresa"})
+		return
 	}
 	if err := flowengine.ValidateFlowData(req.FlowData); err != nil {
 		ctx.StopWithJSON(iris.StatusBadRequest, iris.Map{"error": err.Error()})
@@ -108,9 +113,8 @@ func CreateFlow(ctx iris.Context) {
 }
 
 func UpdateFlow(ctx iris.Context) {
-	agent, err := middlewares.AgentIdentifier(ctx)
-	if err != nil {
-		ctx.StopWithStatus(iris.StatusUnauthorized)
+	agent, ok := requireAdmin(ctx)
+	if !ok {
 		return
 	}
 	id, err := ctx.Params().GetInt("id")
@@ -124,6 +128,7 @@ func UpdateFlow(ctx iris.Context) {
 		return
 	}
 	var req updateFlowRequest
+	ctx.Request().Body = http.MaxBytesReader(ctx.ResponseWriter(), ctx.Request().Body, maxFlowAPIRequestBytes)
 	if err := ctx.ReadJSON(&req); err != nil {
 		ctx.StopWithStatus(iris.StatusBadRequest)
 		return
@@ -135,6 +140,10 @@ func UpdateFlow(ctx iris.Context) {
 		flow.Description = *req.Description
 	}
 	if req.ConnectionId != nil {
+		if !flowConnectionBelongsToCompany(req.ConnectionId, agent.CompanyId) {
+			ctx.StopWithJSON(iris.StatusBadRequest, iris.Map{"error": "conexão inválida para esta empresa"})
+			return
+		}
 		flow.ConnectionId = req.ConnectionId
 	}
 	if req.TriggerType != nil {
@@ -161,9 +170,8 @@ func UpdateFlow(ctx iris.Context) {
 }
 
 func DeleteFlow(ctx iris.Context) {
-	agent, err := middlewares.AgentIdentifier(ctx)
-	if err != nil {
-		ctx.StopWithStatus(iris.StatusUnauthorized)
+	agent, ok := requireAdmin(ctx)
+	if !ok {
 		return
 	}
 	id, err := ctx.Params().GetInt("id")
@@ -179,9 +187,8 @@ func DeleteFlow(ctx iris.Context) {
 }
 
 func ExecuteFlowTest(ctx iris.Context) {
-	agent, err := middlewares.AgentIdentifier(ctx)
-	if err != nil {
-		ctx.StopWithStatus(iris.StatusUnauthorized)
+	agent, ok := requireAdmin(ctx)
+	if !ok {
 		return
 	}
 	id, err := ctx.Params().GetInt("id")
@@ -193,9 +200,16 @@ func ExecuteFlowTest(ctx iris.Context) {
 		ConversationId int                    `json:"conversationId"`
 		Context        map[string]interface{} `json:"context"`
 	}
+	ctx.Request().Body = http.MaxBytesReader(ctx.ResponseWriter(), ctx.Request().Body, maxFlowAPIRequestBytes)
 	if err := ctx.ReadJSON(&body); err != nil {
 		ctx.StopWithStatus(iris.StatusBadRequest)
 		return
+	}
+	for key := range body.Context {
+		if strings.HasPrefix(key, "_") {
+			ctx.StopWithJSON(iris.StatusBadRequest, iris.Map{"error": "contexto contém chave reservada"})
+			return
+		}
 	}
 	conversation, err := repo.GetConversationById(body.ConversationId)
 	if err != nil {
@@ -222,7 +236,18 @@ func ExecuteFlowTest(ctx iris.Context) {
 	ctx.JSON(iris.Map{"message": "flow enfileirado para execução"})
 }
 
+func flowConnectionBelongsToCompany(connectionID *int, companyID int) bool {
+	if connectionID == nil {
+		return true
+	}
+	connection, err := repo.GetConnectionById(*connectionID)
+	return err == nil && connection.CompanyID == companyID
+}
+
 func FlowBuilderPage(ctx iris.Context) {
+	if _, ok := requireAdmin(ctx); !ok {
+		return
+	}
 	ctx.Header("Cache-Control", "no-store, no-cache, must-revalidate")
 	ctx.Header("Pragma", "no-cache")
 	ctx.Header("Expires", "0")

@@ -2,7 +2,6 @@ package controllers
 
 import (
 	"sophus/internal/repo"
-	"sophus/pkg/http/middlewares"
 
 	"github.com/kataras/iris/v12"
 )
@@ -18,9 +17,8 @@ type flowConnectionDTO struct {
 // JSON list of this company's WhatsApp connections, used by the flow
 // builder's "which connection does this flow run on" dropdown.
 func ListConnectionsForFlows(ctx iris.Context) {
-	agent, err := middlewares.AgentIdentifier(ctx)
-	if err != nil {
-		ctx.StopWithStatus(iris.StatusUnauthorized)
+	agent, ok := requireAdmin(ctx)
+	if !ok {
 		return
 	}
 	connections, err := repo.GetConnectionListByCompany(agent.CompanyId)

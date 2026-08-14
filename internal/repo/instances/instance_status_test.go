@@ -1,6 +1,12 @@
 package instances
 
-import "testing"
+import (
+	"io"
+	"net/http"
+	"net/http/httptest"
+	"sophus/internal/repo"
+	"testing"
+)
 
 func TestParseStatus(t *testing.T) {
 	tests := []struct {
@@ -22,5 +28,42 @@ func TestParseStatus(t *testing.T) {
 				t.Fatalf("parseStatus() = %#v, %v", status, found)
 			}
 		})
+	}
+}
+
+func TestGetStatusRetriesEmptyResponse(t *testing.T) {
+	attempts := 0
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, request *http.Request) {
+		attempts++
+		body, _ := io.ReadAll(request.Body)
+		if len(body) != 0 {
+			t.Errorf("request body = %q, want empty body", body)
+		}
+		if request.Header.Get("apikey") != "instance-token" {
+			t.Errorf("apikey = %q", request.Header.Get("apikey"))
+		}
+		if attempts == 1 {
+			w.WriteHeader(http.StatusOK)
+			return
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"data":{"connected":true,"number":"5511999999999"}}`))
+	}))
+	defer server.Close()
+
+	originalBaseURL := repo.ApiBaseURL
+	repo.ApiBaseURL = server.URL
+	t.Cleanup(func() { repo.ApiBaseURL = originalBaseURL })
+
+	instance := InstanceEVO{APIToken: "instance-token"}
+	status, err := instance.GetStatus()
+	if err != nil {
+		t.Fatalf("GetStatus(): %v", err)
+	}
+	if attempts != 2 {
+		t.Fatalf("attempts = %d, want 2", attempts)
+	}
+	if !status.Connected || status.State != "connected" || status.Number != "5511999999999" {
+		t.Fatalf("status = %#v", status)
 	}
 }

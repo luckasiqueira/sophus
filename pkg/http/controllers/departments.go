@@ -111,9 +111,8 @@ func UpdateAgentDepartments(ctx iris.Context) {
 }
 
 func ListAssignmentOptions(ctx iris.Context) {
-	agent, err := middlewares.AgentIdentifier(ctx)
-	if err != nil {
-		ctx.StopWithStatus(iris.StatusUnauthorized)
+	agent, ok := requireAdmin(ctx)
+	if !ok {
 		return
 	}
 	departments, err := repo.GetDepartmentsByCompany(agent.CompanyId)

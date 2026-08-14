@@ -3,7 +3,15 @@ package flowengine
 import (
 	"encoding/json"
 	"fmt"
+	"net/http"
 	"strings"
+	"time"
+)
+
+const (
+	maxFlowDataBytes = 1 << 20
+	maxFlowNodes     = 200
+	maxFlowEdges     = 500
 )
 
 type FlowNodeType string
@@ -82,9 +90,15 @@ func ParseFlowData(raw json.RawMessage) (FlowData, error) {
 }
 
 func ValidateFlowData(raw json.RawMessage) error {
+	if len(raw) > maxFlowDataBytes {
+		return fmt.Errorf("flowData excede o limite de %d bytes", maxFlowDataBytes)
+	}
 	data, err := ParseFlowData(raw)
 	if err != nil {
 		return err
+	}
+	if len(data.Nodes) > maxFlowNodes || len(data.Edges) > maxFlowEdges {
+		return fmt.Errorf("flow excede o limite de %d nodes ou %d conexões", maxFlowNodes, maxFlowEdges)
 	}
 	type mediaFields struct {
 		URL  string
@@ -102,6 +116,50 @@ func ValidateFlowData(raw json.RawMessage) error {
 			(fields.Path == "" || strings.TrimSpace(stringVal(node.Data, fields.Path)) == "") {
 			return fmt.Errorf("node %s requer uma mídia", node.Type)
 		}
+		if node.Type == NodeHTTPRequest {
+			if err := validateHTTPRequestNode(node.Data); err != nil {
+				return fmt.Errorf("node HTTP Request: %w", err)
+			}
+		}
+	}
+	return nil
+}
+
+func validateHTTPRequestNode(data map[string]interface{}) error {
+	method := strings.ToUpper(strings.TrimSpace(stringVal(data, "method")))
+	if method == "" {
+		method = http.MethodPost
+	}
+	if !allowedHTTPMethod(method) {
+		return fmt.Errorf("método HTTP não permitido")
+	}
+	requestURL := strings.TrimSpace(stringVal(data, "url"))
+	if requestURL == "" {
+		return fmt.Errorf("URL é obrigatória")
+	}
+	if len(requestURL) > 4096 {
+		return fmt.Errorf("URL excede o limite de 4096 caracteres")
+	}
+	if timeout := intVal(data, "timeout"); timeout != 0 && (timeout < 100 || timeout > int(maxHTTPRequestTimeout/time.Millisecond)) {
+		return fmt.Errorf("timeout deve estar entre 100 e 60000 ms")
+	}
+	if _, err := httpRequestHeaders(data, ExecutionContext{}); err != nil {
+		return err
+	}
+	bodyMode := strings.TrimSpace(stringVal(data, "bodyMode"))
+	if bodyMode == "" {
+		bodyMode = "rawJSON"
+	}
+	switch bodyMode {
+	case "none", "json", "form", "rawJSON":
+	default:
+		return fmt.Errorf("modo de corpo HTTP inválido: %s", bodyMode)
+	}
+	if len(stringVal(data, "body")) > maxHTTPRequestBytes {
+		return fmt.Errorf("corpo excede o limite de %d bytes", maxHTTPRequestBytes)
+	}
+	if len(keyValueFields(data["bodyFields"], ExecutionContext{})) > 500 {
+		return fmt.Errorf("o limite é de 500 campos no corpo")
 	}
 	return nil
 }

@@ -73,7 +73,7 @@ func getGroupInfo(jid, connectionKey string) (Contact, error) {
 		return contact, err
 	}
 	group := ContactGroupEVO{}
-	err = json.Unmarshal(r.Body, &group)
+	err = json.Unmarshal(r.Response.Body, &group)
 	if err != nil {
 		return contact, err
 	}
@@ -116,7 +116,7 @@ func GetContactEvo(number, connectionKey string) (ContactEVO, error) {
 	if err != nil {
 		return c, err
 	}
-	err = json.Unmarshal(r.Body, &c)
+	err = json.Unmarshal(r.Response.Body, &c)
 	if err != nil {
 		fmt.Println("Unmarshal", err)
 		return c, err

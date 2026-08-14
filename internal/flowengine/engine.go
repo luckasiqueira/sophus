@@ -30,6 +30,16 @@ func (e *Engine) ExecuteFlow(flowID, conversationID, companyID int, initialConte
 	startTime := time.Now()
 	var execution repo.FlowExecution
 	resumeExecutionID, _ := initialContext["_resumeExecutionId"].(float64)
+	if int(resumeExecutionID) > 0 {
+		var err error
+		execution, err = repo.GetFlowExecutionById(int(resumeExecutionID))
+		if err != nil {
+			return fmt.Errorf("execução %d não encontrada: %w", int(resumeExecutionID), err)
+		}
+		if execution.FlowId != flowID || execution.ConversationId != conversationID || execution.CompanyId != companyID {
+			return fmt.Errorf("execução %d não pertence ao flow, conversa e empresa informados", execution.Id)
+		}
+	}
 
 	flow, err := repo.GetChatbotFlowById(flowID, companyID)
 	if err != nil {
@@ -69,10 +79,6 @@ func (e *Engine) ExecuteFlow(flowID, conversationID, companyID int, initialConte
 	var currentNodeID string
 
 	if int(resumeExecutionID) > 0 {
-		execution, err = repo.GetFlowExecutionById(int(resumeExecutionID))
-		if err != nil {
-			return fmt.Errorf("execução %d não encontrada: %w", int(resumeExecutionID), err)
-		}
 		if execution.Status != "waiting" {
 			log.Printf("execução %d já retomada (status: %s)", execution.Id, execution.Status)
 			return nil

@@ -4,12 +4,22 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
+	"net/http"
 	"net/url"
 	"path"
 	"sophus/internal/repo"
 	"sophus/pkg/http/requests"
 	"strings"
 	"time"
+)
+
+const (
+	defaultHTTPRequestTimeout = 10 * time.Second
+	maxHTTPRequestTimeout     = 60 * time.Second
+	maxHTTPRequestBytes       = 1 << 20
+	maxHTTPResponseBytes      = 2 << 20
+	maxHTTPHeaders            = 50
+	maxHTTPHeaderBytes        = 64 << 10
 )
 
 type Messenger struct {
@@ -96,13 +106,13 @@ func (m *Messenger) sendMedia(conversation repo.Conversation, mediaType, mediaUR
 		return err
 	}
 	if r.StatusCode < 200 || r.StatusCode >= 300 {
-		return fmt.Errorf("send media failed with status %d: %s", r.StatusCode, string(r.Body))
+		return fmt.Errorf("send media failed with status %d: %s", r.StatusCode, string(r.Response.Body))
 	}
 	text := caption
 	if strings.TrimSpace(text) == "" {
 		text = fmt.Sprintf("%s enviado pelo fluxo", mediaType)
 	}
-	return repo.SaveFlowMessage(conversation.Id, evolutionMessageID(r.Body), text)
+	return repo.SaveFlowMessage(conversation.Id, evolutionMessageID(r.Response.Body), text)
 }
 
 func buildMediaPayload(number, mediaType, mediaURL, caption, fileName string) map[string]interface{} {
@@ -250,50 +260,50 @@ func (m *Messenger) ExecuteHTTPRequest(data map[string]interface{}, ctx Executio
 	if method == "" {
 		method = "POST"
 	}
+	if !allowedHTTPMethod(method) {
+		return httpRequestError("método HTTP não permitido")
+	}
 	url := ReplaceVariables(stringVal(data, "url"), ctx)
 	if strings.TrimSpace(url) == "" {
-		return map[string]interface{}{
-			"error":   true,
-			"message": "URL é obrigatória para HTTP Request",
-		}
+		return httpRequestError("URL é obrigatória para HTTP Request")
 	}
-	headers := map[string]string{}
-	if rawHeaders, ok := data["headers"].(map[string]interface{}); ok {
-		for k, v := range rawHeaders {
-			headers[k] = ReplaceVariables(fmt.Sprint(v), ctx)
-		}
+	if len(url) > 4096 {
+		return httpRequestError("URL excede o limite de 4096 caracteres")
 	}
-	body := ReplaceVariables(stringVal(data, "body"), ctx)
-	timeout := intVal(data, "timeout")
-	if timeout <= 0 {
-		timeout = 10000
+	headers, err := httpRequestHeaders(data, ctx)
+	if err != nil {
+		return httpRequestError(err.Error())
+	}
+	timeout := defaultHTTPRequestTimeout
+	if configuredTimeout := intVal(data, "timeout"); configuredTimeout != 0 {
+		if configuredTimeout < 100 || configuredTimeout > int(maxHTTPRequestTimeout/time.Millisecond) {
+			return httpRequestError("timeout deve estar entre 100 e 60000 ms")
+		}
+		timeout = time.Duration(configuredTimeout) * time.Millisecond
 	}
 
-	var payload interface{}
-	if body != "" && (method == "POST" || method == "PUT" || method == "PATCH") {
-		var parsed interface{}
-		if json.Unmarshal([]byte(body), &parsed) == nil {
-			payload = parsed
-		} else {
-			payload = body
-		}
+	payload, rawBody, contentType, payloadErr := httpRequestPayload(data, ctx, method)
+	if payloadErr != nil {
+		return httpRequestError(payloadErr.Error())
 	}
 
 	r := requests.Request{
-		URL:      url,
-		Method:   method,
-		Payload:  payload,
-		Headers:  headers,
-		Response: requests.Response{},
+		URL:              url,
+		Method:           method,
+		Payload:          payload,
+		RequestBody:      rawBody,
+		Headers:          headers,
+		Timeout:          timeout,
+		PublicOnly:       true,
+		MaxRequestBytes:  maxHTTPRequestBytes,
+		MaxResponseBytes: maxHTTPResponseBytes,
+		Response:         requests.Response{},
 	}
-	if r.Headers == nil {
-		r.Headers = map[string]string{}
-	}
-	if _, ok := r.Headers["Content-Type"]; !ok && payload != nil {
-		r.Headers["Content-Type"] = "application/json"
+	if _, ok := r.Headers[http.CanonicalHeaderKey("Content-Type")]; !ok && contentType != "" {
+		r.Headers["Content-Type"] = contentType
 	}
 
-	err := r.Do()
+	err = r.Do()
 	if err != nil {
 		return map[string]interface{}{
 			"error":   true,
@@ -302,12 +312,205 @@ func (m *Messenger) ExecuteHTTPRequest(data map[string]interface{}, ctx Executio
 		}
 	}
 	var responseData interface{}
-	_ = json.Unmarshal(r.Body, &responseData)
+	if len(r.Response.Body) > 0 {
+		if err := json.Unmarshal(r.Response.Body, &responseData); err != nil {
+			responseData = string(r.Response.Body)
+		}
+	}
 	return map[string]interface{}{
 		"status":     r.StatusCode,
 		"statusText": httpStatusText(r.StatusCode),
 		"data":       responseData,
 	}
+}
+
+func httpRequestError(message string) map[string]interface{} {
+	return map[string]interface{}{"error": true, "message": message}
+}
+
+func allowedHTTPMethod(method string) bool {
+	switch method {
+	case http.MethodGet, http.MethodPost, http.MethodPut, http.MethodPatch, http.MethodDelete:
+		return true
+	default:
+		return false
+	}
+}
+
+func httpRequestHeaders(data map[string]interface{}, ctx ExecutionContext) (map[string]string, error) {
+	mode := strings.TrimSpace(stringVal(data, "headerMode"))
+	var fields []httpKeyValue
+	if mode == "" {
+		if legacy, ok := data["headers"].(map[string]interface{}); ok {
+			fields = make([]httpKeyValue, 0, len(legacy))
+			for key, value := range legacy {
+				fields = append(fields, httpKeyValue{Key: key, Value: ReplaceVariables(fmt.Sprint(value), ctx)})
+			}
+		} else {
+			mode = "fields"
+		}
+	}
+
+	switch mode {
+	case "none":
+		return map[string]string{}, nil
+	case "fields":
+		fields = keyValueFields(data["headerFields"], ctx)
+	case "rawJSON":
+		raw := strings.TrimSpace(stringVal(data, "headersRaw"))
+		if raw == "" {
+			return map[string]string{}, nil
+		}
+		var values map[string]interface{}
+		if err := json.Unmarshal([]byte(raw), &values); err != nil {
+			return nil, fmt.Errorf("JSON de headers inválido: %w", err)
+		}
+		fields = make([]httpKeyValue, 0, len(values))
+		for key, value := range values {
+			text, ok := value.(string)
+			if !ok {
+				return nil, fmt.Errorf("o header %s deve possuir um valor de texto", key)
+			}
+			fields = append(fields, httpKeyValue{Key: key, Value: ReplaceVariables(text, ctx)})
+		}
+	case "":
+		// Legacy map was converted above.
+	default:
+		return nil, fmt.Errorf("modo de headers HTTP inválido: %s", mode)
+	}
+
+	if len(fields) > maxHTTPHeaders {
+		return nil, fmt.Errorf("o limite é de %d headers", maxHTTPHeaders)
+	}
+	headers := make(map[string]string, len(fields))
+	totalBytes := 0
+	for _, field := range fields {
+		if strings.TrimSpace(field.Key) == "" {
+			continue
+		}
+		name := http.CanonicalHeaderKey(strings.TrimSpace(field.Key))
+		if !validHTTPHeaderName(name) {
+			return nil, fmt.Errorf("nome de header inválido: %s", field.Key)
+		}
+		if blockedHTTPHeader(name) {
+			return nil, fmt.Errorf("header não permitido: %s", name)
+		}
+		if len(field.Value) > 8192 || strings.ContainsAny(field.Value, "\r\n") {
+			return nil, fmt.Errorf("valor inválido para o header %s", name)
+		}
+		if _, exists := headers[name]; exists {
+			return nil, fmt.Errorf("header duplicado: %s", name)
+		}
+		totalBytes += len(name) + len(field.Value)
+		if totalBytes > maxHTTPHeaderBytes {
+			return nil, fmt.Errorf("headers excedem o limite de %d bytes", maxHTTPHeaderBytes)
+		}
+		headers[name] = field.Value
+	}
+	return headers, nil
+}
+
+func validHTTPHeaderName(name string) bool {
+	if name == "" {
+		return false
+	}
+	for index := 0; index < len(name); index++ {
+		character := name[index]
+		if (character >= 'a' && character <= 'z') || (character >= 'A' && character <= 'Z') ||
+			(character >= '0' && character <= '9') || strings.ContainsRune("!#$%&'*+-.^_`|~", rune(character)) {
+			continue
+		}
+		return false
+	}
+	return true
+}
+
+func blockedHTTPHeader(name string) bool {
+	lower := strings.ToLower(name)
+	switch lower {
+	case "host", "connection", "content-length", "keep-alive", "proxy-authenticate", "proxy-authorization",
+		"proxy-connection", "te", "trailer", "transfer-encoding", "upgrade", "via", "forwarded",
+		"x-real-ip", "x-original-url", "x-rewrite-url", "x-http-method-override", "cf-connecting-ip", "true-client-ip":
+		return true
+	}
+	return strings.HasPrefix(lower, "x-forwarded-")
+}
+
+func httpRequestPayload(data map[string]interface{}, ctx ExecutionContext, method string) (interface{}, []byte, string, error) {
+	if method == "GET" || method == "HEAD" {
+		return nil, nil, "", nil
+	}
+	mode := strings.TrimSpace(stringVal(data, "bodyMode"))
+	if mode == "" {
+		mode = "rawJSON"
+	}
+	switch mode {
+	case "none":
+		return nil, nil, "", nil
+	case "json":
+		return keyValueJSON(data["bodyFields"], ctx), nil, "application/json", nil
+	case "form":
+		values := url.Values{}
+		for _, field := range keyValueFields(data["bodyFields"], ctx) {
+			if field.Key != "" {
+				values.Add(field.Key, field.Value)
+			}
+		}
+		return nil, []byte(values.Encode()), "application/x-www-form-urlencoded", nil
+	case "rawJSON":
+		body := strings.TrimSpace(ReplaceVariables(stringVal(data, "body"), ctx))
+		if body == "" {
+			return nil, nil, "", nil
+		}
+		var parsed interface{}
+		if err := json.Unmarshal([]byte(body), &parsed); err != nil {
+			return nil, nil, "", fmt.Errorf("corpo JSON inválido: %w", err)
+		}
+		return parsed, nil, "application/json", nil
+	default:
+		return nil, nil, "", fmt.Errorf("modo de corpo HTTP inválido: %s", mode)
+	}
+}
+
+type httpKeyValue struct {
+	Key   string
+	Value string
+}
+
+func keyValueFields(raw interface{}, ctx ExecutionContext) []httpKeyValue {
+	items, ok := raw.([]interface{})
+	if !ok {
+		if typed, typedOK := raw.([]map[string]interface{}); typedOK {
+			items = make([]interface{}, len(typed))
+			for index := range typed {
+				items[index] = typed[index]
+			}
+		}
+	}
+	fields := make([]httpKeyValue, 0, len(items))
+	for _, item := range items {
+		field, _ := item.(map[string]interface{})
+		key := strings.TrimSpace(ReplaceVariables(stringVal(field, "key"), ctx))
+		value := ReplaceVariables(stringVal(field, "value"), ctx)
+		fields = append(fields, httpKeyValue{Key: key, Value: value})
+	}
+	return fields
+}
+
+func keyValueJSON(raw interface{}, ctx ExecutionContext) map[string]interface{} {
+	result := map[string]interface{}{}
+	for _, field := range keyValueFields(raw, ctx) {
+		if field.Key == "" {
+			continue
+		}
+		var typed interface{}
+		if json.Unmarshal([]byte(field.Value), &typed) == nil {
+			result[field.Key] = typed
+		} else {
+			result[field.Key] = field.Value
+		}
+	}
+	return result
 }
 
 func httpStatusText(code int) string {

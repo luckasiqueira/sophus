@@ -4,15 +4,13 @@ import (
 	"net/http"
 
 	"sophus/internal/media"
-	"sophus/pkg/http/middlewares"
 
 	"github.com/kataras/iris/v12"
 )
 
 func UploadFlowMedia(ctx iris.Context) {
-	agent, err := middlewares.AgentIdentifier(ctx)
-	if err != nil {
-		ctx.StopWithStatus(iris.StatusUnauthorized)
+	agent, ok := requireAdmin(ctx)
+	if !ok {
 		return
 	}
 	ctx.Request().Body = http.MaxBytesReader(ctx.ResponseWriter(), ctx.Request().Body, 52<<20)
