@@ -495,8 +495,8 @@ function defaultDataFor(type) {
     case 'sendFile': return { fileUrl: '', filePath: '', fileMimeType: '', mediaPreviewUrl: '', mediaName: '' };
     case 'assign': return { assignType: 'agent' };
     case 'httpRequest': return {
-      method: 'POST', headerMode: 'fields', headerFields: [{ key: '', value: '' }],
-      bodyMode: 'json', bodyFields: [{ key: '', value: '' }],
+      method: 'POST', headerMode: 'none', headerFields: [],
+      bodyMode: 'none', bodyFields: [],
     };
     default: return {};
   }
@@ -1031,7 +1031,7 @@ function renderFieldsFor(node) {
       html += field('Método', inspectorSelect('method', ['GET','POST','PUT','PATCH','DELETE'].map(method => ({ value: method, label: method })), d.method || 'POST', 'Método HTTP'));
       html += field('URL', textInput(d.url, 'url'));
       if (!d.headerMode) {
-        d.headerMode = d.headers && typeof d.headers === 'object' && !Array.isArray(d.headers) ? 'rawJSON' : 'fields';
+        d.headerMode = d.headers && typeof d.headers === 'object' && !Array.isArray(d.headers) ? 'rawJSON' : 'none';
         if (d.headerMode === 'rawJSON' && !d.headersRaw) d.headersRaw = JSON.stringify(d.headers, null, 2);
       }
       d.headerFields = d.headerFields || [];
@@ -1049,7 +1049,7 @@ function renderFieldsFor(node) {
         html += field('Headers JSON', textArea(d.headersRaw, 'headersRaw', 5), 'Objeto JSON com valores de texto. Ex: {"Authorization":"Bearer token"}.');
       }
       if ((d.method||'POST') !== 'GET') {
-        if (!d.bodyMode) d.bodyMode = d.body ? 'rawJSON' : 'json';
+        if (!d.bodyMode) d.bodyMode = d.body ? 'rawJSON' : 'none';
         d.bodyFields = d.bodyFields || [];
         html += field('Formato do corpo', inspectorSelect('bodyMode', [
           { value: 'json', label: 'JSON por campos' },

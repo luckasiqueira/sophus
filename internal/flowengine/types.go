@@ -148,7 +148,11 @@ func validateHTTPRequestNode(data map[string]interface{}) error {
 	}
 	bodyMode := strings.TrimSpace(stringVal(data, "bodyMode"))
 	if bodyMode == "" {
-		bodyMode = "rawJSON"
+		if strings.TrimSpace(stringVal(data, "body")) != "" {
+			bodyMode = "rawJSON"
+		} else {
+			bodyMode = "none"
+		}
 	}
 	switch bodyMode {
 	case "none", "json", "form", "rawJSON":

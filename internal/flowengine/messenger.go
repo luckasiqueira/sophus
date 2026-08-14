@@ -347,7 +347,7 @@ func httpRequestHeaders(data map[string]interface{}, ctx ExecutionContext) (map[
 				fields = append(fields, httpKeyValue{Key: key, Value: ReplaceVariables(fmt.Sprint(value), ctx)})
 			}
 		} else {
-			mode = "fields"
+			mode = "none"
 		}
 	}
 
@@ -442,7 +442,11 @@ func httpRequestPayload(data map[string]interface{}, ctx ExecutionContext, metho
 	}
 	mode := strings.TrimSpace(stringVal(data, "bodyMode"))
 	if mode == "" {
-		mode = "rawJSON"
+		if strings.TrimSpace(stringVal(data, "body")) != "" {
+			mode = "rawJSON"
+		} else {
+			mode = "none"
+		}
 	}
 	switch mode {
 	case "none":

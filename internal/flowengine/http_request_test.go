@@ -62,6 +62,23 @@ func TestHTTPRequestLegacyBodyUsesRawJSON(t *testing.T) {
 	}
 }
 
+func TestHTTPRequestDefaultsToNoHeadersOrBody(t *testing.T) {
+	headers, err := httpRequestHeaders(map[string]interface{}{}, ExecutionContext{})
+	if err != nil {
+		t.Fatalf("build default headers: %v", err)
+	}
+	if len(headers) != 0 {
+		t.Fatalf("default headers = %#v, want none", headers)
+	}
+	payload, body, contentType, err := httpRequestPayload(map[string]interface{}{}, ExecutionContext{}, "POST")
+	if err != nil {
+		t.Fatalf("build default body: %v", err)
+	}
+	if payload != nil || body != nil || contentType != "" {
+		t.Fatalf("default payload = %#v, body = %q, content type = %q", payload, body, contentType)
+	}
+}
+
 func TestHTTPRequestHeaderFields(t *testing.T) {
 	headers, err := httpRequestHeaders(map[string]interface{}{
 		"headerMode": "fields",
