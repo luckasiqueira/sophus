@@ -5,6 +5,8 @@ import (
 	"encoding/json"
 	"errors"
 	"time"
+
+	"github.com/lib/pq"
 )
 
 var ErrFlowExecutionInactive = errors.New("flow execution is no longer active")
@@ -36,6 +38,15 @@ type FlowExecution struct {
 	CreatedAt      time.Time       `json:"createdAt"`
 	UpdatedAt      time.Time       `json:"updatedAt"`
 	CompletedAt    *time.Time      `json:"completedAt"`
+}
+
+type FlowConditionMetadata struct {
+	ContactName      string
+	ContactNumber    string
+	ContactEmail     string
+	ConversationTags []string
+	Department       string
+	ConnectionType   string
 }
 
 func GetChatbotFlowsByCompany(companyId int) ([]ChatbotFlow, error) {
@@ -368,6 +379,27 @@ func GetConversationById(id int) (Conversation, error) {
 	defer stmt.Close()
 	err = stmt.QueryRow(id).Scan(&c.Id, &c.Status, &c.Contact.Id, &c.ConnectionID, &c.AgentID, &c.DepartmentID, &c.URL, &c.CreatedAt, &c.UpdatedAt)
 	return c, err
+}
+
+func GetFlowConditionMetadata(conversationID, companyID int) (FlowConditionMetadata, error) {
+	var metadata FlowConditionMetadata
+	var tags pq.StringArray
+	err := db.QueryRow(`SELECT COALESCE(ct.name, ''), COALESCE(ct.number, ''), COALESCE(ct.email, ''),
+		COALESCE(cv.tags, ARRAY[]::text[]), COALESCE(d.name, ''), COALESCE(co.type, 'whatsapp_qrcode')
+		FROM conversations cv
+		INNER JOIN contacts ct ON ct.id = cv."contactId"
+		INNER JOIN connections co ON co.id = cv."connectionId" AND co."companyId" = $2
+		LEFT JOIN departments d ON d.id = cv."departmentId"
+		WHERE cv.id = $1`, conversationID, companyID).Scan(
+		&metadata.ContactName,
+		&metadata.ContactNumber,
+		&metadata.ContactEmail,
+		&tags,
+		&metadata.Department,
+		&metadata.ConnectionType,
+	)
+	metadata.ConversationTags = []string(tags)
+	return metadata, err
 }
 
 func GetConnectionById(id int) (ConnectionEVO, error) {

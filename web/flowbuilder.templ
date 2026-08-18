@@ -111,6 +111,27 @@ const NODE_TYPES = {
 };
 const CATEGORIES = ['Fluxo', 'Mensagens', 'Lógica', 'Sistema', 'Interação'];
 const NODE_W = 220;
+const CONDITION_SOURCES = [
+  { value: 'contactName', label: 'NOME DO CONTATO' },
+  { value: 'contactNumber', label: 'NÚMERO DO CONTATO' },
+  { value: 'conversationTag', label: 'TAG DA CONVERSA' },
+  { value: 'contactEmail', label: 'EMAIL DO CONTATO' },
+  { value: 'contactMessage', label: 'MENSAGEM DO CONTATO' },
+  { value: 'department', label: 'DEPARTAMENTO' },
+  { value: 'time', label: 'HORÁRIO' },
+  { value: 'variable', label: 'VARIÁVEL' },
+  { value: 'connectionType', label: 'TIPO DE CONEXÃO' },
+];
+const CONDITION_OPERATORS = [
+  { value: 'equals', label: 'IGUAL A' },
+  { value: 'notEquals', label: 'NÃO IGUAL' },
+  { value: 'contains', label: 'CONTÉM' },
+  { value: 'notContains', label: 'NÃO CONTÉM' },
+  { value: 'greaterThan', label: 'MAIOR QUE' },
+  { value: 'lessThan', label: 'MENOR QUE' },
+  { value: 'true', label: 'VERDADEIRO' },
+  { value: 'false', label: 'FALSO' },
+];
 
 function uid(prefix) { return prefix + '_' + Math.random().toString(36).slice(2, 9); }
 
@@ -488,6 +509,7 @@ function defaultDataFor(type) {
       sections: [{ title: 'Opções', rows: [{ title: 'Opção 1', description: '', rowId: 'opcao_1', _handleId: uid('mh') }] }],
     };
     case 'switch': return { cases: [{ label: 'Opção 1', condition: '' }] };
+    case 'condition': return { conditionSource: 'contactMessage', conditionOperator: 'equals', conditionValue: '' };
     case 'delay': return { delayType: 'fixed', seconds: 2 };
     case 'sendImage': return { imageUrl: '', imagePath: '', imageMimeType: '', mediaPreviewUrl: '', mediaName: '' };
     case 'sendVideo': return { videoUrl: '', videoPath: '', videoMimeType: '', mediaPreviewUrl: '', mediaName: '' };
@@ -555,7 +577,13 @@ function nodeSummary(node) {
     case 'sendAudio': return d.mediaName || (d.audioUrl ? truncate(d.audioUrl, 40) : 'Sem áudio configurado');
     case 'sendFile': return d.mediaName || (d.fileUrl ? truncate(d.fileUrl, 40) : 'Sem arquivo configurado');
     case 'sendMenu': return [d.title, d.description].filter(Boolean).join(' — ') || 'Sem mensagem configurada';
-    case 'condition': return d.condition ? truncate(d.condition, 60) : 'Sem condição configurada';
+    case 'condition': {
+      if (!d.conditionSource || d.conditionSource === 'legacy') return d.condition ? truncate(d.condition, 60) : 'Sem condição configurada';
+      const source = CONDITION_SOURCES.find(option => option.value === d.conditionSource)?.label || d.conditionSource;
+      const operator = CONDITION_OPERATORS.find(option => option.value === d.conditionOperator)?.label || d.conditionOperator || '';
+      const value = d.conditionSource === 'variable' ? (d.conditionVariable || 'variável') : d.conditionValue;
+      return truncate([source, operator, value].filter(Boolean).join(' · '), 60);
+    }
     case 'switch': return (d.cases || []).length + ' opção(ões)';
     case 'delay': return d.delayType === 'range' ? (d.minSeconds||0) + 's - ' + (d.maxSeconds||0) + 's' : (d.seconds||0) + 's';
     case 'changeStatus': return d.status ? ('→ ' + d.status) : 'Sem status definido';
@@ -987,9 +1015,40 @@ function renderFieldsFor(node) {
       html += '<div id="menu-sections" class="flex flex-col gap-3"><\/div>';
       html += '<button id="btn-add-menu-section" class="text-xs text-purple-600 font-medium hover:underline"><i class="fas fa-plus mr-1"><\/i>Adicionar seção<\/button>';
       break;
-    case 'condition':
-      html += field('Condição', textArea(d.condition, 'condition', 3), 'Ex: response == "1"  ·  response.includes("sim")  ·  score &gt; 10');
+    case 'condition': {
+      if (!d.conditionSource) d.conditionSource = d.condition ? 'legacy' : 'contactMessage';
+      if (!d.conditionOperator) d.conditionOperator = 'equals';
+      const sourceOptions = d.conditionSource === 'legacy'
+        ? [{ value: 'legacy', label: 'EXPRESSÃO ANTIGA' }].concat(CONDITION_SOURCES)
+        : CONDITION_SOURCES;
+      html += field('Avaliar', inspectorSelect('conditionSource', sourceOptions, d.conditionSource, 'Escolha o dado'));
+      if (d.conditionSource === 'legacy') {
+        html += field('Expressão antiga', textArea(d.condition, 'condition', 3), 'Selecione uma origem acima para migrar esta condição para o formato visual.');
+        break;
+      }
+      if (d.conditionSource === 'variable') {
+        html += field('Nome da variável', textInput(d.conditionVariable, 'conditionVariable'), 'Use o nome salvo por Capturar Resposta ou HTTP Request. Caminhos como apiResult.data.status são aceitos.');
+      }
+      html += field('Operador', inspectorSelect('conditionOperator', CONDITION_OPERATORS, d.conditionOperator, 'Escolha o operador'));
+      if (d.conditionOperator !== 'true' && d.conditionOperator !== 'false') {
+        if (d.conditionSource === 'department') {
+          const departments = [{ value: '', label: 'Selecione o departamento' }].concat(state.departments.map(department => ({ value: department.name, label: department.name })));
+          html += field('Valor', inspectorSelect('conditionValue', departments, d.conditionValue || '', 'Selecione o departamento'));
+        } else if (d.conditionSource === 'connectionType') {
+          html += field('Valor', inspectorSelect('conditionValue', [
+            { value: 'whatsapp_qrcode', label: 'WhatsApp por QR Code' },
+            { value: 'api_oficial', label: 'WhatsApp API Oficial' },
+          ], d.conditionValue || '', 'Selecione o tipo'));
+        } else if (d.conditionSource === 'time') {
+          html += field('Horário', '<input type="time" data-field="conditionValue" value="' + escapeAttr(d.conditionValue || '') + '" class="w-full px-3 py-2 bg-stone-50 border border-stone-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-purple-400">', 'Usa o fuso horário configurado no bloco Início; o padrão é America/Sao_Paulo.');
+        } else {
+          html += field('Valor', textInput(d.conditionValue, 'conditionValue'), 'A comparação ignora diferenças entre maiúsculas e minúsculas.');
+        }
+      } else {
+        html += '<p class="text-[11px] text-gray-400">Este operador avalia o valor diretamente e não precisa de comparação.<\/p>';
+      }
       break;
+    }
     case 'switch':
       d.cases = d.cases || [];
       html += '<div class="text-xs font-medium text-gray-600 mb-1">Opções (avaliadas na ordem)<\/div>';
@@ -1110,6 +1169,7 @@ function renderFieldsFor(node) {
         delete d.mediaName;
       }
       if (node.type === 'assign' && path === 'assignType') delete d.assignId;
+      if (node.type === 'condition' && path === 'conditionSource') d.conditionValue = '';
       if (node.type === 'sendMenu' && path === 'useFallback' && !val) {
         state.flowData.edges = state.flowData.edges.filter(edge => edge.source !== node.id || (edge.sourceHandle !== 'fallback' && !!edge.sourceHandle));
         if (state.armedHandle?.nodeId === node.id && state.armedHandle.handle === 'fallback') state.armedHandle = null;
@@ -1134,6 +1194,7 @@ function renderFieldsFor(node) {
         if (val === 'fields' && !d.headerFields.length) d.headerFields.push({ key: '', value: '' });
       }
       if (node.type === 'assign' && path === 'assignType') delete d.assignId;
+      if (node.type === 'condition' && path === 'conditionSource') d.conditionValue = '';
       closeDropdown(radio);
       renderCanvas();
       renderInspector();

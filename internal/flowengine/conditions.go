@@ -6,10 +6,190 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
+	"time"
 )
 
 var stringMethodPattern = regexp.MustCompile(`\.(includes|startsWith|endsWith|toLowerCase|toUpperCase|test|match)\(`)
 var regexTestPattern = regexp.MustCompile(`/[^/]+/\w*\.test\(`)
+
+var structuredConditionSources = map[string]bool{
+	"contactName": true, "contactNumber": true, "conversationTag": true, "contactEmail": true,
+	"contactMessage": true, "department": true, "time": true, "variable": true, "connectionType": true,
+}
+
+var structuredConditionOperators = map[string]bool{
+	"equals": true, "notEquals": true, "contains": true, "notContains": true,
+	"greaterThan": true, "lessThan": true, "true": true, "false": true,
+}
+
+func (e *Engine) EvaluateNodeCondition(data map[string]interface{}, ctx ExecutionContext) bool {
+	source := strings.TrimSpace(stringVal(data, "conditionSource"))
+	if source == "" || source == "legacy" {
+		return e.EvaluateCondition(stringVal(data, "condition"), ctx)
+	}
+	if !structuredConditionSources[source] {
+		return false
+	}
+	operator := strings.TrimSpace(stringVal(data, "conditionOperator"))
+	if !structuredConditionOperators[operator] {
+		return false
+	}
+	actual := structuredConditionValue(source, stringVal(data, "conditionVariable"), ctx)
+	expected := ReplaceVariables(stringVal(data, "conditionValue"), ctx)
+	return compareStructuredCondition(actual, operator, expected)
+}
+
+func structuredConditionValue(source, variable string, ctx ExecutionContext) interface{} {
+	switch source {
+	case "contactName":
+		return ctx["contactName"]
+	case "contactNumber":
+		return ctx["contactNumber"]
+	case "conversationTag":
+		return ctx["conversationTags"]
+	case "contactEmail":
+		return ctx["contactEmail"]
+	case "contactMessage":
+		return ctx["message"]
+	case "department":
+		return ctx["department"]
+	case "time":
+		if current, ok := ctx["currentTime"].(string); ok && current != "" {
+			return current
+		}
+		return time.Now().Format("15:04")
+	case "variable":
+		variable = strings.TrimSpace(variable)
+		if variable == "" || strings.HasPrefix(variable, "_") {
+			return nil
+		}
+		return resolvePath(ctx, variable)
+	case "connectionType":
+		return ctx["connectionType"]
+	default:
+		return nil
+	}
+}
+
+func compareStructuredCondition(actual interface{}, operator, expected string) bool {
+	switch operator {
+	case "true":
+		return conditionTruthy(actual)
+	case "false":
+		return !conditionTruthy(actual)
+	case "equals":
+		return conditionEquals(actual, expected)
+	case "notEquals":
+		return !conditionEquals(actual, expected)
+	case "contains":
+		return conditionContains(actual, expected)
+	case "notContains":
+		return !conditionContains(actual, expected)
+	case "greaterThan":
+		return compareConditionOrder(actual, expected) > 0
+	case "lessThan":
+		return compareConditionOrder(actual, expected) < 0
+	default:
+		return false
+	}
+}
+
+func conditionValues(value interface{}) []string {
+	switch typed := value.(type) {
+	case []string:
+		return typed
+	case []interface{}:
+		values := make([]string, 0, len(typed))
+		for _, item := range typed {
+			values = append(values, fmt.Sprint(item))
+		}
+		return values
+	case nil:
+		return []string{""}
+	default:
+		return []string{fmt.Sprint(typed)}
+	}
+}
+
+func conditionEquals(actual interface{}, expected string) bool {
+	expected = strings.TrimSpace(expected)
+	for _, value := range conditionValues(actual) {
+		if strings.EqualFold(strings.TrimSpace(value), expected) {
+			return true
+		}
+	}
+	return false
+}
+
+func conditionContains(actual interface{}, expected string) bool {
+	expected = strings.ToLower(strings.TrimSpace(expected))
+	if expected == "" {
+		return false
+	}
+	for _, value := range conditionValues(actual) {
+		if strings.Contains(strings.ToLower(value), expected) {
+			return true
+		}
+	}
+	return false
+}
+
+func conditionTruthy(value interface{}) bool {
+	switch typed := value.(type) {
+	case bool:
+		return typed
+	case float64:
+		return typed != 0
+	case int:
+		return typed != 0
+	case int64:
+		return typed != 0
+	case []string:
+		return len(typed) > 0
+	case []interface{}:
+		return len(typed) > 0
+	case nil:
+		return false
+	default:
+		text := strings.ToLower(strings.TrimSpace(fmt.Sprint(typed)))
+		switch text {
+		case "", "0", "false", "falso", "não", "nao", "no":
+			return false
+		case "1", "true", "verdadeiro", "sim", "yes":
+			return true
+		default:
+			return true
+		}
+	}
+}
+
+func compareConditionOrder(actual interface{}, expected string) int {
+	actualText := strings.TrimSpace(fmt.Sprint(actual))
+	expected = strings.TrimSpace(expected)
+	if actualTime, err := time.Parse("15:04", actualText); err == nil {
+		if expectedTime, expectedErr := time.Parse("15:04", expected); expectedErr == nil {
+			actualMinutes := actualTime.Hour()*60 + actualTime.Minute()
+			expectedMinutes := expectedTime.Hour()*60 + expectedTime.Minute()
+			return compareNumbers(float64(actualMinutes), float64(expectedMinutes))
+		}
+	}
+	if actualNumber, err := strconv.ParseFloat(actualText, 64); err == nil {
+		if expectedNumber, expectedErr := strconv.ParseFloat(expected, 64); expectedErr == nil {
+			return compareNumbers(actualNumber, expectedNumber)
+		}
+	}
+	return strings.Compare(strings.ToLower(actualText), strings.ToLower(expected))
+}
+
+func compareNumbers(left, right float64) int {
+	if left < right {
+		return -1
+	}
+	if left > right {
+		return 1
+	}
+	return 0
+}
 
 func (e *Engine) EvaluateCondition(condition string, ctx ExecutionContext) bool {
 	condition = strings.TrimSpace(condition)

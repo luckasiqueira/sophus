@@ -121,6 +121,38 @@ func ValidateFlowData(raw json.RawMessage) error {
 				return fmt.Errorf("node HTTP Request: %w", err)
 			}
 		}
+		if node.Type == NodeCondition {
+			if err := validateConditionNode(node.Data); err != nil {
+				return fmt.Errorf("node Condição: %w", err)
+			}
+		}
+	}
+	return nil
+}
+
+func validateConditionNode(data map[string]interface{}) error {
+	source := strings.TrimSpace(stringVal(data, "conditionSource"))
+	if source == "" || source == "legacy" {
+		if len(stringVal(data, "condition")) > 2000 {
+			return fmt.Errorf("expressão excede o limite de 2000 caracteres")
+		}
+		return nil
+	}
+	if !structuredConditionSources[source] {
+		return fmt.Errorf("origem inválida")
+	}
+	operator := strings.TrimSpace(stringVal(data, "conditionOperator"))
+	if !structuredConditionOperators[operator] {
+		return fmt.Errorf("operador inválido")
+	}
+	if source == "variable" {
+		variable := strings.TrimSpace(stringVal(data, "conditionVariable"))
+		if variable == "" || strings.HasPrefix(variable, "_") || len(variable) > 120 {
+			return fmt.Errorf("variável inválida")
+		}
+	}
+	if len(stringVal(data, "conditionValue")) > 2000 {
+		return fmt.Errorf("valor excede o limite de 2000 caracteres")
 	}
 	return nil
 }

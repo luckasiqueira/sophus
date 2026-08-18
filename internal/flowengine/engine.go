@@ -126,6 +126,12 @@ func (e *Engine) ExecuteFlow(flowID, conversationID, companyID int, initialConte
 		}
 	}
 
+	metadata, err := repo.GetFlowConditionMetadata(conversationID, companyID)
+	if err != nil {
+		return e.failExecution(execution.Id, fmt.Sprintf("não foi possível carregar dados para condições: %v", err))
+	}
+	applyConditionMetadata(context, metadata)
+
 	if currentNodeID == "" {
 		startNode := findNodeByType(flowData.Nodes, NodeStart)
 		if startNode == nil {
@@ -235,7 +241,13 @@ func (e *Engine) processNode(executionID int, node FlowNode, ctx ExecutionContex
 			OutputHandle: menuResponseHandle(node.Data, fmt.Sprint(ctx["response"]), ctx),
 		}, nil
 	case NodeCondition:
-		result := e.EvaluateCondition(stringVal(node.Data, "condition"), ctx)
+		metadata, err := repo.GetFlowConditionMetadata(conversation.Id, companyID)
+		if err != nil {
+			return ProcessResult{}, fmt.Errorf("não foi possível atualizar dados da condição: %w", err)
+		}
+		applyConditionMetadata(ctx, metadata)
+		ctx["currentTime"] = conditionCurrentTime(flowData)
+		result := e.EvaluateNodeCondition(node.Data, ctx)
 		return ProcessResult{ConditionResult: &result}, nil
 	case NodeSwitch:
 		if ctx["response"] == nil || fmt.Sprint(ctx["response"]) == "" {
@@ -289,6 +301,39 @@ func (e *Engine) processNode(executionID int, node FlowNode, ctx ExecutionContex
 		log.Printf("tipo de node desconhecido: %s", node.Type)
 		return ProcessResult{}, nil
 	}
+}
+
+func applyConditionMetadata(ctx ExecutionContext, metadata repo.FlowConditionMetadata) {
+	contactName := metadata.ContactName
+	if contactName == "" {
+		contactName, _ = ctx["senderName"].(string)
+	}
+	ctx["contactName"] = contactName
+	ctx["contactNumber"] = metadata.ContactNumber
+	if metadata.ContactEmail != "" || ctx["contactEmail"] == nil {
+		ctx["contactEmail"] = metadata.ContactEmail
+	}
+	ctx["conversationTags"] = metadata.ConversationTags
+	ctx["department"] = metadata.Department
+	ctx["connectionType"] = metadata.ConnectionType
+}
+
+func conditionCurrentTime(flowData FlowData) string {
+	timezone := "America/Sao_Paulo"
+	if startNode := findNodeByType(flowData.Nodes, NodeStart); startNode != nil {
+		if raw := startNode.Data["businessHours"]; raw != nil {
+			encoded, _ := json.Marshal(raw)
+			var hours BusinessHours
+			if json.Unmarshal(encoded, &hours) == nil && strings.TrimSpace(hours.Timezone) != "" {
+				timezone = hours.Timezone
+			}
+		}
+	}
+	location, err := time.LoadLocation(timezone)
+	if err != nil {
+		location = time.Local
+	}
+	return time.Now().In(location).Format("15:04")
 }
 
 func (e *Engine) getNextNode(currentNodeID, nodeType string, edges []FlowEdge, conditionResult *bool, switchCaseIndex *int, outputHandle, scheduleHandle string) (string, error) {

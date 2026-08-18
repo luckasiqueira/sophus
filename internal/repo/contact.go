@@ -10,6 +10,7 @@ type Contact struct {
 	Id           int
 	Name         string
 	Number       string
+	Email        string
 	ConnectionId int
 	JID          string
 	LID          string
@@ -36,11 +37,12 @@ type ContactGroupEVO struct {
 }
 
 func CreateContact(contact Contact) (int, error) {
-	query := `INSERT INTO public.contacts (id, name, number, "connectionId", jid, lid, "isGroup", "isBlocked")
-	VALUES (DEFAULT, $1, $2, $3, $4, $5, $6, $7) RETURNING id;`
+	query := `INSERT INTO public.contacts (id, name, number, email, "connectionId", jid, lid, "isGroup", "isBlocked")
+	VALUES (DEFAULT, $1, $2, $3, $4, $5, $6, $7, $8) RETURNING id;`
 	contactId, err := insertInt(query,
 		contact.Name,
 		contact.Number,
+		contact.Email,
 		contact.ConnectionId,
 		contact.JID,
 		contact.LID,
@@ -85,12 +87,12 @@ func getGroupInfo(jid, connectionKey string) (Contact, error) {
 
 func GetContactById(contactId int) (Contact, error) {
 	var contact Contact
-	stmt, err := db.Prepare(`SELECT * FROM contacts WHERE id= $1;`)
+	stmt, err := db.Prepare(`SELECT id, name, number, email, "connectionId", jid, lid, "isGroup", "isBlocked" FROM contacts WHERE id = $1`)
 	if err != nil {
 		return contact, err
 	}
 	defer stmt.Close()
-	err = stmt.QueryRow(contactId).Scan(&contact.Id, &contact.Name, &contact.Number, &contact.ConnectionId, &contact.JID, &contact.LID, &contact.IsGroup, &contact.IsBlocked)
+	err = stmt.QueryRow(contactId).Scan(&contact.Id, &contact.Name, &contact.Number, &contact.Email, &contact.ConnectionId, &contact.JID, &contact.LID, &contact.IsGroup, &contact.IsBlocked)
 	return contact, nil
 }
 
