@@ -19,6 +19,7 @@ templ FlowBuilder() {
   .handle { width: 14px; height: 14px; border-radius: 9999px; border: 2px solid white; box-shadow: 0 0 0 1px #a8a29e; cursor: crosshair; position: absolute; background: #78716c; touch-action: none; }
   .handle:hover { background: #6123cc; box-shadow: 0 0 0 1px #6123cc; }
   .handle.armed { background: #f59e0b; box-shadow: 0 0 0 3px rgba(245,158,11,.4); animation: pulse 1s infinite; }
+  .handle-label { position: absolute; right: 18px; top: 50%; transform: translateY(-50%); white-space: nowrap; pointer-events: none; font-size: 10px; line-height: 1; color: #78716c; }
   @keyframes pulse { 0%,100% { transform: scale(1); } 50% { transform: scale(1.25); } }
   .palette-item { cursor: grab; }
   .palette-item:active { cursor: grabbing; }
@@ -132,6 +133,16 @@ const CONDITION_OPERATORS = [
   { value: 'true', label: 'VERDADEIRO' },
   { value: 'false', label: 'FALSO' },
 ];
+const CONDITION_OUTPUT_LABELS = {
+  equals:      ['Igual a', 'Não igual'],
+  notEquals:   ['Não igual', 'Igual a'],
+  contains:    ['Contém', 'Não contém'],
+  notContains: ['Não contém', 'Contém'],
+  greaterThan: ['Maior que', 'Menor ou igual'],
+  lessThan:    ['Menor que', 'Maior ou igual'],
+  true:        ['Verdadeiro', 'Falso'],
+  false:       ['Falso', 'Verdadeiro'],
+};
 
 function uid(prefix) { return prefix + '_' + Math.random().toString(36).slice(2, 9); }
 
@@ -535,13 +546,16 @@ function nodeHeight(node) {
     const n = outputsFor(node).length;
     return Math.max(90, 56 + n * 26);
   }
-  if (node.type === 'condition') return 110;
+  if (node.type === 'condition') return 130;
   return 90;
 }
 
 // Returns [{handle, label}] for a node's outgoing connection points.
 function outputsFor(node) {
-  if (node.type === 'condition') return [{ handle: 'true', label: 'Verdadeiro' }, { handle: 'false', label: 'Falso' }];
+  if (node.type === 'condition') {
+    const labels = CONDITION_OUTPUT_LABELS[(node.data || {}).conditionOperator] || ['Verdadeiro', 'Falso'];
+    return [{ handle: 'true', label: labels[0] }, { handle: 'false', label: labels[1] }];
+  }
   if (node.type === 'sendMenu') {
     const out = [];
     const fallbackEdges = state.flowData.edges.filter(edge => edge.source === node.id && (edge.sourceHandle === 'fallback' || !edge.sourceHandle));
@@ -615,6 +629,9 @@ function nodeBodyHTML(node, outs) {
       outs.map(o => '<div class="truncate flex items-center" style="height:28px">↳ ' + escapeHtml(o.label) + '<\/div>').join('') +
     '<\/div>';
   }
+  if (node.type === 'condition') {
+    return '<div class="px-3 py-2 text-xs text-gray-500 leading-snug line-clamp-3" style="height:89px;padding-right:108px">' + escapeHtml(nodeSummary(node)) + '<\/div>';
+  }
   return '<div class="px-3 py-2 text-xs text-gray-500 leading-snug">' + escapeHtml(nodeSummary(node)) + '<\/div>' +
     (node.type === 'switch' ? '<div class="px-3 text-[10px] text-gray-400 flex flex-col gap-0.5">' + outs.map(o=>'<div class="truncate">↳ ' + escapeHtml(o.label) + '<\/div>').join('') + '<\/div>' : '');
 }
@@ -622,6 +639,7 @@ function nodeBodyHTML(node, outs) {
 function outputY(node, index, count) {
   if (node.type === 'sendMenu') return 108 + index * 28;
   const h = nodeHeight(node);
+  if (node.type === 'condition') return h / 2 + (index - (count - 1) / 2) * 34;
   return count === 1 ? h / 2 : (24 + index * ((h - 40) / Math.max(1, count - 1)));
 }
 
@@ -666,6 +684,7 @@ function renderCanvas() {
       out.style.right = '-7px';
       out.style.top = (y - (node.type === 'sendMenu' ? 8 : 7)) + 'px';
       out.title = o.label;
+      if (node.type === 'condition') out.innerHTML = '<span class="handle-label">' + escapeHtml(o.label) + '<\/span>';
       out.onpointerdown = (e) => startConnectionDrag(e, node.id, o.handle);
       card.appendChild(out);
     });
