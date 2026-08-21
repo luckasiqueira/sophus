@@ -1,0 +1,259 @@
+package web
+
+templ SaaSSettings() {
+	<!DOCTYPE html>
+	<html lang="pt-BR">
+		<head>
+			<meta charset="UTF-8"/>
+			<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+			<title>Configurações - Sophus</title>
+			<script src="https://cdn.tailwindcss.com"></script>
+			<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css"/>
+		</head>
+		<body class="min-h-screen bg-stone-100 text-gray-900">
+			<div class="min-h-screen lg:grid lg:grid-cols-[248px_1fr]">
+				<aside class="relative overflow-hidden bg-stone-950 px-4 py-4 text-white lg:sticky lg:top-0 lg:flex lg:h-screen lg:flex-col lg:px-5 lg:py-6" style="background: radial-gradient(circle at 15% 5%, rgba(59,130,246,.35), transparent 26%), radial-gradient(circle at 95% 85%, rgba(97,35,204,.45), transparent 32%), #17141f;">
+					<div class="flex items-center justify-between lg:block">
+						<a href="/" class="flex items-center gap-3 px-2"><span class="grid h-10 w-10 place-items-center rounded-2xl bg-white text-purple-700 shadow-lg"><i class="fas fa-paper-plane"></i></span><div><p class="font-bold">Sophus</p><p class="text-[10px] uppercase tracking-[0.24em] text-stone-400">Administração</p></div></a>
+						<form action="/logout" method="post" class="lg:hidden"><button type="submit" class="rounded-xl border border-white/10 px-3 py-2 text-xs text-stone-300"><i class="fas fa-arrow-right-from-bracket mr-1"></i> Sair</button></form>
+					</div>
+					<nav class="mt-5 grid grid-cols-2 gap-2 lg:mt-10 lg:block lg:space-y-2" aria-label="Seções do console">
+						<a href="/" class="flex items-center gap-3 rounded-xl px-4 py-3 text-sm font-semibold text-stone-300 transition hover:bg-white/10 hover:text-white"><i class="fas fa-table-columns w-5 text-center"></i> Operação</a>
+						<a href="/settings" aria-current="page" class="flex items-center gap-3 rounded-xl bg-white/15 px-4 py-3 text-sm font-semibold text-white shadow-inner ring-1 ring-white/10"><i class="fas fa-sliders w-5 text-center"></i> Configurações</a>
+					</nav>
+					<div class="mt-auto hidden lg:block"><form action="/logout" method="post"><button type="submit" class="flex w-full items-center gap-3 rounded-xl px-4 py-3 text-sm font-medium text-stone-300 transition hover:bg-white/10 hover:text-white"><i class="fas fa-arrow-right-from-bracket w-5 text-center"></i> Encerrar sessão</button></form></div>
+				</aside>
+				<main class="min-w-0">
+					<header class="border-b border-stone-200 bg-white px-4 py-5 sm:px-6 lg:px-8"><div class="mx-auto max-w-5xl"><p class="text-[10px] font-bold uppercase tracking-[0.24em] text-purple-600">Governança da plataforma</p><h1 class="mt-1 text-2xl font-black tracking-tight">Configurações</h1><p class="mt-2 text-sm text-gray-500">Defina o comportamento global de cobrança e mantenha seu acesso administrativo atualizado.</p></div></header>
+					<div class="mx-auto max-w-5xl space-y-6 p-4 sm:p-6 lg:p-8">
+						<div id="saas-settings-error" role="alert" class="hidden rounded-2xl border border-red-200 bg-red-50 p-4 text-sm text-red-700"></div>
+						<div id="saas-settings-loading" class="rounded-2xl border border-stone-200 bg-white p-12 text-center text-sm text-gray-500 shadow-sm"><i class="fas fa-circle-notch fa-spin mr-2 text-purple-600"></i> Carregando configurações...</div>
+						<div id="saas-settings-content" class="hidden grid gap-6 xl:grid-cols-[1.2fr_0.8fr]">
+							<form id="platform-settings-form" class="rounded-3xl border border-stone-200 bg-white shadow-sm">
+								<div class="border-b border-stone-200 p-6"><div class="flex items-start gap-3"><span class="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-purple-100 text-purple-700"><i class="fas fa-credit-card"></i></span><div><h2 class="font-black text-gray-950">Cobrança global</h2><p class="mt-1 text-sm text-gray-500">O provedor padrão vale para todas as empresas sem uma exceção ativa.</p></div></div></div>
+								<div class="space-y-5 p-6">
+									<div><label for="platform-provider" class="mb-2 block text-sm font-semibold text-gray-700">Provedor padrão</label><select id="platform-provider" required class="w-full rounded-xl border border-stone-200 bg-white px-4 py-3 outline-none focus:border-purple-400 focus:ring-2 focus:ring-purple-100"><option value="mercado_pago">Mercado Pago</option><option value="abacate_pay">AbacatePay</option></select></div>
+									<label class="flex cursor-pointer items-start gap-3 rounded-2xl border border-stone-200 bg-stone-50 p-4"><input id="platform-allow-override" type="checkbox" class="peer sr-only"/><span class="mt-0.5 grid h-5 w-5 shrink-0 place-items-center rounded-md border border-stone-300 bg-white text-[10px] text-transparent transition peer-checked:border-purple-600 peer-checked:bg-purple-600 peer-checked:text-white peer-focus-visible:ring-2 peer-focus-visible:ring-purple-200 peer-focus-visible:ring-offset-2"><i class="fas fa-check"></i></span><span><span class="block text-sm font-bold text-gray-800">Permitir escolha por empresa</span><span class="mt-1 block text-xs leading-relaxed text-gray-500">Administradores das empresas poderão usar um provedor diferente do padrão.</span></span></label>
+									<div class="grid gap-5 sm:grid-cols-2">
+										<div><label for="platform-timezone" class="mb-2 block text-sm font-semibold text-gray-700">Fuso horário padrão</label><select id="platform-timezone" required class="w-full rounded-xl border border-stone-200 bg-white px-4 py-3 outline-none focus:border-purple-400 focus:ring-2 focus:ring-purple-100"><option value="America/Sao_Paulo">Brasília (GMT-3)</option><option value="America/Manaus">Manaus (GMT-4)</option><option value="America/Rio_Branco">Rio Branco (GMT-5)</option><option value="America/Noronha">Fernando de Noronha (GMT-2)</option><option value="UTC">UTC</option></select></div>
+										<div><label for="platform-grace-days" class="mb-2 block text-sm font-semibold text-gray-700">Tolerância após vencimento</label><div class="relative"><input id="platform-grace-days" type="number" required min="0" max="90" step="1" class="w-full rounded-xl border border-stone-200 px-4 py-3 pr-14 outline-none focus:border-purple-400 focus:ring-2 focus:ring-purple-100"/><span class="absolute right-4 top-1/2 -translate-y-1/2 text-xs font-semibold text-gray-400">dias</span></div></div>
+									</div>
+									<button id="platform-settings-submit" type="submit" class="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-gray-950 px-5 py-3 text-sm font-bold text-white shadow-md transition hover:bg-gray-800 disabled:cursor-wait disabled:opacity-60 sm:w-auto"><i class="fas fa-floppy-disk"></i> Salvar cobrança</button>
+								</div>
+							</form>
+							<form id="platform-profile-form" class="rounded-3xl border border-stone-200 bg-white shadow-sm">
+								<div class="border-b border-stone-200 p-6"><div class="flex items-start gap-3"><span class="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-blue-100 text-blue-700"><i class="fas fa-user-shield"></i></span><div><h2 class="font-black text-gray-950">Seu perfil</h2><p class="mt-1 text-sm text-gray-500">Dados usados no acesso ao console.</p></div></div></div>
+								<div class="space-y-5 p-6">
+									<div><label for="platform-admin-name" class="mb-2 block text-sm font-semibold text-gray-700">Nome</label><input id="platform-admin-name" required maxlength="80" autocomplete="name" class="w-full rounded-xl border border-stone-200 px-4 py-3 outline-none focus:border-purple-400 focus:ring-2 focus:ring-purple-100"/></div>
+									<div><label for="platform-admin-email" class="mb-2 block text-sm font-semibold text-gray-700">Email</label><input id="platform-admin-email" type="email" disabled class="w-full cursor-not-allowed rounded-xl border border-stone-200 bg-stone-100 px-4 py-3 text-gray-500"/><p class="mt-2 text-xs text-gray-400">O email do administrador global só pode ser alterado diretamente no banco de dados.</p></div>
+									<div class="border-t border-stone-100 pt-5"><p class="text-xs font-bold uppercase tracking-wider text-gray-400">Alterar senha (opcional)</p></div>
+									<div><label for="platform-current-password" class="mb-2 block text-sm font-semibold text-gray-700">Senha atual</label><input id="platform-current-password" type="password" autocomplete="current-password" class="w-full rounded-xl border border-stone-200 px-4 py-3 outline-none focus:border-purple-400 focus:ring-2 focus:ring-purple-100"/></div>
+									<div><label for="platform-new-password" class="mb-2 block text-sm font-semibold text-gray-700">Nova senha</label><input id="platform-new-password" type="password" minlength="8" autocomplete="new-password" placeholder="Mínimo de 8 caracteres" class="w-full rounded-xl border border-stone-200 px-4 py-3 outline-none focus:border-purple-400 focus:ring-2 focus:ring-purple-100"/></div>
+									<button id="platform-profile-submit" type="submit" class="inline-flex w-full items-center justify-center gap-2 rounded-xl border border-stone-200 bg-stone-50 px-5 py-3 text-sm font-bold text-gray-800 transition hover:bg-stone-100 disabled:cursor-wait disabled:opacity-60"><i class="fas fa-user-check"></i> Atualizar perfil</button>
+								</div>
+							</form>
+						</div>
+					</div>
+				</main>
+			</div>
+			<div id="saas-settings-toast" class="fixed bottom-5 right-5 z-50 hidden items-center gap-3 rounded-2xl bg-gray-950 px-5 py-4 text-sm font-medium text-white shadow-2xl" role="status"><i class="fas fa-circle-check text-emerald-400"></i><span id="saas-settings-toast-text"></span></div>
+			@AdminControls()
+			<script>
+const platformSettingsState = { admin: null, settings: null };
+
+async function platformSettingsAPI(method, url, body) {
+    const options = { method, credentials: 'same-origin', headers: { Accept: 'application/json' } };
+    if (body !== undefined) { options.headers['Content-Type'] = 'application/json'; options.body = JSON.stringify(body); }
+    const response = await fetch(url, options);
+    const text = await response.text();
+    let payload = null;
+    if (text) { try { payload = JSON.parse(text); } catch (_) { payload = { error: text }; } }
+    if (response.status === 401) { window.location.href = '/login'; throw new Error('Sessão expirada.'); }
+    if (!response.ok) throw new Error((payload && (payload.error || payload.message)) || 'Erro ' + response.status);
+    return payload;
+}
+
+function showPlatformSettingsError(error) {
+    const box = document.getElementById('saas-settings-error');
+    box.textContent = error instanceof Error ? error.message : String(error);
+    box.classList.remove('hidden');
+}
+
+let platformSettingsToastTimer;
+function showPlatformSettingsToast(message) {
+    const toast = document.getElementById('saas-settings-toast');
+    document.getElementById('saas-settings-toast-text').textContent = message;
+    toast.classList.remove('hidden'); toast.classList.add('flex');
+    clearTimeout(platformSettingsToastTimer);
+    platformSettingsToastTimer = setTimeout(() => { toast.classList.add('hidden'); toast.classList.remove('flex'); }, 3200);
+}
+
+function renderPlatformSettings() {
+    const settings = platformSettingsState.settings || {};
+    const admin = platformSettingsState.admin || {};
+    document.getElementById('platform-provider').value = settings.paymentProvider || 'mercado_pago';
+    document.getElementById('platform-allow-override').checked = Boolean(settings.allowCompanyPaymentOverride);
+	setSettingsTimezone(document.getElementById('platform-timezone'), settings.defaultTimezone || 'America/Sao_Paulo');
+    document.getElementById('platform-grace-days').value = String(settings.subscriptionGraceDays || 0);
+    document.getElementById('platform-admin-name').value = admin.name || '';
+    document.getElementById('platform-admin-email').value = admin.email || '';
+    document.getElementById('saas-settings-loading').classList.add('hidden');
+    document.getElementById('saas-settings-content').classList.remove('hidden');
+	if (window.refreshAdminSelects) window.refreshAdminSelects();
+}
+
+function setSettingsTimezone(select, value) {
+	if (value && !Array.from(select.options).some(option => option.value === value)) {
+		const option = document.createElement('option'); option.value = value; option.textContent = value; select.appendChild(option);
+	}
+	select.value = value;
+}
+
+async function loadPlatformSettings() {
+    const response = await platformSettingsAPI('GET', '/management/api/settings');
+    const data = response && response.data ? response.data : {};
+    platformSettingsState.admin = data.admin || null;
+    platformSettingsState.settings = data.settings || null;
+    renderPlatformSettings();
+}
+
+document.getElementById('platform-settings-form').addEventListener('submit', async event => {
+    event.preventDefault();
+    const button = document.getElementById('platform-settings-submit'); button.disabled = true;
+    try {
+        const response = await platformSettingsAPI('PUT', '/management/api/settings', {
+            paymentProvider: document.getElementById('platform-provider').value,
+            allowCompanyPaymentOverride: document.getElementById('platform-allow-override').checked,
+            defaultTimezone: document.getElementById('platform-timezone').value,
+            subscriptionGraceDays: Number(document.getElementById('platform-grace-days').value)
+        });
+        platformSettingsState.settings = response.data; renderPlatformSettings(); showPlatformSettingsToast('Configurações de cobrança atualizadas.');
+    } catch (error) { showPlatformSettingsError(error); } finally { button.disabled = false; }
+});
+
+document.getElementById('platform-profile-form').addEventListener('submit', async event => {
+    event.preventDefault();
+    const button = document.getElementById('platform-profile-submit'); button.disabled = true;
+    try {
+        const response = await platformSettingsAPI('PUT', '/management/api/profile', {
+            name: document.getElementById('platform-admin-name').value.trim(),
+            email: document.getElementById('platform-admin-email').value.trim(),
+            currentPassword: document.getElementById('platform-current-password').value,
+            password: document.getElementById('platform-new-password').value
+        });
+		platformSettingsState.admin = response.data;
+		document.getElementById('platform-current-password').value = '';
+		document.getElementById('platform-new-password').value = '';
+		if (response.reauthenticate) { window.location.href = '/login'; return; }
+		renderPlatformSettings(); showPlatformSettingsToast('Perfil atualizado.');
+    } catch (error) { showPlatformSettingsError(error); } finally { button.disabled = false; }
+});
+
+loadPlatformSettings().catch(error => { document.getElementById('saas-settings-loading').classList.add('hidden'); showPlatformSettingsError(error); });
+			</script>
+		</body>
+	</html>
+}
+
+templ CompanySettings() {
+	@base("settings") {
+		<main class="min-w-0 flex-1 overflow-y-auto rounded-2xl bg-stone-50 shadow-sm">
+			<div class="mx-auto max-w-5xl p-4 sm:p-6 lg:p-8">
+				<header><p class="text-xs font-bold uppercase tracking-[0.2em] text-purple-600">Administração da conta</p><h1 class="mt-2 text-2xl font-black tracking-tight text-gray-950 sm:text-3xl">Configurações da empresa</h1><p class="mt-2 max-w-2xl text-sm leading-relaxed text-gray-500">Atualize os dados institucionais e veja como as próximas cobranças serão processadas.</p></header>
+				<div id="company-settings-error" role="alert" class="mt-6 hidden rounded-2xl border border-red-200 bg-red-50 p-4 text-sm text-red-700"></div>
+				<div id="company-settings-loading" class="mt-6 rounded-3xl border border-stone-200 bg-white p-16 text-center text-sm text-gray-500 shadow-sm"><i class="fas fa-circle-notch fa-spin mr-2 text-purple-600"></i> Carregando configurações...</div>
+				<form id="company-settings-form" class="mt-6 hidden overflow-hidden rounded-3xl border border-stone-200 bg-white shadow-sm">
+					<div class="grid gap-0 lg:grid-cols-[1.15fr_0.85fr]">
+						<section class="p-6 sm:p-8">
+							<div class="flex items-start gap-3"><span class="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-purple-100 text-purple-700"><i class="fas fa-building"></i></span><div><h2 class="font-black text-gray-950">Identidade da empresa</h2><p class="mt-1 text-sm text-gray-500">Informações usadas em comunicações e cobranças.</p></div></div>
+							<div class="mt-6 space-y-5">
+								<div><label for="company-settings-name" class="mb-2 block text-sm font-semibold text-gray-700">Nome da empresa</label><input id="company-settings-name" required maxlength="160" class="w-full rounded-xl border border-stone-200 px-4 py-3 outline-none focus:border-purple-400 focus:ring-2 focus:ring-purple-100"/></div>
+								<div><label for="company-settings-email" class="mb-2 block text-sm font-semibold text-gray-700">Email financeiro</label><input id="company-settings-email" type="email" required maxlength="180" class="w-full rounded-xl border border-stone-200 px-4 py-3 outline-none focus:border-purple-400 focus:ring-2 focus:ring-purple-100"/></div>
+								<div><label for="company-settings-timezone" class="mb-2 block text-sm font-semibold text-gray-700">Fuso horário</label><select id="company-settings-timezone" required class="w-full rounded-xl border border-stone-200 bg-white px-4 py-3 outline-none focus:border-purple-400 focus:ring-2 focus:ring-purple-100"><option value="America/Sao_Paulo">Brasília (GMT-3)</option><option value="America/Manaus">Manaus (GMT-4)</option><option value="America/Rio_Branco">Rio Branco (GMT-5)</option><option value="America/Noronha">Fernando de Noronha (GMT-2)</option><option value="UTC">UTC</option></select></div>
+							</div>
+						</section>
+						<aside class="border-t border-stone-200 bg-stone-950 p-6 text-white lg:border-l lg:border-t-0 sm:p-8" style="background: radial-gradient(circle at 90% 10%, rgba(59,130,246,.38), transparent 32%), radial-gradient(circle at 10% 100%, rgba(97,35,204,.45), transparent 38%), #17141f;">
+							<span class="grid h-10 w-10 place-items-center rounded-xl bg-white/10 text-blue-200"><i class="fas fa-wallet"></i></span><h2 class="mt-5 font-black">Provedor de pagamento</h2><p class="mt-2 text-sm leading-relaxed text-stone-400">Esta escolha vale apenas para novas cobranças. Cobranças já emitidas continuam no provedor original.</p>
+							<div class="mt-6 rounded-2xl border border-white/10 bg-white/5 p-4"><p class="text-[10px] font-bold uppercase tracking-[0.18em] text-stone-400">Em uso</p><p id="company-effective-provider" class="mt-2 text-lg font-black">-</p><p id="company-provider-policy" class="mt-1 text-xs text-stone-400"></p></div>
+							<div class="mt-5"><label for="company-provider-override" class="mb-2 block text-sm font-semibold text-stone-200">Preferência da empresa</label><select id="company-provider-override" data-admin-theme="dark" class="w-full"><option value="">Usar padrão da plataforma</option><option value="mercado_pago">Mercado Pago</option><option value="abacate_pay">AbacatePay</option></select></div>
+							<div class="mt-5 flex gap-3 rounded-2xl border border-amber-300/15 bg-amber-300/10 p-4 text-xs leading-relaxed text-amber-100"><i class="fas fa-clock mt-0.5 text-amber-300"></i><p>A plataforma concede <strong id="company-grace-days">0 dias</strong> de tolerância após o vencimento.</p></div>
+						</aside>
+					</div>
+					<div class="flex justify-end border-t border-stone-200 bg-stone-50 p-5 sm:px-8"><button id="company-settings-submit" type="submit" class="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-gray-950 px-5 py-3 text-sm font-bold text-white shadow-md transition hover:bg-gray-800 disabled:cursor-wait disabled:opacity-60 sm:w-auto"><i class="fas fa-floppy-disk"></i> Salvar configurações</button></div>
+				</form>
+			</div>
+		</main>
+		<div id="company-settings-toast" class="fixed bottom-5 right-5 z-50 hidden items-center gap-3 rounded-2xl bg-gray-950 px-5 py-4 text-sm font-medium text-white shadow-2xl" role="status"><i class="fas fa-circle-check text-emerald-400"></i><span>Configurações atualizadas.</span></div>
+		@AdminControls()
+		<script>
+let companySettingsState = null;
+
+async function companySettingsAPI(method, body) {
+    const options = { method, credentials: 'same-origin', headers: { Accept: 'application/json' } };
+    if (body !== undefined) { options.headers['Content-Type'] = 'application/json'; options.body = JSON.stringify(body); }
+    const response = await fetch('/management/api/settings', options);
+    const text = await response.text();
+    let payload = null;
+    if (text) { try { payload = JSON.parse(text); } catch (_) { payload = { error: text }; } }
+    if (!response.ok) throw new Error((payload && (payload.error || payload.message)) || 'Erro ' + response.status);
+    return payload;
+}
+
+function companyProviderLabel(provider) { return provider === 'abacate_pay' ? 'AbacatePay' : provider === 'mercado_pago' ? 'Mercado Pago' : 'Não informado'; }
+
+function showCompanySettingsError(error) {
+    const box = document.getElementById('company-settings-error');
+    box.textContent = error instanceof Error ? error.message : String(error);
+    box.classList.remove('hidden');
+}
+
+function renderCompanySettings() {
+    const settings = companySettingsState || {};
+    document.getElementById('company-settings-name').value = settings.name || '';
+    document.getElementById('company-settings-email').value = settings.email || '';
+	setCompanySettingsTimezone(settings.timezone || settings.defaultTimezone || 'America/Sao_Paulo');
+    document.getElementById('company-provider-override').value = settings.paymentProviderOverride || '';
+    document.getElementById('company-provider-override').disabled = !settings.allowCompanyPaymentOverride;
+    document.getElementById('company-effective-provider').textContent = companyProviderLabel(settings.effectivePaymentProvider);
+    document.getElementById('company-provider-policy').textContent = settings.allowCompanyPaymentOverride ? 'A plataforma permite uma preferência própria.' : 'Definido pela plataforma; escolha própria desabilitada.';
+    document.getElementById('company-grace-days').textContent = Number(settings.subscriptionGraceDays || 0) + (Number(settings.subscriptionGraceDays) === 1 ? ' dia' : ' dias');
+    document.getElementById('company-settings-loading').classList.add('hidden');
+    document.getElementById('company-settings-form').classList.remove('hidden');
+	if (window.refreshAdminSelects) window.refreshAdminSelects();
+}
+
+function setCompanySettingsTimezone(value) {
+	const select = document.getElementById('company-settings-timezone');
+	if (value && !Array.from(select.options).some(option => option.value === value)) {
+		const option = document.createElement('option'); option.value = value; option.textContent = value; select.appendChild(option);
+	}
+	select.value = value;
+}
+
+async function loadCompanySettings() {
+    const response = await companySettingsAPI('GET');
+    companySettingsState = response.data;
+    renderCompanySettings();
+}
+
+document.getElementById('company-settings-form').addEventListener('submit', async event => {
+    event.preventDefault();
+    const button = document.getElementById('company-settings-submit'); button.disabled = true;
+    const providerSelect = document.getElementById('company-provider-override');
+    try {
+        const response = await companySettingsAPI('PUT', {
+            name: document.getElementById('company-settings-name').value.trim(),
+            email: document.getElementById('company-settings-email').value.trim(),
+            timezone: document.getElementById('company-settings-timezone').value,
+            paymentProviderOverride: !providerSelect.disabled && providerSelect.value ? providerSelect.value : null
+        });
+        companySettingsState = response.data; renderCompanySettings();
+        const toast = document.getElementById('company-settings-toast'); toast.classList.remove('hidden'); toast.classList.add('flex');
+        setTimeout(() => { toast.classList.add('hidden'); toast.classList.remove('flex'); }, 3200);
+    } catch (error) { showCompanySettingsError(error); } finally { button.disabled = false; }
+});
+
+loadCompanySettings().catch(error => { document.getElementById('company-settings-loading').classList.add('hidden'); showCompanySettingsError(error); });
+		</script>
+	}
+}

@@ -24,5 +24,17 @@ builds/
 !web/messages_templ.go
 !web/departments.templ
 !web/departments_templ.go
+!web/saas.templ
+!web/saas_templ.go
+!web/agents.templ
+!web/agents_templ.go
+!web/billing.templ
+!web/billing_templ.go
+!web/settings.templ
+!web/settings_templ.go
+!web/company.templ
+!web/company_templ.go
+!web/admin_controls.templ
+!web/admin_controls_templ.go
 !web/components/message.templ
 !web/components/message_templ.go

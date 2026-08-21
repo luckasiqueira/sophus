@@ -1,0 +1,370 @@
+<!DOCTYPE html>
+<html lang="pt-BR" class="scroll-smooth">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="Sophus reúne conversas, equipe, conexões e automações em um único ambiente de atendimento.">
+    <meta name="theme-color" content="#17141f">
+    <title>Sophus | Um ambiente para toda a operação de atendimento</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: { sans: ['Inter', 'sans-serif'] },
+                    colors: { ink: '#17141f', sophus: '#6123cc' },
+                    boxShadow: {
+                        soft: '0 24px 70px -34px rgba(23,20,31,.28)',
+                        frame: '0 36px 90px -38px rgba(23,20,31,.52)'
+                    }
+                }
+            }
+        };
+    </script>
+    <style>
+        body { background: #0c0a12; }
+        .admin-surface {
+            background:
+                radial-gradient(circle at 14% 7%, rgba(59,130,246,.38), transparent 27%),
+                radial-gradient(circle at 92% 88%, rgba(97,35,204,.52), transparent 32%),
+                #17141f;
+        }
+        .admin-grid {
+            background-image: linear-gradient(rgba(255,255,255,.07) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,.07) 1px, transparent 1px);
+            background-size: 42px 42px;
+        }
+        .canvas-grid {
+            background-image: radial-gradient(#3a3542 1.4px, transparent 1.4px);
+            background-size: 23px 23px;
+        }
+        .dark-page .bg-white { background-color: #17141f !important; }
+        .dark-page .bg-stone-50 { background-color: #110f17 !important; }
+        .dark-page .bg-stone-100 { background-color: #1d1a24 !important; }
+        .dark-page .bg-stone-200 { background-color: #2a2631 !important; }
+        .dark-page .text-gray-950,
+        .dark-page .text-gray-900 { color: #fafaf9 !important; }
+        .dark-page .text-gray-800,
+        .dark-page .text-gray-700 { color: #e7e5e4 !important; }
+        .dark-page .text-gray-600 { color: #b8b4be !important; }
+        .dark-page .text-gray-500 { color: #96919d !important; }
+        .dark-page .text-gray-400 { color: #736e7a !important; }
+        .dark-page .border-stone-100,
+        .dark-page .border-stone-200,
+        .dark-page .border-stone-300 { border-color: rgba(255,255,255,.09) !important; }
+        .dark-page .divide-stone-100 > :not([hidden]) ~ :not([hidden]),
+        .dark-page .divide-stone-200 > :not([hidden]) ~ :not([hidden]) { border-color: rgba(255,255,255,.09) !important; }
+        .dark-page .bg-purple-50,
+        .dark-page .bg-purple-100 { background-color: rgba(97,35,204,.18) !important; }
+        .dark-page .bg-purple-200 { background-color: rgba(97,35,204,.3) !important; }
+        .dark-page .text-purple-700 { color: #c4b5fd !important; }
+        .dark-page .border-purple-200,
+        .dark-page .border-purple-300 { border-color: rgba(167,139,250,.28) !important; }
+        .dark-page .bg-blue-50,
+        .dark-page .bg-blue-100 { background-color: rgba(59,130,246,.15) !important; }
+        .dark-page .text-blue-600,
+        .dark-page .text-blue-700,
+        .dark-page .text-blue-900 { color: #93c5fd !important; }
+        .dark-page .border-blue-200 { border-color: rgba(96,165,250,.25) !important; }
+        .dark-page .bg-emerald-100 { background-color: rgba(16,185,129,.15) !important; }
+        .dark-page .text-emerald-600,
+        .dark-page .text-emerald-700 { color: #6ee7b7 !important; }
+        .dark-page .bg-amber-50,
+        .dark-page .bg-amber-100 { background-color: rgba(245,158,11,.14) !important; }
+        .dark-page .text-amber-600,
+        .dark-page .text-amber-700 { color: #fcd34d !important; }
+        .dark-page .bg-pink-100 { background-color: rgba(236,72,153,.14) !important; }
+        .dark-page .text-pink-700 { color: #f9a8d4 !important; }
+        .dark-page input { color: #f5f5f4; }
+        .dark-page input::placeholder { color: #78716c; }
+        .dark-page .brand-mark,
+        .dark-page .light-action { background: #fff !important; color: #6123cc !important; }
+        .dark-page .shadow-sm,
+        .dark-page .shadow-soft { box-shadow: 0 18px 45px -30px rgba(0,0,0,.8); }
+        .dark-page ::-webkit-scrollbar { width: 9px; height: 9px; }
+        .dark-page ::-webkit-scrollbar-thumb { background: #3a3542; border-radius: 999px; }
+        .status-pulse { animation: status-pulse 2s ease-out infinite; }
+        @keyframes status-pulse {
+            0% { box-shadow: 0 0 0 0 rgba(52,211,153,.4); }
+            70%, 100% { box-shadow: 0 0 0 7px rgba(52,211,153,0); }
+        }
+        ::selection { background: #6123cc; color: #fff; }
+        @media (prefers-reduced-motion: reduce) {
+            html { scroll-behavior: auto; }
+            .status-pulse { animation: none; }
+        }
+    </style>
+</head>
+<body class="dark-page overflow-x-hidden font-sans text-stone-100 antialiased">
+    <header class="sticky top-0 z-50 border-b border-white/10 bg-[#0c0a12]/90 backdrop-blur-xl">
+        <div class="mx-auto flex h-[76px] max-w-[1440px] items-center justify-between px-5 sm:px-7 lg:px-10">
+            <a href="#inicio" class="flex items-center gap-3" aria-label="Sophus, início">
+                <span class="brand-mark grid h-10 w-10 place-items-center rounded-2xl bg-white text-purple-700 shadow-sm ring-1 ring-white/10">
+                    <i class="fas fa-paper-plane"></i>
+                </span>
+                <span>
+                    <strong class="block leading-none tracking-tight">Sophus</strong>
+                    <span class="mt-1 block text-[9px] font-bold uppercase tracking-[.24em] text-gray-500">Workspace de atendimento</span>
+                </span>
+            </a>
+
+            <nav class="hidden items-center gap-8 text-sm font-semibold text-gray-600 lg:flex" aria-label="Navegação principal">
+                <a href="#produto" class="transition hover:text-purple-700">Produto</a>
+                <a href="#fluxo" class="transition hover:text-purple-700">Como funciona</a>
+                <a href="#modulos" class="transition hover:text-purple-700">Módulos</a>
+                <a href="#automacao" class="transition hover:text-purple-700">Automação</a>
+            </nav>
+
+            <div class="hidden items-center gap-3 lg:flex">
+                <a href="/login" class="rounded-xl px-4 py-2.5 text-sm font-semibold text-gray-700 transition hover:bg-white">Entrar</a>
+                <a href="mailto:contato@sophus.com.br" class="inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-blue-500 to-purple-700 px-5 py-3 text-sm font-semibold text-white shadow-md transition hover:-translate-y-0.5 hover:shadow-lg">
+                    Falar com a Sophus <i class="fas fa-arrow-right text-xs"></i>
+                </a>
+            </div>
+
+            <button id="menu-button" type="button" class="grid h-11 w-11 shrink-0 place-items-center rounded-xl border border-stone-200 bg-white text-gray-700 lg:hidden" aria-label="Abrir menu" aria-controls="mobile-menu" aria-expanded="false">
+                <i class="fas fa-bars"></i>
+            </button>
+        </div>
+        <div id="mobile-menu" class="hidden border-t border-stone-200 bg-white px-5 py-5 shadow-xl lg:hidden">
+            <nav class="grid gap-1 text-sm font-semibold text-gray-700" aria-label="Navegação móvel">
+                <a href="#produto" class="rounded-xl px-4 py-3 hover:bg-stone-100">Produto</a>
+                <a href="#fluxo" class="rounded-xl px-4 py-3 hover:bg-stone-100">Como funciona</a>
+                <a href="#modulos" class="rounded-xl px-4 py-3 hover:bg-stone-100">Módulos</a>
+                <a href="#automacao" class="rounded-xl px-4 py-3 hover:bg-stone-100">Automação</a>
+                <div class="mt-3 grid grid-cols-2 gap-3 border-t border-stone-200 pt-4">
+                    <a href="/login" class="rounded-xl border border-stone-200 px-4 py-3 text-center">Entrar</a>
+                    <a href="mailto:contato@sophus.com.br" class="rounded-xl bg-purple-700 px-4 py-3 text-center text-white">Falar conosco</a>
+                </div>
+            </nav>
+        </div>
+    </header>
+
+    <main id="inicio">
+        <section class="px-5 pb-12 pt-14 sm:px-7 sm:pt-20 lg:px-10 lg:pb-24 lg:pt-28">
+            <div class="mx-auto max-w-[1440px]">
+                <div class="grid items-end gap-10 lg:grid-cols-[.95fr_1.05fr] lg:gap-16">
+                    <div class="max-w-3xl">
+                        <p class="flex items-center gap-3 text-xs font-bold uppercase tracking-[.23em] text-purple-700">
+                            <span class="h-px w-9 bg-purple-700"></span> Atendimento como operação
+                        </p>
+                        <h1 class="mt-6 text-[2.8rem] font-black leading-[.98] tracking-[-.055em] sm:text-6xl lg:text-7xl xl:text-[5.5rem]">
+                            Um ambiente.<br><span class="text-gray-400">Toda a equipe.</span><br>Cada conversa.
+                        </h1>
+                    </div>
+                    <div class="max-w-xl lg:pb-2">
+                        <p class="text-base leading-relaxed text-gray-600 sm:text-lg">A Sophus conecta as frentes do atendimento em uma interface única: conversas, pessoas, setores, canais e rotinas automáticas.</p>
+                        <div class="mt-7 flex flex-col gap-3 sm:flex-row">
+                            <a href="#produto" class="inline-flex items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-blue-500 to-purple-700 px-6 py-3.5 text-sm font-bold text-white shadow-md transition hover:-translate-y-0.5 hover:shadow-lg">Ver o ambiente <i class="fas fa-arrow-down text-xs"></i></a>
+                            <a href="/login" class="inline-flex items-center justify-center gap-2 rounded-xl border border-stone-300 bg-white px-6 py-3.5 text-sm font-bold text-gray-800 transition hover:border-purple-300 hover:text-purple-700">Acessar o painel</a>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="relative mt-14 lg:mt-20">
+                    <div class="absolute -inset-x-8 bottom-0 top-1/4 -z-10 rounded-[3rem] bg-gradient-to-b from-purple-100/70 to-transparent blur-2xl"></div>
+                    <div class="overflow-hidden rounded-[1.8rem] border border-stone-800 bg-stone-950 shadow-frame">
+                        <div class="flex h-12 items-center justify-between border-b border-white/10 px-4 text-white sm:px-5">
+                            <div class="flex items-center gap-2"><span class="h-2.5 w-2.5 rounded-full bg-red-400"></span><span class="h-2.5 w-2.5 rounded-full bg-amber-400"></span><span class="h-2.5 w-2.5 rounded-full bg-emerald-400"></span></div>
+                            <div class="hidden items-center gap-2 rounded-lg border border-white/5 bg-white/5 px-4 py-1.5 font-mono text-[9px] text-stone-400 sm:flex"><i class="fas fa-lock text-[8px]"></i> app.sophus.com.br/messages</div>
+                            <span class="flex items-center gap-2 text-[9px] font-bold uppercase tracking-wider text-emerald-300"><span class="status-pulse h-1.5 w-1.5 rounded-full bg-emerald-400"></span> Operação online</span>
+                        </div>
+
+                        <div class="grid min-h-[520px] grid-cols-[58px_minmax(0,1fr)] sm:grid-cols-[72px_minmax(0,1fr)] lg:grid-cols-[72px_290px_minmax(0,1fr)]">
+                            <aside class="admin-surface flex flex-col items-center gap-3 border-r border-white/5 py-4 text-white sm:py-5">
+                                <span class="brand-mark grid h-10 w-10 place-items-center rounded-2xl bg-white text-purple-700 shadow-lg"><i class="fas fa-paper-plane text-sm"></i></span>
+                                <span class="mt-3 grid h-10 w-10 place-items-center rounded-2xl bg-white/15 ring-1 ring-white/10"><i class="fas fa-comment-dots text-sm"></i></span>
+                                <span class="grid h-10 w-10 place-items-center rounded-2xl text-white/55"><i class="fas fa-layer-group text-sm"></i></span>
+                                <span class="grid h-10 w-10 place-items-center rounded-2xl text-white/55"><i class="fas fa-user text-sm"></i></span>
+                                <span class="relative grid h-10 w-10 place-items-center rounded-2xl text-white/55"><i class="fas fa-circle-notch text-sm"></i><span class="absolute right-2 top-2 h-1.5 w-1.5 rounded-full bg-blue-400"></span></span>
+                                <span class="grid h-10 w-10 place-items-center rounded-2xl text-white/55"><i class="fas fa-credit-card text-sm"></i></span>
+                                <span class="mt-auto grid h-9 w-9 place-items-center rounded-full border-2 border-white/30 bg-purple-300 text-[10px] font-bold text-purple-950">LC</span>
+                            </aside>
+
+                            <div class="hidden border-r border-stone-200 bg-stone-50 lg:block">
+                                <div class="border-b border-stone-200 p-5"><h2 class="font-bold text-gray-900">Conversas</h2><label class="relative mt-4 block"><i class="fas fa-search absolute left-3 top-1/2 -translate-y-1/2 text-xs text-gray-400"></i><input type="text" aria-label="Buscar conversa" placeholder="Buscar" class="w-full rounded-xl border border-stone-200 bg-stone-100 py-2.5 pl-9 pr-3 text-xs outline-none"></label></div>
+                                <div class="flex gap-2 px-4 py-3 text-[9px] font-semibold"><span class="rounded-full bg-purple-100 px-3 py-1.5 text-purple-700">Ativas</span><span class="rounded-full bg-stone-100 px-3 py-1.5 text-gray-500">Pendentes</span><span class="rounded-full bg-stone-100 px-3 py-1.5 text-gray-500">Fechadas</span></div>
+                                <div class="space-y-2 px-3">
+                                    <div class="rounded-2xl border border-purple-200 bg-white p-3 shadow-sm"><div class="flex gap-3"><span class="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-purple-100 text-[10px] font-bold text-purple-700">MF</span><div class="min-w-0 flex-1"><div class="flex justify-between gap-2"><strong class="truncate text-xs">Marina Freitas</strong><span class="text-[8px] text-gray-400">10:42</span></div><p class="mt-1 truncate text-[9px] text-gray-500">Preciso de ajuda com meu acesso</p><div class="mt-2 flex gap-1"><span class="rounded-full bg-stone-100 px-2 py-1 text-[8px] text-gray-600"><i class="fas fa-user-circle mr-1"></i>Lucas</span><span class="rounded-full bg-blue-50 px-2 py-1 text-[8px] text-blue-700">Suporte</span></div></div></div></div>
+                                    <div class="rounded-2xl border border-stone-200 bg-white p-3"><div class="flex gap-3"><span class="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-blue-100 text-[10px] font-bold text-blue-700">RS</span><div class="min-w-0 flex-1"><div class="flex justify-between gap-2"><strong class="truncate text-xs">Renato Souza</strong><span class="text-[8px] text-gray-400">10:36</span></div><p class="mt-1 truncate text-[9px] text-gray-500">Gostaria de conhecer as opções</p><div class="mt-2"><span class="rounded-full bg-purple-100 px-2 py-1 text-[8px] text-purple-700"><i class="fas fa-diagram-project mr-1"></i>Flow</span></div></div></div></div>
+                                    <div class="rounded-2xl border border-stone-200 bg-white p-3 opacity-75"><div class="flex gap-3"><span class="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-emerald-100 text-[10px] font-bold text-emerald-700">CB</span><div class="min-w-0 flex-1"><strong class="block truncate text-xs">Clara Barros</strong><p class="mt-1 truncate text-[9px] text-gray-500">Certo, muito obrigada!</p></div></div></div>
+                                </div>
+                            </div>
+
+                            <section class="min-w-0 bg-stone-100 p-3 sm:p-5 lg:p-6">
+                                <div class="flex h-full min-h-[480px] flex-col overflow-hidden rounded-2xl border border-stone-200 bg-white shadow-sm">
+                                    <header class="flex items-center justify-between gap-4 border-b border-stone-200 px-4 py-3.5 sm:px-5"><div class="flex min-w-0 items-center gap-3"><span class="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-purple-100 text-xs font-bold text-purple-700">MF</span><div class="min-w-0"><h3 class="truncate text-sm font-bold">Marina Freitas</h3><p class="mt-0.5 text-[9px] text-gray-500">Suporte · Lucas</p></div></div><div class="flex gap-2"><span class="hidden rounded-lg bg-blue-50 px-2.5 py-1.5 text-[9px] font-semibold text-blue-700 sm:block">Em atendimento</span><button type="button" class="grid h-8 w-8 place-items-center rounded-lg bg-stone-100 text-xs text-gray-500" aria-label="Mais opções"><i class="fas fa-ellipsis-v"></i></button></div></header>
+                                    <div class="flex-1 space-y-4 bg-stone-50 p-4 sm:p-6">
+                                        <div class="mx-auto w-fit rounded-full bg-stone-200/70 px-3 py-1 text-[8px] font-semibold text-gray-500">Hoje, 10:41</div>
+                                        <div class="max-w-[82%] rounded-2xl rounded-tl-sm border border-stone-200 bg-white p-3 text-[10px] leading-relaxed text-gray-600 shadow-sm sm:text-xs">Olá, preciso de ajuda para recuperar o acesso da minha equipe.</div>
+                                        <div class="ml-auto max-w-[82%] rounded-2xl rounded-tr-sm bg-purple-700 p-3 text-[10px] leading-relaxed text-white shadow-sm sm:text-xs">Olá, Marina. Vou verificar isso com você. Qual usuário está tentando acessar?</div>
+                                        <div class="max-w-[82%] rounded-2xl rounded-tl-sm border border-stone-200 bg-white p-3 text-[10px] leading-relaxed text-gray-600 shadow-sm sm:text-xs">É o usuário do setor financeiro.</div>
+                                    </div>
+                                    <div class="border-t border-stone-200 p-3 sm:p-4"><div class="flex items-center gap-3 rounded-xl border border-stone-200 bg-stone-50 px-3 py-2.5 text-[10px] text-gray-400"><i class="far fa-face-smile"></i><span>Digite uma mensagem</span><i class="fas fa-paperclip ml-auto"></i><span class="grid h-7 w-7 place-items-center rounded-lg bg-purple-700 text-white"><i class="fas fa-paper-plane text-[9px]"></i></span></div></div>
+                                </div>
+                            </section>
+                        </div>
+                    </div>
+
+                    <div class="absolute -bottom-6 right-5 hidden rounded-2xl border border-stone-200 bg-white p-4 shadow-soft sm:block lg:right-14"><div class="flex items-center gap-3"><span class="grid h-10 w-10 place-items-center rounded-xl bg-emerald-100 text-emerald-700"><i class="fas fa-bolt"></i></span><div><p class="text-[10px] font-semibold uppercase tracking-wider text-gray-400">Atualização</p><p class="mt-1 text-xs font-bold">Conversas em tempo real</p></div></div></div>
+                </div>
+            </div>
+        </section>
+
+        <section class="border-y border-stone-200 bg-white px-5 sm:px-7 lg:px-10">
+            <div class="mx-auto grid max-w-[1440px] divide-y divide-stone-200 sm:grid-cols-3 sm:divide-x sm:divide-y-0">
+                <div class="flex items-center gap-4 py-6 sm:px-6 lg:px-10"><span class="text-xs font-black text-purple-700">01</span><p class="text-sm font-semibold text-gray-700">Contexto preservado</p></div>
+                <div class="flex items-center gap-4 py-6 sm:px-6 lg:px-10"><span class="text-xs font-black text-blue-600">02</span><p class="text-sm font-semibold text-gray-700">Responsabilidade visível</p></div>
+                <div class="flex items-center gap-4 py-6 sm:px-6 lg:px-10"><span class="text-xs font-black text-emerald-600">03</span><p class="text-sm font-semibold text-gray-700">Rotina coordenada</p></div>
+            </div>
+        </section>
+
+        <section id="produto" class="px-5 py-20 sm:px-7 lg:px-10 lg:py-32">
+            <div class="mx-auto max-w-[1440px]">
+                <div class="grid gap-10 lg:grid-cols-[.72fr_1.28fr] lg:items-end">
+                    <div><p class="text-xs font-bold uppercase tracking-[.22em] text-purple-700">O produto</p><h2 class="mt-4 text-4xl font-black leading-[1.02] tracking-[-.045em] sm:text-5xl">A operação aparece inteira, sem ficar pesada.</h2></div>
+                    <p class="max-w-xl text-base leading-relaxed text-gray-600 lg:justify-self-end">A mesma linguagem do painel organiza do detalhe de uma mensagem à visão geral da equipe. Informação suficiente para agir, sem excesso de camadas.</p>
+                </div>
+
+                <div class="mt-12 grid overflow-hidden rounded-[2rem] border border-stone-200 bg-white shadow-soft lg:grid-cols-[310px_minmax(0,1fr)]">
+                    <div class="admin-surface relative overflow-hidden p-6 text-white sm:p-8">
+                        <div class="admin-grid absolute inset-0 opacity-25"></div>
+                        <div class="relative"><span class="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/10 px-3 py-1.5 text-[10px] font-semibold text-stone-200"><span class="status-pulse h-1.5 w-1.5 rounded-full bg-emerald-400"></span> Ambiente conectado</span><h3 class="mt-7 text-2xl font-black tracking-tight">O painel acompanha o trabalho.</h3><p class="mt-3 text-sm leading-relaxed text-stone-300">Escolha uma área para visualizar como os elementos da operação se relacionam.</p>
+                        <div class="mt-8 space-y-2" role="tablist" aria-label="Áreas do produto">
+                            <button type="button" data-product-tab="inbox" role="tab" aria-selected="true" class="product-tab flex w-full items-center gap-3 rounded-xl bg-white/15 px-4 py-3 text-left text-sm font-semibold ring-1 ring-white/10"><i class="fas fa-inbox w-5 text-center text-purple-300"></i> Conversas <i class="fas fa-arrow-right ml-auto text-xs"></i></button>
+                            <button type="button" data-product-tab="team" role="tab" aria-selected="false" class="product-tab flex w-full items-center gap-3 rounded-xl px-4 py-3 text-left text-sm font-semibold text-stone-400 transition hover:bg-white/10 hover:text-white"><i class="fas fa-users w-5 text-center text-blue-300"></i> Equipe <i class="fas fa-arrow-right ml-auto text-xs opacity-0"></i></button>
+                            <button type="button" data-product-tab="channels" role="tab" aria-selected="false" class="product-tab flex w-full items-center gap-3 rounded-xl px-4 py-3 text-left text-sm font-semibold text-stone-400 transition hover:bg-white/10 hover:text-white"><i class="fas fa-circle-nodes w-5 text-center text-emerald-300"></i> Conexões <i class="fas fa-arrow-right ml-auto text-xs opacity-0"></i></button>
+                        </div></div>
+                    </div>
+
+                    <div class="min-h-[520px] bg-stone-50 p-4 sm:p-7 lg:p-9">
+                        <section id="panel-inbox" class="product-panel h-full" role="tabpanel">
+                            <div class="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between"><div><p class="text-[10px] font-bold uppercase tracking-[.2em] text-purple-700">Fila de trabalho</p><h3 class="mt-2 text-2xl font-black">Conversas</h3><p class="mt-1 text-sm text-gray-500">Ativas, pendentes e fechadas no mesmo fluxo.</p></div><span class="w-fit rounded-full bg-purple-100 px-3 py-1.5 text-xs font-semibold text-purple-700">12 em andamento</span></div>
+                            <div class="mt-7 overflow-hidden rounded-2xl border border-stone-200 bg-white"><div class="grid grid-cols-[1fr_auto] items-center gap-4 border-b border-stone-100 p-4 sm:grid-cols-[1.2fr_.7fr_.7fr_auto]"><div class="flex items-center gap-3"><span class="grid h-10 w-10 place-items-center rounded-full bg-purple-100 text-xs font-bold text-purple-700">MF</span><div><p class="text-sm font-bold">Marina Freitas</p><p class="mt-1 text-xs text-gray-500">Preciso de ajuda com meu acesso</p></div></div><span class="hidden text-xs text-gray-500 sm:block">Suporte</span><span class="hidden text-xs text-gray-500 sm:block">Lucas</span><span class="rounded-full bg-blue-50 px-3 py-1.5 text-[10px] font-semibold text-blue-700">Ativa</span></div><div class="grid grid-cols-[1fr_auto] items-center gap-4 border-b border-stone-100 p-4 sm:grid-cols-[1.2fr_.7fr_.7fr_auto]"><div class="flex items-center gap-3"><span class="grid h-10 w-10 place-items-center rounded-full bg-blue-100 text-xs font-bold text-blue-700">RS</span><div><p class="text-sm font-bold">Renato Souza</p><p class="mt-1 text-xs text-gray-500">Gostaria de conhecer as opções</p></div></div><span class="hidden text-xs text-gray-500 sm:block">Comercial</span><span class="hidden text-xs text-gray-500 sm:block">Flow</span><span class="rounded-full bg-amber-50 px-3 py-1.5 text-[10px] font-semibold text-amber-700">Pendente</span></div><div class="grid grid-cols-[1fr_auto] items-center gap-4 p-4 sm:grid-cols-[1.2fr_.7fr_.7fr_auto]"><div class="flex items-center gap-3"><span class="grid h-10 w-10 place-items-center rounded-full bg-emerald-100 text-xs font-bold text-emerald-700">CB</span><div><p class="text-sm font-bold">Clara Barros</p><p class="mt-1 text-xs text-gray-500">Certo, muito obrigada!</p></div></div><span class="hidden text-xs text-gray-500 sm:block">Financeiro</span><span class="hidden text-xs text-gray-500 sm:block">Amanda</span><span class="rounded-full bg-stone-100 px-3 py-1.5 text-[10px] font-semibold text-gray-600">Fechada</span></div></div>
+                        </section>
+
+                        <section id="panel-team" class="product-panel hidden h-full" role="tabpanel">
+                            <div class="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between"><div><p class="text-[10px] font-bold uppercase tracking-[.2em] text-purple-700">Equipe e acesso</p><h3 class="mt-2 text-2xl font-black">Agentes da empresa</h3><p class="mt-1 text-sm text-gray-500">Papéis, status e permissões em uma lista clara.</p></div><button type="button" class="w-fit rounded-xl bg-gradient-to-r from-blue-500 to-purple-700 px-4 py-2.5 text-xs font-bold text-white"><i class="fas fa-user-plus mr-1"></i> Novo agente</button></div>
+                            <div class="mt-7 grid gap-3 sm:grid-cols-3"><div class="rounded-2xl border border-stone-200 bg-white p-4"><p class="text-[10px] font-bold uppercase text-gray-400">Equipe</p><div class="mt-3 flex items-end justify-between"><strong class="text-3xl">12</strong><span class="grid h-9 w-9 place-items-center rounded-xl bg-purple-100 text-purple-700"><i class="fas fa-users text-sm"></i></span></div></div><div class="rounded-2xl border border-stone-200 bg-white p-4"><p class="text-[10px] font-bold uppercase text-gray-400">Ativos</p><div class="mt-3 flex items-end justify-between"><strong class="text-3xl">09</strong><span class="grid h-9 w-9 place-items-center rounded-xl bg-emerald-100 text-emerald-700"><i class="fas fa-headset text-sm"></i></span></div></div><div class="rounded-2xl border border-stone-200 bg-white p-4"><p class="text-[10px] font-bold uppercase text-gray-400">Admins</p><div class="mt-3 flex items-end justify-between"><strong class="text-3xl">02</strong><span class="grid h-9 w-9 place-items-center rounded-xl bg-blue-100 text-blue-700"><i class="fas fa-user-shield text-sm"></i></span></div></div></div>
+                            <div class="mt-4 rounded-2xl border border-blue-200 bg-blue-50 p-4 text-sm text-blue-900"><i class="fas fa-shield-halved mr-2 text-blue-700"></i><strong>Acessos protegidos</strong><span class="mt-1 block text-xs text-blue-700">Administradores e agentes mantêm responsabilidades separadas.</span></div>
+                        </section>
+
+                        <section id="panel-channels" class="product-panel hidden h-full" role="tabpanel">
+                            <div class="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between"><div><p class="text-[10px] font-bold uppercase tracking-[.2em] text-purple-700">Canais da operação</p><h3 class="mt-2 text-2xl font-black">Conexões WhatsApp</h3><p class="mt-1 text-sm text-gray-500">Estado operacional atualizado em cada conexão.</p></div><button type="button" class="w-fit rounded-xl bg-gradient-to-r from-blue-500 to-purple-700 px-4 py-2.5 text-xs font-bold text-white"><i class="fas fa-plus mr-1"></i> Adicionar conexão</button></div>
+                            <div class="mt-7 grid gap-4 md:grid-cols-2"><article class="rounded-2xl border border-stone-200 border-t-4 border-t-emerald-300 bg-white p-5 shadow-sm"><div class="flex items-start justify-between"><span class="grid h-11 w-11 place-items-center rounded-2xl bg-emerald-100 text-xl text-emerald-700"><i class="fab fa-whatsapp"></i></span><span class="rounded-full bg-emerald-100 px-2.5 py-1 text-[10px] font-semibold text-emerald-700"><i class="fas fa-circle mr-1 text-[7px]"></i>Conectado</span></div><h4 class="mt-5 font-bold">Atendimento principal</h4><p class="mt-1 text-xs text-gray-500">Canal da equipe de atendimento</p></article><article class="rounded-2xl border border-stone-200 border-t-4 border-t-amber-300 bg-white p-5 shadow-sm"><div class="flex items-start justify-between"><span class="grid h-11 w-11 place-items-center rounded-2xl bg-amber-100 text-amber-700"><i class="fas fa-circle-notch fa-spin"></i></span><span class="rounded-full bg-amber-100 px-2.5 py-1 text-[10px] font-semibold text-amber-700">Conectando</span></div><h4 class="mt-5 font-bold">Unidade comercial</h4><p class="mt-1 text-xs text-gray-500">Sincronizando o canal</p></article></div>
+                        </section>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <section id="fluxo" class="bg-white px-5 py-20 sm:px-7 lg:px-10 lg:py-28">
+            <div class="mx-auto max-w-[1440px]">
+                <div class="max-w-3xl"><p class="text-xs font-bold uppercase tracking-[.22em] text-purple-700">Como funciona</p><h2 class="mt-4 text-4xl font-black leading-[1.02] tracking-[-.045em] sm:text-5xl">Da chegada da mensagem à gestão do trabalho.</h2></div>
+                <div class="mt-14 grid border-y border-stone-200 md:grid-cols-4 md:divide-x md:divide-stone-200">
+                    <article class="group border-b border-stone-200 py-7 md:border-b-0 md:px-6 lg:px-8"><div class="flex items-center justify-between"><span class="font-mono text-xs font-bold text-purple-700">01</span><i class="fas fa-arrow-right -rotate-45 text-xs text-stone-300 transition group-hover:rotate-0 group-hover:text-purple-700"></i></div><span class="mt-10 grid h-11 w-11 place-items-center rounded-xl bg-purple-100 text-purple-700"><i class="fas fa-comment-dots"></i></span><h3 class="mt-6 font-black">A conversa chega</h3><p class="mt-3 text-sm leading-relaxed text-gray-500">O contato entra na fila com mensagem, horário e canal registrados.</p></article>
+                    <article class="group border-b border-stone-200 py-7 md:border-b-0 md:px-6 lg:px-8"><div class="flex items-center justify-between"><span class="font-mono text-xs font-bold text-blue-600">02</span><i class="fas fa-arrow-right -rotate-45 text-xs text-stone-300 transition group-hover:rotate-0 group-hover:text-blue-600"></i></div><span class="mt-10 grid h-11 w-11 place-items-center rounded-xl bg-blue-100 text-blue-700"><i class="fas fa-layer-group"></i></span><h3 class="mt-6 font-black">O setor organiza</h3><p class="mt-3 text-sm leading-relaxed text-gray-500">A conversa ganha contexto, departamento e um caminho dentro da operação.</p></article>
+                    <article class="group border-b border-stone-200 py-7 md:border-b-0 md:px-6 lg:px-8"><div class="flex items-center justify-between"><span class="font-mono text-xs font-bold text-emerald-600">03</span><i class="fas fa-arrow-right -rotate-45 text-xs text-stone-300 transition group-hover:rotate-0 group-hover:text-emerald-600"></i></div><span class="mt-10 grid h-11 w-11 place-items-center rounded-xl bg-emerald-100 text-emerald-700"><i class="fas fa-headset"></i></span><h3 class="mt-6 font-black">O agente assume</h3><p class="mt-3 text-sm leading-relaxed text-gray-500">O responsável atende com histórico e situação atual ao alcance.</p></article>
+                    <article class="group py-7 md:px-6 lg:px-8"><div class="flex items-center justify-between"><span class="font-mono text-xs font-bold text-amber-600">04</span><i class="fas fa-arrow-right -rotate-45 text-xs text-stone-300 transition group-hover:rotate-0 group-hover:text-amber-600"></i></div><span class="mt-10 grid h-11 w-11 place-items-center rounded-xl bg-amber-100 text-amber-700"><i class="fas fa-check"></i></span><h3 class="mt-6 font-black">O trabalho avança</h3><p class="mt-3 text-sm leading-relaxed text-gray-500">Status e responsáveis deixam claro o que foi tratado e o que vem depois.</p></article>
+                </div>
+            </div>
+        </section>
+
+        <section id="modulos" class="px-5 py-20 sm:px-7 lg:px-10 lg:py-28">
+            <div class="mx-auto max-w-[1440px]">
+                <div class="grid gap-8 lg:grid-cols-[.8fr_1.2fr] lg:items-end"><div><p class="text-xs font-bold uppercase tracking-[.22em] text-purple-700">Módulos conectados</p><h2 class="mt-4 text-4xl font-black leading-[1.02] tracking-[-.045em] sm:text-5xl">Uma base comum para cada frente.</h2></div><p class="max-w-xl text-base leading-relaxed text-gray-600 lg:justify-self-end">Cada módulo resolve uma parte específica, sem separar os dados e as pessoas que sustentam a operação.</p></div>
+                <div class="mt-12 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                    <article class="rounded-3xl border border-stone-200 bg-white p-6 shadow-sm"><div class="flex items-start justify-between"><span class="grid h-11 w-11 place-items-center rounded-xl bg-purple-100 text-purple-700"><i class="fas fa-comments"></i></span><span class="font-mono text-[10px] text-gray-400">01</span></div><h3 class="mt-8 text-lg font-black">Conversas</h3><p class="mt-2 text-sm leading-relaxed text-gray-500">Filas ativas, pendentes e fechadas com responsável e setor.</p></article>
+                    <article class="rounded-3xl border border-stone-200 bg-white p-6 shadow-sm"><div class="flex items-start justify-between"><span class="grid h-11 w-11 place-items-center rounded-xl bg-blue-100 text-blue-700"><i class="fas fa-layer-group"></i></span><span class="font-mono text-[10px] text-gray-400">02</span></div><h3 class="mt-8 text-lg font-black">Setores</h3><p class="mt-2 text-sm leading-relaxed text-gray-500">Departamentos e vínculos que distribuem o trabalho da equipe.</p></article>
+                    <article class="rounded-3xl border border-stone-200 bg-white p-6 shadow-sm"><div class="flex items-start justify-between"><span class="grid h-11 w-11 place-items-center rounded-xl bg-emerald-100 text-emerald-700"><i class="fas fa-users"></i></span><span class="font-mono text-[10px] text-gray-400">03</span></div><h3 class="mt-8 text-lg font-black">Agentes</h3><p class="mt-2 text-sm leading-relaxed text-gray-500">Perfis administrativos e de atendimento com acessos próprios.</p></article>
+                    <article class="rounded-3xl border border-stone-200 bg-white p-6 shadow-sm"><div class="flex items-start justify-between"><span class="grid h-11 w-11 place-items-center rounded-xl bg-amber-100 text-amber-700"><i class="fab fa-whatsapp"></i></span><span class="font-mono text-[10px] text-gray-400">04</span></div><h3 class="mt-8 text-lg font-black">Conexões</h3><p class="mt-2 text-sm leading-relaxed text-gray-500">Canais WhatsApp e seus estados operacionais atualizados.</p></article>
+                    <article class="rounded-3xl border border-stone-200 bg-white p-6 shadow-sm"><div class="flex items-start justify-between"><span class="grid h-11 w-11 place-items-center rounded-xl bg-pink-100 text-pink-700"><i class="fas fa-diagram-project"></i></span><span class="font-mono text-[10px] text-gray-400">05</span></div><h3 class="mt-8 text-lg font-black">Automações</h3><p class="mt-2 text-sm leading-relaxed text-gray-500">Fluxos visuais com mensagens, decisões e ações do sistema.</p></article>
+                    <article class="admin-surface relative overflow-hidden rounded-3xl p-6 text-white shadow-lg"><div class="admin-grid absolute inset-0 opacity-20"></div><div class="relative"><div class="flex items-start justify-between"><span class="grid h-11 w-11 place-items-center rounded-xl bg-white/10 text-blue-300 ring-1 ring-white/10"><i class="fas fa-credit-card"></i></span><span class="font-mono text-[10px] text-stone-500">06</span></div><h3 class="mt-8 text-lg font-black">Faturamento</h3><p class="mt-2 text-sm leading-relaxed text-stone-400">Plano, período atual, vencimentos e histórico de pagamentos.</p></div></article>
+                </div>
+            </div>
+        </section>
+
+        <section id="automacao" class="bg-white px-5 py-20 sm:px-7 lg:px-10 lg:py-28">
+            <div class="mx-auto grid max-w-[1440px] gap-12 lg:grid-cols-[.7fr_1.3fr] lg:items-center">
+                <div><p class="text-xs font-bold uppercase tracking-[.22em] text-purple-700">Construtor visual</p><h2 class="mt-4 text-4xl font-black leading-[1.02] tracking-[-.045em] sm:text-5xl">A rotina deixa de depender da memória.</h2><p class="mt-5 text-base leading-relaxed text-gray-600">O editor transforma etapas do atendimento em blocos conectados. Cada nó descreve uma ação clara e cada caminho pode ser revisado pela equipe.</p><div class="mt-8 flex flex-wrap gap-2 text-xs font-semibold"><span class="rounded-full bg-blue-100 px-3 py-1.5 text-blue-700">Mensagens</span><span class="rounded-full bg-amber-100 px-3 py-1.5 text-amber-700">Condições</span><span class="rounded-full bg-purple-100 px-3 py-1.5 text-purple-700">Ações</span><span class="rounded-full bg-pink-100 px-3 py-1.5 text-pink-700">Interações</span></div></div>
+
+                <div class="canvas-grid overflow-hidden rounded-[2rem] border border-stone-200 bg-stone-50 p-5 shadow-soft sm:p-8">
+                    <div class="mb-7 flex flex-col gap-3 border-b border-stone-200 pb-5 sm:flex-row sm:items-center sm:justify-between"><div class="flex items-center gap-3"><span class="grid h-10 w-10 place-items-center rounded-xl bg-purple-100 text-purple-700"><i class="fas fa-diagram-project"></i></span><div><h3 class="text-sm font-black">Fluxo de recepção</h3><p class="mt-1 text-[10px] text-gray-500">Editor de automações</p></div></div><button type="button" class="w-fit rounded-xl bg-gradient-to-r from-blue-500 to-purple-700 px-4 py-2.5 text-xs font-bold text-white"><i class="fas fa-cloud-arrow-up mr-1"></i> Publicar</button></div>
+                    <div class="overflow-x-auto pb-3">
+                        <div class="grid min-w-[720px] grid-cols-[1fr_55px_1fr_55px_1fr] items-center">
+                            <article class="rounded-2xl border border-stone-200 bg-white p-5 shadow-sm"><div class="flex items-center gap-2 border-b border-stone-100 pb-3"><span class="h-2 w-2 rounded-full bg-emerald-500"></span><span class="text-[9px] font-bold uppercase tracking-wider text-emerald-700">Início</span></div><h4 class="mt-4 text-sm font-black">Nova conversa</h4><p class="mt-2 text-[10px] leading-relaxed text-gray-500">O contato inicia o atendimento.</p></article>
+                            <div class="flex items-center"><span class="h-px flex-1 bg-blue-300"></span><span class="grid h-6 w-6 place-items-center rounded-full bg-blue-600 text-[8px] text-white"><i class="fas fa-arrow-right"></i></span><span class="h-px flex-1 bg-blue-300"></span></div>
+                            <article class="rounded-2xl border border-purple-200 bg-white p-5 shadow-sm"><div class="flex items-center gap-2 border-b border-stone-100 pb-3"><span class="h-2 w-2 rounded-full bg-purple-500"></span><span class="text-[9px] font-bold uppercase tracking-wider text-purple-700">Mensagem</span></div><h4 class="mt-4 text-sm font-black">Menu inicial</h4><div class="mt-3 space-y-1.5"><div class="rounded-lg bg-stone-50 px-2.5 py-2 text-[9px] text-gray-600">1. Falar com atendimento</div><div class="rounded-lg bg-stone-50 px-2.5 py-2 text-[9px] text-gray-600">2. Consultar financeiro</div></div></article>
+                            <div class="flex items-center"><span class="h-px flex-1 bg-purple-300"></span><span class="grid h-6 w-6 place-items-center rounded-full bg-purple-600 text-[8px] text-white"><i class="fas fa-arrow-right"></i></span><span class="h-px flex-1 bg-purple-300"></span></div>
+                            <article class="rounded-2xl border border-stone-200 bg-white p-5 shadow-sm"><div class="flex items-center gap-2 border-b border-stone-100 pb-3"><span class="h-2 w-2 rounded-full bg-blue-500"></span><span class="text-[9px] font-bold uppercase tracking-wider text-blue-700">Ação</span></div><h4 class="mt-4 text-sm font-black">Direcionar setor</h4><p class="mt-2 text-[10px] leading-relaxed text-gray-500">A conversa segue para a fila correspondente.</p></article>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <section class="px-5 py-14 sm:px-7 lg:px-10 lg:py-24">
+            <div class="admin-surface relative mx-auto max-w-[1440px] overflow-hidden rounded-[2rem] px-6 py-14 text-white shadow-frame sm:px-10 lg:px-16 lg:py-20">
+                <div class="admin-grid absolute inset-0 opacity-30"></div>
+                <div class="relative grid gap-10 lg:grid-cols-[1fr_auto] lg:items-end">
+                    <div class="max-w-3xl"><p class="text-xs font-bold uppercase tracking-[.22em] text-blue-300">Conheça a Sophus</p><h2 class="mt-4 text-4xl font-black leading-[1.02] tracking-[-.045em] sm:text-5xl lg:text-6xl">Veja como o ambiente se encaixa na sua operação.</h2><p class="mt-5 max-w-2xl text-base leading-relaxed text-stone-300">Converse com nosso time para conhecer o produto e os caminhos disponíveis para sua empresa.</p></div>
+                    <div class="flex flex-col gap-3 sm:flex-row lg:flex-col"><a href="mailto:contato@sophus.com.br" class="light-action inline-flex items-center justify-center gap-2 rounded-xl bg-white px-6 py-3.5 text-sm font-bold text-purple-700 shadow-lg transition hover:-translate-y-0.5">Falar com a Sophus <i class="fas fa-arrow-right text-xs"></i></a><a href="/login" class="inline-flex items-center justify-center rounded-xl border border-white/15 bg-white/5 px-6 py-3.5 text-sm font-bold text-white transition hover:bg-white/10">Já tenho acesso</a></div>
+                </div>
+            </div>
+        </section>
+    </main>
+
+    <footer class="px-5 pb-10 pt-6 sm:px-7 lg:px-10">
+        <div class="mx-auto max-w-[1440px] border-t border-stone-200 pt-9">
+            <div class="flex flex-col gap-8 sm:flex-row sm:items-start sm:justify-between">
+                <div><a href="#inicio" class="flex items-center gap-3"><span class="brand-mark grid h-10 w-10 place-items-center rounded-2xl bg-white text-purple-700 shadow-sm ring-1 ring-white/10"><i class="fas fa-paper-plane"></i></span><span><strong class="block leading-none">Sophus</strong><span class="mt-1 block text-[9px] font-bold uppercase tracking-[.24em] text-gray-500">Workspace de atendimento</span></span></a><p class="mt-4 max-w-sm text-sm leading-relaxed text-gray-500">Um ambiente para conversas, equipe, conexões e automações.</p></div>
+                <nav class="flex flex-wrap gap-x-7 gap-y-3 text-sm font-semibold text-gray-500" aria-label="Navegação do rodapé"><a href="#produto" class="hover:text-purple-700">Produto</a><a href="#fluxo" class="hover:text-purple-700">Como funciona</a><a href="#modulos" class="hover:text-purple-700">Módulos</a><a href="#automacao" class="hover:text-purple-700">Automação</a><a href="mailto:contato@sophus.com.br" class="hover:text-purple-700">Contato</a></nav>
+            </div>
+            <div class="mt-9 flex flex-col gap-2 border-t border-stone-200 pt-6 text-xs text-gray-500 sm:flex-row sm:items-center sm:justify-between"><p>© <span id="year">2026</span> Sophus. Todos os direitos reservados.</p><p>Atendimento e operação no mesmo espaço.</p></div>
+        </div>
+    </footer>
+
+    <script>
+        const menuButton = document.getElementById('menu-button');
+        const mobileMenu = document.getElementById('mobile-menu');
+
+        function closeMobileMenu() {
+            mobileMenu.classList.add('hidden');
+            menuButton.setAttribute('aria-expanded', 'false');
+            menuButton.setAttribute('aria-label', 'Abrir menu');
+            menuButton.querySelector('i').className = 'fas fa-bars';
+        }
+
+        menuButton.addEventListener('click', () => {
+            const willOpen = mobileMenu.classList.contains('hidden');
+            mobileMenu.classList.toggle('hidden');
+            menuButton.setAttribute('aria-expanded', String(willOpen));
+            menuButton.setAttribute('aria-label', willOpen ? 'Fechar menu' : 'Abrir menu');
+            menuButton.querySelector('i').className = willOpen ? 'fas fa-xmark' : 'fas fa-bars';
+        });
+
+        mobileMenu.querySelectorAll('a').forEach(link => link.addEventListener('click', closeMobileMenu));
+
+        const productTabs = document.querySelectorAll('[data-product-tab]');
+        const productPanels = document.querySelectorAll('.product-panel');
+
+        productTabs.forEach(tab => tab.addEventListener('click', () => {
+            const selected = tab.dataset.productTab;
+            productTabs.forEach(item => {
+                const isActive = item === tab;
+                item.setAttribute('aria-selected', String(isActive));
+                item.className = isActive
+                    ? 'product-tab flex w-full items-center gap-3 rounded-xl bg-white/15 px-4 py-3 text-left text-sm font-semibold ring-1 ring-white/10'
+                    : 'product-tab flex w-full items-center gap-3 rounded-xl px-4 py-3 text-left text-sm font-semibold text-stone-400 transition hover:bg-white/10 hover:text-white';
+                item.querySelector('.fa-arrow-right').classList.toggle('opacity-0', !isActive);
+            });
+            productPanels.forEach(panel => panel.classList.toggle('hidden', panel.id !== `panel-${selected}`));
+        }));
+
+        document.getElementById('year').textContent = new Date().getFullYear();
+    </script>
+</body>
+</html>

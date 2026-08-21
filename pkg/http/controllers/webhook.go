@@ -122,6 +122,9 @@ func Webhook(ctx iris.Context) {
 		sse.NotifyInstances(connection.CompanyID)
 		ctx.StatusCode(iris.StatusOK)
 	case "message":
+		if !companyCanProcessWebhook(ctx, connection.CompanyID) {
+			return
+		}
 		msg := repo.EventMessageEVO{}
 		err = json.Unmarshal(body, &msg)
 		if err != nil {
@@ -146,6 +149,9 @@ func Webhook(ctx iris.Context) {
 		}
 		prepareSSEData(ctx, msg, connection.CompanyID)
 	case "buttonclick":
+		if !companyCanProcessWebhook(ctx, connection.CompanyID) {
+			return
+		}
 		click := repo.EventButtonClickEVO{}
 		if err = json.Unmarshal(body, &click); err != nil {
 			ctx.StopWithStatus(iris.StatusBadRequest)
@@ -168,6 +174,19 @@ func Webhook(ctx iris.Context) {
 		}
 	}
 
+}
+
+func companyCanProcessWebhook(ctx iris.Context, companyID int) bool {
+	allowed, err := repo.CompanyHasAccess(companyID)
+	if err != nil {
+		ctx.StopWithStatus(iris.StatusInternalServerError)
+		return false
+	}
+	if !allowed {
+		ctx.StatusCode(iris.StatusNoContent)
+		return false
+	}
+	return true
 }
 
 func qrCodeLifetime(count int) time.Duration {

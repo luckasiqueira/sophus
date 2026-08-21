@@ -1,6 +1,7 @@
 package controllers
 
 import (
+	"errors"
 	"fmt"
 	"log"
 	"net/http"
@@ -96,6 +97,10 @@ func NewInstance(ctx iris.Context) {
 		ConnectionKey: i.ConnectionKey,
 	})
 	if err != nil {
+		if errors.Is(err, repo.ErrConnectionLimitReached) {
+			ctx.StopWithJSON(iris.StatusConflict, iris.Map{"error": "o limite de conexões do plano foi atingido"})
+			return
+		}
 		log.Printf("failed to persist new connection %q: %v", i.Name, err)
 		ctx.StopWithJSON(iris.StatusInternalServerError, iris.Map{"error": err.Error()})
 		return

@@ -11,9 +11,42 @@ import (
 func Router(r *iris.Application) {
 	r.Get("/login", controllers.Login)
 	r.Post("/dologin", controllers.DoLogin)
+	r.Get("/setup", controllers.SaaSSetupPage)
+	r.Post("/setup", controllers.CreateSaaSSetup)
+	r.Post("/logout", controllers.Logout)
 
 	r.Post("/webhook/{webhookId:uuid}", middlewares.AuthWebhook, controllers.Webhook)
+	r.Post("/payments/mercado-pago/webhook", controllers.MercadoPagoWebhook)
+	r.Post("/payments/abacatepay/webhook", controllers.AbacatePayWebhook)
 	r.Get("/medias/{companyId:int}/flows/{file:string}", middlewares.AuthFlowMedia, controllers.ServeFlowMedia)
+	r.Get("/", middlewares.AuthUser, controllers.Home)
+	r.Get("/settings", middlewares.AuthUser, controllers.SettingsPage)
+	r.Get("/companies/{id:int}", middlewares.AuthUser, controllers.CompanyOverviewPage)
+
+	managementAPI := r.Party("/management/api")
+	managementAPI.Use(middlewares.AuthUser)
+	{
+		managementAPI.Get("/overview", controllers.SaaSOverview)
+		managementAPI.Get("/settings", controllers.GetSettings)
+		managementAPI.Put("/settings", controllers.UpdateSettings)
+		managementAPI.Put("/profile", controllers.UpdateSaaSProfile)
+		managementAPI.Post("/plans", controllers.CreateSaaSPlan)
+		managementAPI.Put("/plans/{id:int}", controllers.UpdateSaaSPlan)
+		managementAPI.Post("/companies", controllers.CreateSaaSCompany)
+		managementAPI.Put("/companies/{id:int}", controllers.UpdateSaaSCompany)
+		managementAPI.Put("/companies/{id:int}/status", controllers.SetSaaSCompanyStatus)
+		managementAPI.Put("/companies/{id:int}/plan", controllers.ChangeSaaSCompanyPlan)
+		managementAPI.Put("/companies/{id:int}/due-date", controllers.UpdateSaaSCompanyDueDate)
+		managementAPI.Get("/companies/{id:int}/payments", controllers.ListSaaSCompanyPayments)
+		managementAPI.Get("/companies/{id:int}/overview", controllers.GetCompanyOperationalOverview)
+		managementAPI.Post("/companies/{id:int}/checkout", controllers.CreateSaaSCompanyCheckout)
+		managementAPI.Get("/agents", controllers.ListCompanyAgents)
+		managementAPI.Post("/agents", controllers.CreateCompanyAgent)
+		managementAPI.Put("/agents/{id:int}", controllers.UpdateCompanyAgent)
+		managementAPI.Get("/billing", controllers.GetCompanyBilling)
+		managementAPI.Post("/billing/checkout", controllers.CreateCompanyCheckout)
+		managementAPI.Put("/billing/cycle", controllers.UpdateCompanyBillingCycle)
+	}
 
 	api := r.Party("/api")
 	api.Use(middlewares.AuthAPI)
@@ -35,19 +68,22 @@ func Router(r *iris.Application) {
 	medias.Use(middlewares.AuthMediaCompany)
 	medias.HandleDir("/", iris.Dir(env.Backend["MEDIA_DIRECTORY"]), iris.DirOptions{})
 
-	web.Get("/sse", middlewares.SSEMessages)
-	web.Get("/sse/conversations", middlewares.SSEConversations)
+	web.Get("/sse", middlewares.AuthSubscription, middlewares.SSEMessages)
+	web.Get("/sse/conversations", middlewares.AuthSubscription, middlewares.SSEConversations)
 
-	web.Get("/messages", controllers.Messages)
-	web.Get("/messages/list", controllers.ConversationList)
-	web.Get("/messages/{url:uuid}", controllers.MessageOpen)
-	web.Post("/messages/{url:uuid}/close", controllers.CloseConversation)
-	web.Post("/messages/{url:uuid}/accept", controllers.AcceptConversation)
-	web.Post("/messages/{url:uuid}/ignore", controllers.IgnoreConversation)
+	web.Get("/messages", middlewares.AuthSubscription, controllers.Messages)
+	web.Get("/messages/list", middlewares.AuthSubscription, controllers.ConversationList)
+	web.Get("/messages/{url:uuid}", middlewares.AuthSubscription, controllers.MessageOpen)
+	web.Post("/messages/{url:uuid}/close", middlewares.AuthSubscription, controllers.CloseConversation)
+	web.Post("/messages/{url:uuid}/accept", middlewares.AuthSubscription, controllers.AcceptConversation)
+	web.Post("/messages/{url:uuid}/ignore", middlewares.AuthSubscription, controllers.IgnoreConversation)
 
 	web.Get("/departments", controllers.DepartmentSettingsPage)
+	web.Get("/agents", controllers.AgentSettingsPage)
+	web.Get("/billing", controllers.BillingPage)
 
 	flows := web.Party("/flows")
+	flows.Use(middlewares.AuthSubscription)
 	{
 		// HTML page (the visual builder SPA)
 		flows.Get("/", controllers.FlowBuilderPage)
@@ -60,6 +96,7 @@ func Router(r *iris.Application) {
 			flowsAPI.Get("/", controllers.ListFlows)
 			flowsAPI.Get("/connections", controllers.ListConnectionsForFlows)
 			flowsAPI.Get("/assignment-options", controllers.ListAssignmentOptions)
+			flowsAPI.Post("/parse-curl", controllers.ParseFlowCURL)
 			flowsAPI.Post("/media", controllers.UploadFlowMedia)
 			flowsAPI.Get("/{id:int}", controllers.GetFlow)
 			flowsAPI.Post("/", controllers.CreateFlow)
@@ -70,6 +107,7 @@ func Router(r *iris.Application) {
 	}
 
 	instance := web.Party("/instances")
+	instance.Use(middlewares.AuthSubscription)
 	{
 		instance.Get("/", controllers.Instances)
 		instance.Get("/list", controllers.InstanceList)

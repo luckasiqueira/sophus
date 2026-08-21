@@ -1,0 +1,846 @@
+package web
+
+templ SaaSSetup() {
+	<!DOCTYPE html>
+	<html lang="pt-BR">
+		<head>
+			<meta charset="UTF-8"/>
+			<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+			<title>Primeiro acesso - Sophus</title>
+			<script src="https://cdn.tailwindcss.com"></script>
+			<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css"/>
+			<script src="https://cdn.jsdelivr.net/npm/htmx.org@2.0.10/dist/htmx.min.js" integrity="sha384-H5SrcfygHmAuTDZphMHqBJLc3FhssKjG7w/CeCpFReSfwBWDTKpkzPP8c+cLsK+V" crossorigin="anonymous"></script>
+		</head>
+		<body class="min-h-screen bg-stone-950 text-stone-100">
+			<main class="min-h-screen grid lg:grid-cols-[1.1fr_0.9fr]">
+				<section class="relative hidden lg:flex overflow-hidden px-12 py-14 flex-col justify-between" style="background: radial-gradient(circle at 18% 15%, rgba(59,130,246,.55), transparent 30%), radial-gradient(circle at 85% 78%, rgba(97,35,204,.7), transparent 34%), #17141f;">
+					<div class="absolute inset-0 opacity-20" style="background-image: linear-gradient(rgba(255,255,255,.12) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,.12) 1px, transparent 1px); background-size: 44px 44px;"></div>
+					<div class="relative flex items-center gap-3">
+						<span class="grid h-11 w-11 place-items-center rounded-2xl bg-white text-purple-700 shadow-xl"><i class="fas fa-paper-plane"></i></span>
+						<div>
+							<p class="font-bold tracking-wide">Sophus</p>
+							<p class="text-xs uppercase tracking-[0.24em] text-stone-400">Administração</p>
+						</div>
+					</div>
+					<div class="relative max-w-xl">
+						<p class="mb-5 text-xs font-semibold uppercase tracking-[0.3em] text-blue-300">Marco zero da operação</p>
+						<h1 class="text-5xl font-black leading-[1.08] tracking-tight">Prepare o painel que organiza toda a sua plataforma.</h1>
+						<p class="mt-6 max-w-lg text-lg leading-relaxed text-stone-300">Esta etapa cria o primeiro administrador da plataforma. Ele poderá cadastrar empresas, definir planos e acompanhar cobranças.</p>
+					</div>
+					<div class="relative grid grid-cols-3 gap-3 text-sm">
+						<div class="rounded-2xl border border-white/10 bg-white/5 p-4"><i class="fas fa-building mb-3 text-blue-300"></i><p class="text-stone-300">Empresas</p></div>
+						<div class="rounded-2xl border border-white/10 bg-white/5 p-4"><i class="fas fa-layer-group mb-3 text-purple-300"></i><p class="text-stone-300">Planos</p></div>
+						<div class="rounded-2xl border border-white/10 bg-white/5 p-4"><i class="fas fa-receipt mb-3 text-emerald-300"></i><p class="text-stone-300">Cobranças</p></div>
+					</div>
+				</section>
+				<section class="flex min-h-screen items-center justify-center bg-stone-50 px-5 py-10 text-gray-900 sm:px-10">
+					<div class="w-full max-w-md">
+						<div class="mb-8 flex items-center gap-3 lg:hidden">
+							<span class="grid h-11 w-11 place-items-center rounded-2xl text-white shadow-lg" style="background: linear-gradient(135deg, #3b82f6, #6123cc);"><i class="fas fa-paper-plane"></i></span>
+							<div><p class="font-bold">Sophus</p><p class="text-xs uppercase tracking-[0.2em] text-gray-500">Administração</p></div>
+						</div>
+						<span class="inline-flex items-center gap-2 rounded-full bg-purple-100 px-3 py-1 text-xs font-semibold text-purple-700"><i class="fas fa-key"></i> Configuração única</span>
+						<h2 class="mt-5 text-3xl font-black tracking-tight text-gray-950">Crie o primeiro administrador</h2>
+						<p class="mt-3 leading-relaxed text-gray-600">Use uma conta institucional. Depois desta configuração, novos acessos administrativos serão controlados pela plataforma.</p>
+						<div class="mt-6 flex gap-3 rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">
+							<i class="fas fa-shield-halved mt-0.5 text-amber-600"></i>
+							<p><strong>Importante:</strong> guarde esta senha com segurança. Este usuário terá acesso global a empresas, planos e pagamentos.</p>
+						</div>
+						<form id="saas-setup-form" hx-post="/setup" hx-swap="none" hx-disabled-elt="find button" class="mt-8 space-y-5">
+							<div>
+								<label for="setup-name" class="mb-2 block text-sm font-semibold text-gray-700">Nome completo</label>
+								<div class="relative">
+									<i class="fas fa-user absolute left-4 top-1/2 -translate-y-1/2 text-gray-400"></i>
+									<input id="setup-name" name="name" required maxlength="80" autocomplete="name" placeholder="Nome do administrador" class="w-full rounded-xl border border-stone-200 bg-white py-3 pl-12 pr-4 outline-none transition focus:border-purple-400 focus:ring-2 focus:ring-purple-200"/>
+								</div>
+							</div>
+							<div>
+								<label for="setup-email" class="mb-2 block text-sm font-semibold text-gray-700">Email</label>
+								<div class="relative">
+									<i class="fas fa-envelope absolute left-4 top-1/2 -translate-y-1/2 text-gray-400"></i>
+									<input id="setup-email" type="email" name="email" required maxlength="180" autocomplete="email" placeholder="admin@suaempresa.com.br" class="w-full rounded-xl border border-stone-200 bg-white py-3 pl-12 pr-4 outline-none transition focus:border-purple-400 focus:ring-2 focus:ring-purple-200"/>
+								</div>
+							</div>
+							<div>
+								<label for="setup-password" class="mb-2 block text-sm font-semibold text-gray-700">Senha</label>
+								<div class="relative">
+									<i class="fas fa-lock absolute left-4 top-1/2 -translate-y-1/2 text-gray-400"></i>
+									<input id="setup-password" type="password" name="password" required minlength="8" autocomplete="new-password" placeholder="Mínimo de 8 caracteres" class="w-full rounded-xl border border-stone-200 bg-white py-3 pl-12 pr-4 outline-none transition focus:border-purple-400 focus:ring-2 focus:ring-purple-200"/>
+								</div>
+							</div>
+							<div>
+								<label for="setup-token" class="mb-2 block text-sm font-semibold text-gray-700">Token de configuração</label>
+								<div class="relative">
+									<i class="fas fa-shield-halved absolute left-4 top-1/2 -translate-y-1/2 text-gray-400"></i>
+									<input id="setup-token" type="password" name="setupToken" required autocomplete="off" placeholder="Valor de SAAS_SETUP_TOKEN" class="w-full rounded-xl border border-stone-200 bg-white py-3 pl-12 pr-4 outline-none transition focus:border-purple-400 focus:ring-2 focus:ring-purple-200"/>
+								</div>
+							</div>
+							<div id="saas-setup-error" role="alert" class="hidden rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700"></div>
+							<button type="submit" class="flex w-full items-center justify-center gap-2 rounded-xl py-3.5 font-semibold text-white shadow-lg transition hover:-translate-y-0.5 hover:shadow-xl disabled:cursor-wait disabled:opacity-60" style="background: linear-gradient(to right, #3b82f6, #6123cc);">
+								<i class="fas fa-arrow-right"></i> Criar administrador e continuar
+							</button>
+						</form>
+						<p class="mt-6 text-center text-xs text-gray-500"><i class="fas fa-lock mr-1"></i> A configuração só fica disponível enquanto não houver administrador cadastrado.</p>
+					</div>
+				</section>
+			</main>
+			<script>
+    document.getElementById('saas-setup-form').addEventListener('htmx:afterRequest', event => {
+        const error = document.getElementById('saas-setup-error');
+        if (event.detail.successful) {
+            window.location.href = '/login';
+            return;
+        }
+        let message = 'Não foi possível criar o administrador. Revise os dados e tente novamente.';
+        try {
+            const payload = JSON.parse(event.detail.xhr.responseText);
+            message = payload.error || payload.message || message;
+        } catch (_) {
+            if (event.detail.xhr.responseText) message = event.detail.xhr.responseText;
+        }
+        error.textContent = String(message);
+        error.classList.remove('hidden');
+    });
+    </script>
+		</body>
+	</html>
+}
+
+templ SaaSDashboard() {
+	<!DOCTYPE html>
+	<html lang="pt-BR">
+		<head>
+			<meta charset="UTF-8"/>
+			<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+			<title>Administração - Sophus</title>
+			<script src="https://cdn.tailwindcss.com"></script>
+			<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css"/>
+			<style>
+        html { background: #f5f5f4; }
+        body { min-height: 100vh; }
+        .saas-tab[aria-selected="true"] { color: #fff; background: rgba(255,255,255,.16); box-shadow: inset 0 0 0 1px rgba(255,255,255,.12); }
+        .saas-modal { backdrop-filter: blur(5px); }
+        .saas-scroll::-webkit-scrollbar { width: 8px; height: 8px; }
+        .saas-scroll::-webkit-scrollbar-thumb { background: #d6d3d1; border-radius: 999px; }
+    </style>
+		</head>
+		<body class="text-gray-900">
+			<div class="min-h-screen lg:grid lg:grid-cols-[248px_1fr]">
+				<aside class="relative overflow-hidden bg-stone-950 px-4 py-4 text-white lg:sticky lg:top-0 lg:flex lg:h-screen lg:flex-col lg:px-5 lg:py-6" style="background: radial-gradient(circle at 15% 5%, rgba(59,130,246,.35), transparent 26%), radial-gradient(circle at 95% 85%, rgba(97,35,204,.45), transparent 32%), #17141f;">
+					<div class="flex items-center justify-between lg:block">
+						<div class="flex items-center gap-3 px-2">
+							<span class="grid h-10 w-10 place-items-center rounded-2xl bg-white text-purple-700 shadow-lg"><i class="fas fa-paper-plane"></i></span>
+							<div><p class="font-bold">Sophus</p><p class="text-[10px] uppercase tracking-[0.24em] text-stone-400">Administração</p></div>
+						</div>
+						<form action="/logout" method="post" class="lg:hidden"><button type="submit" class="rounded-xl border border-white/10 px-3 py-2 text-xs text-stone-300 transition hover:bg-white/10"><i class="fas fa-arrow-right-from-bracket mr-1"></i> Sair</button></form>
+					</div>
+					<nav class="mt-5 grid grid-cols-2 gap-2 lg:mt-10 lg:block lg:space-y-2" aria-label="Seções do console">
+						<button type="button" data-saas-tab="companies" aria-selected="true" class="saas-tab flex w-full items-center gap-3 rounded-xl px-4 py-3 text-left text-sm font-semibold text-stone-300 transition hover:bg-white/10 hover:text-white">
+							<i class="fas fa-building w-5 text-center"></i><span>Empresas</span><span id="nav-company-count" class="ml-auto rounded-full bg-white/10 px-2 py-0.5 text-[10px]">0</span>
+						</button>
+						<button type="button" data-saas-tab="plans" aria-selected="false" class="saas-tab flex w-full items-center gap-3 rounded-xl px-4 py-3 text-left text-sm font-semibold text-stone-300 transition hover:bg-white/10 hover:text-white">
+							<i class="fas fa-layer-group w-5 text-center"></i><span>Planos</span><span id="nav-plan-count" class="ml-auto rounded-full bg-white/10 px-2 py-0.5 text-[10px]">0</span>
+						</button>
+						<a href="/settings" class="flex w-full items-center gap-3 rounded-xl px-4 py-3 text-left text-sm font-semibold text-stone-300 transition hover:bg-white/10 hover:text-white">
+							<i class="fas fa-sliders w-5 text-center"></i><span>Configurações</span>
+						</a>
+					</nav>
+					<div class="mt-auto hidden lg:block">
+						<div class="mb-4 rounded-2xl border border-white/10 bg-white/5 p-4">
+							<div class="flex items-center gap-2 text-xs font-semibold text-emerald-300"><span class="h-2 w-2 rounded-full bg-emerald-400"></span> Operação online</div>
+							<p class="mt-2 text-xs leading-relaxed text-stone-400">Dados comerciais e de cobrança atualizados diretamente pela API.</p>
+						</div>
+						<form action="/logout" method="post"><button type="submit" class="flex w-full items-center gap-3 rounded-xl px-4 py-3 text-sm font-medium text-stone-300 transition hover:bg-white/10 hover:text-white"><i class="fas fa-arrow-right-from-bracket w-5 text-center"></i> Encerrar sessão</button></form>
+					</div>
+				</aside>
+				<main class="min-w-0 bg-stone-100">
+					<header class="border-b border-stone-200 bg-white/90 px-4 py-4 backdrop-blur sm:px-6 lg:px-8">
+						<div class="mx-auto flex max-w-[1500px] items-center justify-between gap-4">
+							<div>
+								<p class="text-[10px] font-bold uppercase tracking-[0.24em] text-purple-600">Visão operacional</p>
+								<h1 class="mt-1 text-xl font-black tracking-tight sm:text-2xl">Back office da plataforma</h1>
+							</div>
+							<button id="header-primary-action" type="button" class="flex shrink-0 items-center gap-2 rounded-xl px-4 py-2.5 text-sm font-semibold text-white shadow-md transition hover:-translate-y-0.5 hover:shadow-lg" style="background: linear-gradient(to right, #3b82f6, #6123cc);"><i class="fas fa-plus"></i><span class="hidden sm:inline">Nova empresa</span><span class="sm:hidden">Novo</span></button>
+						</div>
+					</header>
+					<div class="mx-auto max-w-[1500px] p-4 sm:p-6 lg:p-8">
+						<div id="saas-global-error" role="alert" class="mb-5 hidden items-start justify-between gap-4 rounded-2xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">
+							<div class="flex gap-3"><i class="fas fa-circle-exclamation mt-0.5"></i><span id="saas-global-error-text"></span></div>
+							<button type="button" onclick="this.parentElement.classList.add('hidden')" aria-label="Fechar aviso"><i class="fas fa-xmark"></i></button>
+						</div>
+						<section id="companies-panel">
+							<div class="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+								<article class="relative overflow-hidden rounded-2xl border border-stone-200 bg-white p-5 shadow-sm">
+									<span class="absolute right-0 top-0 h-20 w-20 translate-x-6 -translate-y-6 rounded-full bg-purple-100"></span>
+									<div class="relative flex items-start justify-between"><div><p class="text-xs font-semibold uppercase tracking-wider text-gray-500">Empresas</p><p id="metric-companies" class="mt-3 text-3xl font-black">-</p></div><span class="grid h-10 w-10 place-items-center rounded-xl bg-purple-100 text-purple-700"><i class="fas fa-building"></i></span></div>
+								</article>
+								<article class="rounded-2xl border border-stone-200 bg-white p-5 shadow-sm">
+									<div class="flex items-start justify-between"><div><p class="text-xs font-semibold uppercase tracking-wider text-gray-500">Ativas</p><p id="metric-active" class="mt-3 text-3xl font-black">-</p></div><span class="grid h-10 w-10 place-items-center rounded-xl bg-emerald-100 text-emerald-700"><i class="fas fa-signal"></i></span></div>
+								</article>
+								<article class="rounded-2xl border border-stone-200 bg-white p-5 shadow-sm">
+									<div class="flex items-start justify-between"><div><p class="text-xs font-semibold uppercase tracking-wider text-gray-500">Em atraso</p><p id="metric-past-due" class="mt-3 text-3xl font-black">-</p></div><span class="grid h-10 w-10 place-items-center rounded-xl bg-amber-100 text-amber-700"><i class="fas fa-clock"></i></span></div>
+								</article>
+								<article class="rounded-2xl border border-stone-200 bg-white p-5 shadow-sm">
+									<div class="flex items-start justify-between"><div><p class="text-xs font-semibold uppercase tracking-wider text-gray-500">Receita mensal estimada</p><p id="metric-revenue" class="mt-3 text-2xl font-black">-</p></div><span class="grid h-10 w-10 place-items-center rounded-xl bg-blue-100 text-blue-700"><i class="fas fa-chart-line"></i></span></div>
+								</article>
+							</div>
+							<section class="mt-6 overflow-hidden rounded-2xl border border-stone-200 bg-white shadow-sm">
+								<div class="flex flex-col gap-4 border-b border-stone-200 p-5 sm:flex-row sm:items-center sm:justify-between">
+									<div><h2 class="font-bold text-gray-950">Carteira de empresas</h2><p class="mt-1 text-sm text-gray-500">Assinaturas, vencimentos e acessos da operação.</p></div>
+									<label class="relative block sm:w-72"><i class="fas fa-magnifying-glass absolute left-3 top-1/2 -translate-y-1/2 text-sm text-gray-400"></i><input id="company-search" type="search" placeholder="Buscar empresa ou email" class="w-full rounded-xl border border-stone-200 bg-stone-50 py-2.5 pl-10 pr-3 text-sm outline-none transition focus:border-purple-400 focus:bg-white focus:ring-2 focus:ring-purple-100"/></label>
+								</div>
+								<div id="companies-loading" class="p-12 text-center text-sm text-gray-500"><i class="fas fa-circle-notch fa-spin mr-2 text-purple-600"></i> Carregando operação...</div>
+								<div id="companies-desktop" class="saas-scroll hidden overflow-x-auto">
+									<table class="w-full min-w-[1080px] text-left text-sm">
+										<thead class="bg-stone-50 text-[11px] uppercase tracking-wider text-gray-500"><tr><th class="px-5 py-3 font-semibold">Empresa</th><th class="px-5 py-3 font-semibold">Plano</th><th class="px-5 py-3 font-semibold">Assinatura</th><th class="px-5 py-3 font-semibold">Fim do período</th><th class="px-5 py-3 font-semibold">Acesso</th><th class="px-5 py-3 text-right font-semibold">Ações</th></tr></thead>
+										<tbody id="companies-table-body" class="divide-y divide-stone-100"></tbody>
+									</table>
+								</div>
+								<div id="companies-mobile" class="divide-y divide-stone-100 lg:hidden"></div>
+								<div id="companies-empty" class="hidden p-12 text-center"><span class="mx-auto grid h-14 w-14 place-items-center rounded-2xl bg-stone-100 text-xl text-gray-400"><i class="fas fa-building-circle-xmark"></i></span><p class="mt-4 font-semibold text-gray-700">Nenhuma empresa encontrada</p><p class="mt-1 text-sm text-gray-500">Cadastre a primeira conta ou ajuste sua busca.</p></div>
+							</section>
+						</section>
+						<section id="plans-panel" class="hidden">
+							<div class="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+								<div><p class="text-xs font-bold uppercase tracking-[0.2em] text-purple-600">Catálogo comercial</p><h2 class="mt-2 text-2xl font-black tracking-tight">Planos da plataforma</h2><p class="mt-1 text-sm text-gray-500">Defina preço, ciclo e capacidade de cada oferta.</p></div>
+								<button id="new-plan-button" type="button" class="inline-flex items-center justify-center gap-2 rounded-xl bg-gray-950 px-4 py-2.5 text-sm font-semibold text-white shadow-md transition hover:bg-gray-800"><i class="fas fa-plus"></i> Novo plano</button>
+							</div>
+							<div id="plans-grid" class="mt-6 grid gap-5 md:grid-cols-2 2xl:grid-cols-3"></div>
+							<div id="plans-empty" class="mt-6 hidden rounded-2xl border border-dashed border-stone-300 bg-white p-12 text-center text-gray-500"><i class="fas fa-layer-group mb-3 text-3xl text-gray-300"></i><p>Nenhum plano cadastrado.</p></div>
+						</section>
+					</div>
+				</main>
+			</div>
+			<div id="company-modal" class="saas-modal fixed inset-0 z-50 hidden items-end justify-center bg-stone-950/60 p-0 sm:items-center sm:p-5" role="dialog" aria-modal="true" aria-labelledby="company-modal-title">
+				<div class="saas-scroll max-h-[94vh] w-full max-w-3xl overflow-y-auto rounded-t-3xl bg-white shadow-2xl sm:rounded-3xl">
+					<div class="sticky top-0 z-10 flex items-center justify-between border-b border-stone-200 bg-white px-5 py-4 sm:px-7">
+						<div><p class="text-[10px] font-bold uppercase tracking-[0.2em] text-purple-600">Conta empresarial</p><h2 id="company-modal-title" class="mt-1 text-xl font-black">Nova empresa</h2></div>
+						<button type="button" data-close-modal="company-modal" class="grid h-10 w-10 place-items-center rounded-xl bg-stone-100 text-gray-500 transition hover:bg-stone-200" aria-label="Fechar"><i class="fas fa-xmark"></i></button>
+					</div>
+					<form id="company-form" class="p-5 sm:p-7">
+						<div id="company-form-error" role="alert" class="mb-5 hidden rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700"></div>
+						<div class="grid gap-5 sm:grid-cols-2">
+							<div class="sm:col-span-2"><label for="company-name" class="mb-2 block text-sm font-semibold text-gray-700">Nome da empresa</label><input id="company-name" name="name" required maxlength="160" placeholder="Ex: Acme Atendimento" class="w-full rounded-xl border border-stone-200 px-4 py-3 outline-none focus:border-purple-400 focus:ring-2 focus:ring-purple-100"/></div>
+							<div><label for="company-email" class="mb-2 block text-sm font-semibold text-gray-700">Email financeiro</label><input id="company-email" type="email" name="email" required maxlength="180" placeholder="financeiro@empresa.com.br" class="w-full rounded-xl border border-stone-200 px-4 py-3 outline-none focus:border-purple-400 focus:ring-2 focus:ring-purple-100"/></div>
+							<div><label for="company-timezone" class="mb-2 block text-sm font-semibold text-gray-700">Fuso horário</label><select id="company-timezone" name="timezone" required class="w-full rounded-xl border border-stone-200 bg-white px-4 py-3 outline-none focus:border-purple-400 focus:ring-2 focus:ring-purple-100"><option value="America/Sao_Paulo">Brasília (GMT-3)</option><option value="America/Manaus">Manaus (GMT-4)</option><option value="America/Rio_Branco">Rio Branco (GMT-5)</option><option value="America/Noronha">Fernando de Noronha (GMT-2)</option><option value="UTC">UTC</option></select></div>
+							<div class="sm:col-span-2"><label id="company-plan-label" for="company-plan" class="mb-2 block text-sm font-semibold text-gray-700">Plano inicial</label><select id="company-plan" name="planId" required class="w-full rounded-xl border border-stone-200 bg-white px-4 py-3 outline-none focus:border-purple-400 focus:ring-2 focus:ring-purple-100"></select></div>
+							<div><label for="company-billing-cycle" class="mb-2 block text-sm font-semibold text-gray-700">Ciclo de cobrança</label><select id="company-billing-cycle" required class="w-full"><option value="monthly">Mensal · 30 dias</option><option value="annual">Anual · 365 dias</option></select></div>
+							<div id="company-due-date-field" class="hidden"><label for="company-due-date" class="mb-2 block text-sm font-semibold text-gray-700">Data de vencimento</label><input id="company-due-date" type="date" class="w-full rounded-xl border border-stone-200 bg-white px-4 py-3 outline-none focus:border-purple-400 focus:ring-2 focus:ring-purple-100"/></div>
+							<div id="company-contract-actions" class="hidden gap-3 sm:col-span-2 sm:justify-end"><button id="company-contract-submit" type="button" class="rounded-xl border border-purple-200 bg-purple-50 px-4 py-2.5 text-sm font-semibold text-purple-700 hover:bg-purple-100 disabled:cursor-wait disabled:opacity-60">Atualizar plano e ciclo</button><button id="company-due-date-submit" type="button" class="rounded-xl border border-blue-200 bg-blue-50 px-4 py-2.5 text-sm font-semibold text-blue-700 hover:bg-blue-100 disabled:cursor-wait disabled:opacity-60">Atualizar vencimento</button></div>
+						</div>
+						<div id="company-admin-fields" class="mt-7 rounded-2xl border border-stone-200 bg-stone-50 p-5">
+							<div class="mb-5 flex items-start gap-3"><span class="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-purple-100 text-purple-700"><i class="fas fa-user-shield"></i></span><div><h3 class="font-bold">Administrador da empresa</h3><p class="mt-1 text-xs leading-relaxed text-gray-500">Primeiro usuário com permissão para gerenciar a conta.</p></div></div>
+							<div class="grid gap-5 sm:grid-cols-2">
+								<div><label for="company-admin-name" class="mb-2 block text-sm font-semibold text-gray-700">Nome</label><input id="company-admin-name" name="adminName" maxlength="40" placeholder="Nome do responsável" class="w-full rounded-xl border border-stone-200 bg-white px-4 py-3 outline-none focus:border-purple-400 focus:ring-2 focus:ring-purple-100"/></div>
+								<div><label for="company-admin-email" class="mb-2 block text-sm font-semibold text-gray-700">Email de acesso</label><input id="company-admin-email" type="email" name="adminEmail" maxlength="180" placeholder="admin@empresa.com.br" class="w-full rounded-xl border border-stone-200 bg-white px-4 py-3 outline-none focus:border-purple-400 focus:ring-2 focus:ring-purple-100"/></div>
+								<div class="sm:col-span-2"><label for="company-admin-password" class="mb-2 block text-sm font-semibold text-gray-700">Senha temporária</label><input id="company-admin-password" type="password" name="adminPassword" minlength="8" autocomplete="new-password" placeholder="Mínimo de 8 caracteres" class="w-full rounded-xl border border-stone-200 bg-white px-4 py-3 outline-none focus:border-purple-400 focus:ring-2 focus:ring-purple-100"/></div>
+							</div>
+						</div>
+						<div class="mt-7 flex flex-col-reverse gap-3 sm:flex-row sm:justify-end"><button type="button" data-close-modal="company-modal" class="rounded-xl border border-stone-200 px-5 py-3 text-sm font-semibold text-gray-700 hover:bg-stone-50">Cancelar</button><button id="company-submit" type="submit" class="rounded-xl px-5 py-3 text-sm font-semibold text-white shadow-md disabled:cursor-wait disabled:opacity-60" style="background: linear-gradient(to right, #3b82f6, #6123cc);">Criar empresa</button></div>
+					</form>
+				</div>
+			</div>
+			<div id="plan-modal" class="saas-modal fixed inset-0 z-50 hidden items-end justify-center bg-stone-950/60 p-0 sm:items-center sm:p-5" role="dialog" aria-modal="true" aria-labelledby="plan-modal-title">
+				<div class="saas-scroll max-h-[94vh] w-full max-w-2xl overflow-y-auto rounded-t-3xl bg-white shadow-2xl sm:rounded-3xl">
+					<div class="sticky top-0 z-10 flex items-center justify-between border-b border-stone-200 bg-white px-5 py-4 sm:px-7"><div><p class="text-[10px] font-bold uppercase tracking-[0.2em] text-purple-600">Oferta comercial</p><h2 id="plan-modal-title" class="mt-1 text-xl font-black">Novo plano</h2></div><button type="button" data-close-modal="plan-modal" class="grid h-10 w-10 place-items-center rounded-xl bg-stone-100 text-gray-500 hover:bg-stone-200" aria-label="Fechar"><i class="fas fa-xmark"></i></button></div>
+					<form id="plan-form" class="p-5 sm:p-7">
+						<div id="plan-form-error" role="alert" class="mb-5 hidden rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700"></div>
+						<div class="grid gap-5 sm:grid-cols-2">
+							<div><label for="plan-name" class="mb-2 block text-sm font-semibold text-gray-700">Nome</label><input id="plan-name" name="name" required maxlength="100" placeholder="Ex: Crescimento" class="w-full rounded-xl border border-stone-200 px-4 py-3 outline-none focus:border-purple-400 focus:ring-2 focus:ring-purple-100"/></div>
+							<div><label for="plan-monthly-price" class="mb-2 block text-sm font-semibold text-gray-700">Valor mensal</label><input id="plan-monthly-price" required inputmode="numeric" placeholder="R$ 0,00" class="w-full rounded-xl border border-stone-200 px-4 py-3 outline-none focus:border-purple-400 focus:ring-2 focus:ring-purple-100"/></div>
+							<div><label for="plan-annual-price" class="mb-2 block text-sm font-semibold text-gray-700">Valor anual</label><input id="plan-annual-price" required inputmode="numeric" placeholder="R$ 0,00" class="w-full rounded-xl border border-stone-200 px-4 py-3 outline-none focus:border-purple-400 focus:ring-2 focus:ring-purple-100"/></div>
+							<div class="sm:col-span-2"><label for="plan-description" class="mb-2 block text-sm font-semibold text-gray-700">Descrição</label><textarea id="plan-description" name="description" required maxlength="500" rows="3" placeholder="O que este plano oferece?" class="w-full resize-none rounded-xl border border-stone-200 px-4 py-3 outline-none focus:border-purple-400 focus:ring-2 focus:ring-purple-100"></textarea></div>
+							<div><label for="plan-agent-limit" class="mb-2 block text-sm font-semibold text-gray-700">Limite de agentes</label><input id="plan-agent-limit" type="number" name="agentLimit" required min="1" step="1" value="5" class="w-full rounded-xl border border-stone-200 px-4 py-3 outline-none focus:border-purple-400 focus:ring-2 focus:ring-purple-100"/></div>
+							<div><label for="plan-connection-limit" class="mb-2 block text-sm font-semibold text-gray-700">Limite de conexões</label><input id="plan-connection-limit" type="number" name="connectionLimit" required min="1" step="1" value="1" class="w-full rounded-xl border border-stone-200 px-4 py-3 outline-none focus:border-purple-400 focus:ring-2 focus:ring-purple-100"/></div>
+							<label class="flex cursor-pointer items-center gap-3 self-end rounded-xl border border-stone-200 bg-stone-50 px-4 py-3"><input id="plan-active" type="checkbox" name="isActive" checked class="peer sr-only"/><span class="grid h-5 w-5 shrink-0 place-items-center rounded-md border border-stone-300 bg-white text-[10px] text-transparent transition peer-checked:border-purple-600 peer-checked:bg-purple-600 peer-checked:text-white peer-focus-visible:ring-2 peer-focus-visible:ring-purple-200 peer-focus-visible:ring-offset-2"><i class="fas fa-check"></i></span><span><span class="block text-sm font-semibold text-gray-700">Plano ativo</span><span class="block text-xs text-gray-500">Disponível para novas empresas</span></span></label>
+						</div>
+						<div class="mt-7 flex flex-col-reverse gap-3 sm:flex-row sm:justify-end"><button type="button" data-close-modal="plan-modal" class="rounded-xl border border-stone-200 px-5 py-3 text-sm font-semibold text-gray-700 hover:bg-stone-50">Cancelar</button><button id="plan-submit" type="submit" class="rounded-xl bg-gray-950 px-5 py-3 text-sm font-semibold text-white shadow-md hover:bg-gray-800 disabled:cursor-wait disabled:opacity-60">Salvar plano</button></div>
+					</form>
+				</div>
+			</div>
+			<div id="payments-modal" class="saas-modal fixed inset-0 z-50 hidden items-end justify-center bg-stone-950/60 p-0 sm:items-center sm:p-5" role="dialog" aria-modal="true" aria-labelledby="payments-modal-title">
+				<div class="saas-scroll max-h-[90vh] w-full max-w-3xl overflow-y-auto rounded-t-3xl bg-white shadow-2xl sm:rounded-3xl">
+					<div class="sticky top-0 z-10 flex items-center justify-between border-b border-stone-200 bg-white px-5 py-4 sm:px-7"><div><p class="text-[10px] font-bold uppercase tracking-[0.2em] text-purple-600">Histórico financeiro</p><h2 id="payments-modal-title" class="mt-1 text-xl font-black">Pagamentos</h2></div><button type="button" data-close-modal="payments-modal" class="grid h-10 w-10 place-items-center rounded-xl bg-stone-100 text-gray-500 hover:bg-stone-200" aria-label="Fechar"><i class="fas fa-xmark"></i></button></div>
+					<div class="p-5 sm:p-7"><div id="company-payments-list" class="space-y-3"></div></div>
+				</div>
+			</div>
+			<div id="saas-toast" class="fixed bottom-5 right-5 z-[60] hidden max-w-sm items-center gap-3 rounded-2xl bg-gray-950 px-5 py-4 text-sm font-medium text-white shadow-2xl" role="status"><i id="saas-toast-icon" class="fas fa-check-circle text-emerald-400"></i><span id="saas-toast-text"></span></div>
+			@AdminControls()
+			<script>
+	const saasState = { companies: [], plans: [], settings: null, tab: 'companies' };
+
+    function saasElement(tag, className, text) {
+        const node = document.createElement(tag);
+        if (className) node.className = className;
+        if (text !== undefined && text !== null) node.textContent = String(text);
+        return node;
+    }
+
+    function apiErrorMessage(payload, fallback) {
+        if (!payload) return fallback;
+        const value = payload.error || payload.message;
+        if (typeof value === 'string') return value;
+        if (value && typeof value.message === 'string') return value.message;
+        return fallback;
+    }
+
+    async function saasAPI(method, url, body) {
+        const options = { method: method, credentials: 'same-origin', headers: { 'Accept': 'application/json' } };
+        if (body !== undefined) {
+            options.headers['Content-Type'] = 'application/json';
+            options.body = JSON.stringify(body);
+        }
+        const response = await fetch(url, options);
+        const text = await response.text();
+        let payload = null;
+        if (text) {
+            try { payload = JSON.parse(text); } catch (_) { payload = { error: text }; }
+        }
+        if (response.status === 401) {
+            window.location.href = '/login';
+            throw new Error('Sessão expirada.');
+        }
+        if (!response.ok) throw new Error(apiErrorMessage(payload, 'Erro ' + response.status));
+        return payload;
+    }
+
+    function formatMoney(cents) {
+        const value = Number(cents);
+        return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(Number.isFinite(value) ? value / 100 : 0);
+    }
+
+    function currencyInputValue(cents) {
+        return formatMoney(cents).replace(/\u00a0/g, ' ');
+    }
+
+    function currencyInputToCents(value) {
+        const digits = String(value || '').replace(/\D/g, '');
+        return digits ? Number.parseInt(digits, 10) : 0;
+    }
+
+    function bindCurrencyInput(input) {
+        input.addEventListener('input', () => {
+            input.value = currencyInputValue(currencyInputToCents(input.value));
+        });
+    }
+
+    function formatDate(value, includeTime, timezone) {
+        if (!value) return 'Não informado';
+        const date = new Date(value);
+        if (Number.isNaN(date.getTime())) return 'Não informado';
+		const options = includeTime ? { dateStyle: 'short', timeStyle: 'short', timeZone: timezone || 'UTC' } : { dateStyle: 'short', timeZone: timezone || 'UTC' };
+        return new Intl.DateTimeFormat('pt-BR', options).format(date);
+    }
+
+    const statusLabels = {
+        trialing: 'Em avaliação', active: 'Em dia', past_due: 'Em atraso', canceled: 'Cancelada', expired: 'Expirada',
+        pending: 'Pendente', processing: 'Processando', paid: 'Pago', failed: 'Falhou', refunded: 'Reembolsado'
+    };
+
+    function statusBadge(status) {
+        const key = String(status || 'sem_assinatura');
+        const styles = {
+            active: 'bg-emerald-100 text-emerald-700', paid: 'bg-emerald-100 text-emerald-700',
+            trialing: 'bg-blue-100 text-blue-700', pending: 'bg-amber-100 text-amber-800', processing: 'bg-blue-100 text-blue-700', past_due: 'bg-amber-100 text-amber-800',
+            canceled: 'bg-stone-100 text-stone-600', expired: 'bg-red-100 text-red-700', failed: 'bg-red-100 text-red-700', refunded: 'bg-purple-100 text-purple-700', sem_assinatura: 'bg-stone-100 text-stone-500'
+        };
+        return saasElement('span', 'inline-flex rounded-full px-2.5 py-1 text-xs font-semibold ' + (styles[key] || styles.sem_assinatura), statusLabels[key] || 'Sem assinatura');
+    }
+
+    function accessBadge(isActive) {
+        return saasElement('span', 'inline-flex rounded-full px-2.5 py-1 text-xs font-semibold ' + (isActive ? 'bg-emerald-100 text-emerald-700' : 'bg-stone-100 text-stone-600'), isActive ? 'Ativa' : 'Inativa');
+    }
+
+    function safeCheckoutURL(value) {
+        if (!value) return null;
+        try {
+            const url = new URL(String(value), window.location.origin);
+            return url.protocol === 'http:' || url.protocol === 'https:' ? url.href : null;
+        } catch (_) { return null; }
+    }
+
+    function showError(error) {
+        const box = document.getElementById('saas-global-error');
+        document.getElementById('saas-global-error-text').textContent = error instanceof Error ? error.message : String(error);
+        box.classList.remove('hidden');
+        box.classList.add('flex');
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+
+    let toastTimer;
+    function showToast(message, isError) {
+        const toast = document.getElementById('saas-toast');
+        const icon = document.getElementById('saas-toast-icon');
+        document.getElementById('saas-toast-text').textContent = message;
+        icon.className = isError ? 'fas fa-circle-exclamation text-red-400' : 'fas fa-check-circle text-emerald-400';
+        toast.classList.remove('hidden');
+        toast.classList.add('flex');
+        clearTimeout(toastTimer);
+        toastTimer = setTimeout(() => { toast.classList.add('hidden'); toast.classList.remove('flex'); }, 3500);
+    }
+
+    function openModal(id) {
+        const modal = document.getElementById(id);
+        modal.classList.remove('hidden');
+        modal.classList.add('flex');
+        document.body.classList.add('overflow-hidden');
+        const focusable = modal.querySelector('input, select, textarea, button');
+        if (focusable) setTimeout(() => focusable.focus(), 50);
+    }
+
+    function closeModal(id) {
+        const modal = document.getElementById(id);
+        modal.classList.add('hidden');
+        modal.classList.remove('flex');
+        if (!document.querySelector('.saas-modal.flex')) document.body.classList.remove('overflow-hidden');
+    }
+
+    function actionButton(iconName, label, className, handler, hideLabel) {
+        const button = saasElement('button', 'inline-flex items-center gap-1.5 rounded-lg px-2.5 py-2 text-xs font-semibold transition ' + className);
+        button.type = 'button';
+        button.title = label;
+        button.setAttribute('aria-label', label);
+        const icon = saasElement('i', 'fas ' + iconName);
+        const text = saasElement('span', hideLabel ? 'sr-only' : '', label);
+        button.append(icon, text);
+        button.addEventListener('click', handler);
+        return button;
+    }
+
+    function companyPlanName(company) {
+        if (company.currentPlanName) return company.currentPlanName;
+        const plan = saasState.plans.find(item => Number(item.id) === Number(company.currentPlanId));
+        return plan ? plan.name : 'Sem plano';
+    }
+
+    function companyActions(company, compact) {
+        const actions = saasElement('div', compact ? 'flex flex-wrap gap-2' : 'flex justify-end gap-1');
+        actions.append(
+			actionButton('fa-chart-pie', 'Visão interna', 'bg-emerald-50 text-emerald-700 hover:bg-emerald-100', () => { window.location.href = '/companies/' + company.id; }, !compact),
+            actionButton('fa-pen', 'Editar', 'bg-stone-100 text-gray-700 hover:bg-stone-200', () => openCompanyModal(company), !compact),
+            actionButton('fa-receipt', 'Pagamentos', 'bg-blue-50 text-blue-700 hover:bg-blue-100', () => showCompanyPayments(company), !compact),
+            actionButton('fa-credit-card', 'Checkout', 'bg-purple-50 text-purple-700 hover:bg-purple-100', () => startCompanyCheckout(company), !compact),
+            actionButton(company.isActive ? 'fa-pause' : 'fa-play', company.isActive ? 'Suspender' : 'Ativar', company.isActive ? 'bg-amber-50 text-amber-700 hover:bg-amber-100' : 'bg-emerald-50 text-emerald-700 hover:bg-emerald-100', () => toggleCompanyStatus(company), !compact)
+        );
+        return actions;
+    }
+
+    function renderCompanyTable(companies) {
+        const body = document.getElementById('companies-table-body');
+        body.replaceChildren();
+        companies.forEach(company => {
+            const row = saasElement('tr', 'transition hover:bg-stone-50');
+            const identity = saasElement('td', 'px-5 py-4');
+            const identityWrap = saasElement('div', 'flex items-center gap-3');
+            const avatar = saasElement('span', 'grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-gradient-to-br from-blue-100 to-purple-100 font-black text-purple-700', String(company.name || '?').trim().slice(0, 1).toUpperCase());
+            const identityText = saasElement('div', 'min-w-0');
+            identityText.append(saasElement('p', 'max-w-[230px] truncate font-bold text-gray-900', company.name || 'Sem nome'), saasElement('p', 'mt-0.5 max-w-[230px] truncate text-xs text-gray-500', company.email || 'Sem email'));
+            identityWrap.append(avatar, identityText);
+            identity.append(identityWrap);
+
+            const plan = saasElement('td', 'px-5 py-4');
+		plan.append(saasElement('p', 'font-semibold text-gray-800', companyPlanName(company)), saasElement('p', 'mt-0.5 text-xs text-gray-500', company.priceCents == null ? 'Valor não informado' : formatMoney(company.priceCents) + ' · ' + billingCycleLabel(company.billingCycle)));
+            const subscription = saasElement('td', 'px-5 py-4');
+            subscription.append(statusBadge(company.subscriptionStatus));
+			const period = saasElement('td', 'px-5 py-4 text-gray-700', formatDate(company.currentPeriodEnd, false, company.timezone));
+            const active = saasElement('td', 'px-5 py-4');
+            active.append(accessBadge(company.isActive));
+            const actions = saasElement('td', 'px-5 py-4');
+            actions.append(companyActions(company, false));
+            row.append(identity, plan, subscription, period, active, actions);
+            body.appendChild(row);
+        });
+    }
+
+    function renderCompanyCards(companies) {
+        const list = document.getElementById('companies-mobile');
+        list.replaceChildren();
+        companies.forEach(company => {
+            const card = saasElement('article', 'p-5');
+            const header = saasElement('div', 'flex items-start justify-between gap-3');
+            const heading = saasElement('div', 'min-w-0');
+            heading.append(saasElement('h3', 'truncate font-bold text-gray-950', company.name || 'Sem nome'), saasElement('p', 'mt-1 truncate text-xs text-gray-500', company.email || 'Sem email'));
+            header.append(heading, accessBadge(company.isActive));
+            const details = saasElement('div', 'my-4 grid grid-cols-2 gap-3 rounded-xl bg-stone-50 p-3 text-xs');
+            const plan = saasElement('div');
+            plan.append(saasElement('p', 'text-gray-500', 'Plano'), saasElement('p', 'mt-1 font-semibold text-gray-800', companyPlanName(company)));
+            const period = saasElement('div');
+			period.append(saasElement('p', 'text-gray-500', 'Fim do período'), saasElement('p', 'mt-1 font-semibold text-gray-800', formatDate(company.currentPeriodEnd, false, company.timezone)));
+            const subscription = saasElement('div', 'col-span-2 flex items-center justify-between border-t border-stone-200 pt-3');
+            subscription.append(saasElement('span', 'text-gray-500', 'Assinatura'), statusBadge(company.subscriptionStatus));
+            details.append(plan, period, subscription);
+            card.append(header, details, companyActions(company, true));
+            list.appendChild(card);
+        });
+    }
+
+    function renderCompanies() {
+        const query = document.getElementById('company-search').value.trim().toLocaleLowerCase('pt-BR');
+        const companies = saasState.companies.filter(company => !query || String(company.name || '').toLocaleLowerCase('pt-BR').includes(query) || String(company.email || '').toLocaleLowerCase('pt-BR').includes(query));
+        document.getElementById('companies-loading').classList.add('hidden');
+        document.getElementById('metric-companies').textContent = String(saasState.companies.length);
+        document.getElementById('metric-active').textContent = String(saasState.companies.filter(company => company.isActive).length);
+        document.getElementById('metric-past-due').textContent = String(saasState.companies.filter(company => company.subscriptionStatus === 'past_due').length);
+		document.getElementById('metric-revenue').textContent = formatMoney(saasState.companies.filter(company => company.isActive).reduce((sum, company) => sum + (company.billingCycle === 'annual' ? Number(company.priceCents || 0) / 12 : Number(company.priceCents || 0)), 0));
+        document.getElementById('nav-company-count').textContent = String(saasState.companies.length);
+        const empty = document.getElementById('companies-empty');
+        empty.classList.toggle('hidden', companies.length > 0);
+        document.getElementById('companies-desktop').classList.toggle('lg:block', companies.length > 0);
+        renderCompanyTable(companies);
+        renderCompanyCards(companies);
+    }
+
+    function renderPlans() {
+        const grid = document.getElementById('plans-grid');
+        grid.replaceChildren();
+        document.getElementById('nav-plan-count').textContent = String(saasState.plans.length);
+        document.getElementById('plans-empty').classList.toggle('hidden', saasState.plans.length > 0);
+        saasState.plans.forEach((plan, index) => {
+            const card = saasElement('article', 'relative overflow-hidden rounded-2xl border bg-white p-5 shadow-sm ' + (plan.isActive ? 'border-stone-200' : 'border-stone-200 opacity-70'));
+            const stripe = saasElement('div', 'absolute inset-x-0 top-0 h-1 ' + (index % 3 === 0 ? 'bg-purple-600' : index % 3 === 1 ? 'bg-blue-500' : 'bg-emerald-500'));
+            const top = saasElement('div', 'flex items-start justify-between gap-3');
+            const heading = saasElement('div');
+            heading.append(saasElement('h3', 'text-lg font-black text-gray-950', plan.name), saasElement('p', 'mt-1 text-xs font-semibold uppercase tracking-wider ' + (plan.isActive ? 'text-emerald-600' : 'text-gray-400'), plan.isActive ? 'Disponível' : 'Inativo'));
+            const edit = actionButton('fa-pen', 'Editar', 'bg-stone-100 text-gray-700 hover:bg-stone-200', () => openPlanModal(plan));
+            top.append(heading, edit);
+		const price = saasElement('div', 'mt-6 grid grid-cols-2 gap-3');
+		const monthly = saasElement('div', 'rounded-xl bg-purple-50 p-3');
+		monthly.append(saasElement('p', 'text-[10px] font-bold uppercase tracking-wider text-purple-600', 'Mensal'), saasElement('p', 'mt-1 text-lg font-black text-gray-950', formatMoney(plan.monthlyPriceCents)));
+		const annual = saasElement('div', 'rounded-xl bg-blue-50 p-3');
+		annual.append(saasElement('p', 'text-[10px] font-bold uppercase tracking-wider text-blue-600', 'Anual'), saasElement('p', 'mt-1 text-lg font-black text-gray-950', formatMoney(plan.annualPriceCents)));
+		price.append(monthly, annual);
+            const description = saasElement('p', 'mt-3 min-h-[40px] text-sm leading-relaxed text-gray-500', plan.description || 'Sem descrição.');
+            const limits = saasElement('div', 'mt-5 grid grid-cols-2 gap-3 border-t border-stone-100 pt-5');
+            const agents = saasElement('div', 'rounded-xl bg-stone-50 p-3');
+            agents.append(saasElement('p', 'text-xs text-gray-500', 'Agentes'), saasElement('p', 'mt-1 font-bold text-gray-900', String(plan.agentLimit)));
+            const connections = saasElement('div', 'rounded-xl bg-stone-50 p-3');
+            connections.append(saasElement('p', 'text-xs text-gray-500', 'Conexões'), saasElement('p', 'mt-1 font-bold text-gray-900', String(plan.connectionLimit)));
+            limits.append(agents, connections);
+            const toggle = actionButton(plan.isActive ? 'fa-toggle-off' : 'fa-toggle-on', plan.isActive ? 'Desativar oferta' : 'Ativar oferta', plan.isActive ? 'mt-4 w-full justify-center bg-amber-50 text-amber-700 hover:bg-amber-100' : 'mt-4 w-full justify-center bg-emerald-50 text-emerald-700 hover:bg-emerald-100', () => togglePlan(plan));
+            card.append(stripe, top, price, description, limits, toggle);
+            grid.appendChild(card);
+        });
+		const companyForm = document.getElementById('company-form');
+		fillCompanyPlanSelect(companyForm.dataset.companyId ? companyForm.dataset.planId : null);
+    }
+
+    function fillCompanyPlanSelect(selectedId) {
+        const select = document.getElementById('company-plan');
+        select.replaceChildren();
+        const plans = saasState.plans.filter(plan => plan.isActive || Number(plan.id) === Number(selectedId));
+        if (!plans.length) {
+            const option = saasElement('option', '', 'Cadastre um plano ativo primeiro');
+            option.value = '';
+            select.appendChild(option);
+            return;
+        }
+        plans.forEach(plan => {
+			const option = saasElement('option', '', plan.name + ' · ' + formatMoney(plan.monthlyPriceCents) + '/mês · ' + formatMoney(plan.annualPriceCents) + '/ano');
+            option.value = String(plan.id);
+            option.selected = Number(plan.id) === Number(selectedId);
+            select.appendChild(option);
+        });
+		if (window.refreshAdminSelects) window.refreshAdminSelects();
+    }
+
+	function billingCycleLabel(cycle) {
+		return cycle === 'annual' ? 'Anual' : 'Mensal';
+	}
+
+	function companyDateInput(value, timezone) {
+		if (!value) return '';
+		const date = new Date(value);
+		if (Number.isNaN(date.getTime())) return '';
+		return new Intl.DateTimeFormat('en-CA', { timeZone: timezone || 'America/Sao_Paulo', year: 'numeric', month: '2-digit', day: '2-digit' }).format(date);
+	}
+
+    function setTab(tab) {
+        saasState.tab = tab;
+        document.querySelectorAll('[data-saas-tab]').forEach(button => button.setAttribute('aria-selected', String(button.dataset.saasTab === tab)));
+        document.getElementById('companies-panel').classList.toggle('hidden', tab !== 'companies');
+        document.getElementById('plans-panel').classList.toggle('hidden', tab !== 'plans');
+        const action = document.getElementById('header-primary-action');
+        action.querySelector('.sm\\:inline').textContent = tab === 'companies' ? 'Nova empresa' : 'Novo plano';
+        action.querySelector('.sm\\:hidden').textContent = 'Novo';
+    }
+
+	function openCompanyModal(company) {
+        const form = document.getElementById('company-form');
+        form.reset();
+        document.getElementById('company-form-error').classList.add('hidden');
+        const editing = Boolean(company);
+        form.dataset.companyId = editing ? String(company.id) : '';
+        form.dataset.planId = editing && company.currentPlanId != null ? String(company.currentPlanId) : '';
+		form.dataset.billingCycle = editing ? String(company.billingCycle || 'monthly') : 'monthly';
+		form.dataset.dueDate = editing ? companyDateInput(company.currentPeriodEnd, company.timezone) : '';
+        document.getElementById('company-modal-title').textContent = editing ? 'Editar empresa' : 'Nova empresa';
+        document.getElementById('company-submit').textContent = editing ? 'Salvar alterações' : 'Criar empresa';
+        document.getElementById('company-admin-fields').classList.toggle('hidden', editing);
+		document.getElementById('company-due-date-field').classList.toggle('hidden', !editing);
+		document.getElementById('company-contract-actions').classList.toggle('hidden', !editing);
+		document.getElementById('company-contract-actions').classList.toggle('flex', editing);
+		document.getElementById('company-plan-label').textContent = editing ? 'Plano contratado' : 'Plano inicial';
+        ['company-admin-name', 'company-admin-email', 'company-admin-password'].forEach(id => document.getElementById(id).required = !editing);
+		if (editing) {
+			document.getElementById('company-name').value = company.name || '';
+			document.getElementById('company-email').value = company.email || '';
+			setSaaSTimezone(company.timezone || 'America/Sao_Paulo');
+			document.getElementById('company-billing-cycle').value = company.billingCycle || 'monthly';
+			document.getElementById('company-due-date').value = form.dataset.dueDate;
+		} else {
+			setSaaSTimezone((saasState.settings && saasState.settings.defaultTimezone) || 'America/Sao_Paulo');
+			document.getElementById('company-billing-cycle').value = 'monthly';
+		}
+        fillCompanyPlanSelect(editing ? company.currentPlanId : null);
+		if (window.refreshAdminSelects) window.refreshAdminSelects();
+        openModal('company-modal');
+	}
+
+	function setSaaSTimezone(value) {
+		const select = document.getElementById('company-timezone');
+		if (value && !Array.from(select.options).some(option => option.value === value)) {
+			const option = saasElement('option', '', value);
+			option.value = value;
+			select.appendChild(option);
+		}
+		select.value = value;
+	}
+
+    function openPlanModal(plan) {
+        const form = document.getElementById('plan-form');
+        form.reset();
+        document.getElementById('plan-form-error').classList.add('hidden');
+        form.dataset.planId = plan ? String(plan.id) : '';
+        document.getElementById('plan-modal-title').textContent = plan ? 'Editar plano' : 'Novo plano';
+        document.getElementById('plan-submit').textContent = plan ? 'Salvar alterações' : 'Criar plano';
+        if (plan) {
+            document.getElementById('plan-name').value = plan.name || '';
+            document.getElementById('plan-description').value = plan.description || '';
+			document.getElementById('plan-monthly-price').value = currencyInputValue(plan.monthlyPriceCents);
+			document.getElementById('plan-annual-price').value = currencyInputValue(plan.annualPriceCents);
+            document.getElementById('plan-agent-limit').value = String(plan.agentLimit);
+            document.getElementById('plan-connection-limit').value = String(plan.connectionLimit);
+            document.getElementById('plan-active').checked = Boolean(plan.isActive);
+        } else {
+			document.getElementById('plan-monthly-price').value = currencyInputValue(0);
+			document.getElementById('plan-annual-price').value = currencyInputValue(0);
+            document.getElementById('plan-agent-limit').value = '5';
+            document.getElementById('plan-connection-limit').value = '1';
+            document.getElementById('plan-active').checked = true;
+        }
+        openModal('plan-modal');
+    }
+
+    function planPayload(plan, isActive) {
+        return {
+			name: plan.name, description: plan.description, monthlyPriceCents: Number(plan.monthlyPriceCents), annualPriceCents: Number(plan.annualPriceCents),
+            agentLimit: Number(plan.agentLimit), connectionLimit: Number(plan.connectionLimit), isActive: isActive
+        };
+    }
+
+    async function toggleCompanyStatus(company) {
+        const action = company.isActive ? 'suspender' : 'ativar';
+        if (!confirm('Deseja ' + action + ' o acesso de ' + company.name + '?')) return;
+        try {
+            await saasAPI('PUT', '/management/api/companies/' + company.id + '/status', { isActive: !company.isActive });
+            showToast('Status da empresa atualizado.');
+            await loadOverview();
+        } catch (error) { showError(error); }
+    }
+
+    async function togglePlan(plan) {
+        try {
+            await saasAPI('PUT', '/management/api/plans/' + plan.id, planPayload(plan, !plan.isActive));
+            showToast(plan.isActive ? 'Plano desativado.' : 'Plano ativado.');
+            await loadOverview();
+        } catch (error) { showError(error); }
+    }
+
+    async function showCompanyPayments(company) {
+        document.getElementById('payments-modal-title').textContent = 'Pagamentos · ' + company.name;
+        const list = document.getElementById('company-payments-list');
+        list.replaceChildren(saasElement('div', 'py-12 text-center text-sm text-gray-500', 'Carregando pagamentos...'));
+        openModal('payments-modal');
+        try {
+            const response = await saasAPI('GET', '/management/api/companies/' + company.id + '/payments');
+            const data = response && response.data;
+            const payments = Array.isArray(data) ? data : (data && Array.isArray(data.payments) ? data.payments : []);
+            list.replaceChildren();
+            if (!payments.length) {
+                const empty = saasElement('div', 'rounded-2xl bg-stone-50 py-12 text-center text-sm text-gray-500');
+                empty.append(saasElement('i', 'fas fa-receipt mb-3 block text-3xl text-gray-300'), saasElement('p', '', 'Nenhum pagamento registrado.'));
+                list.appendChild(empty);
+                return;
+            }
+            payments.forEach(payment => {
+                const row = saasElement('div', 'flex flex-col gap-3 rounded-2xl border border-stone-200 p-4 sm:flex-row sm:items-center sm:justify-between');
+                const info = saasElement('div');
+				const providerName = payment.provider === 'abacate_pay' ? 'AbacatePay' : payment.provider === 'mercado_pago' ? 'Mercado Pago' : 'Provedor não informado';
+				info.append(saasElement('p', 'font-bold text-gray-900', formatMoney(payment.amountCents)), saasElement('p', 'mt-1 text-xs text-gray-500', 'Vencimento: ' + formatDate(payment.dueDate, false, company.timezone) + (payment.paidAt ? ' · Pago em ' + formatDate(payment.paidAt, true, company.timezone) : '')), saasElement('p', 'mt-1 text-[11px] font-semibold text-purple-600', providerName));
+                const right = saasElement('div', 'flex items-center gap-2');
+                right.append(statusBadge(payment.status));
+				const checkoutURL = safeCheckoutURL(payment.receiptURL || payment.checkoutURL);
+                if (checkoutURL) {
+                    const link = saasElement('a', 'grid h-9 w-9 place-items-center rounded-lg bg-purple-50 text-purple-700 hover:bg-purple-100');
+                    link.href = checkoutURL;
+                    link.target = '_blank';
+                    link.rel = 'noopener noreferrer';
+                    link.title = 'Abrir checkout';
+                    link.appendChild(saasElement('i', 'fas fa-arrow-up-right-from-square'));
+                    right.appendChild(link);
+                }
+                row.append(info, right);
+                list.appendChild(row);
+            });
+        } catch (error) {
+            list.replaceChildren(saasElement('div', 'rounded-xl bg-red-50 p-4 text-sm text-red-700', error.message));
+        }
+    }
+
+    async function startCompanyCheckout(company) {
+		const checkoutWindow = window.open('about:blank', '_blank');
+		if (checkoutWindow) checkoutWindow.opener = null;
+        try {
+            const response = await saasAPI('POST', '/management/api/companies/' + company.id + '/checkout');
+            const payment = response && response.data && (response.data.payment || response.data);
+            const checkoutURL = payment && safeCheckoutURL(payment.checkoutURL);
+			if (checkoutURL) {
+				if (checkoutWindow) checkoutWindow.location.replace(checkoutURL);
+				else window.location.href = checkoutURL;
+				showToast('Checkout aberto em uma nova aba.');
+			} else {
+				if (checkoutWindow) checkoutWindow.close();
+				showToast('Nenhum checkout é necessário para este plano.', false);
+			}
+		} catch (error) { if (checkoutWindow) checkoutWindow.close(); showError(error); }
+    }
+
+    async function loadOverview() {
+        const response = await saasAPI('GET', '/management/api/overview');
+        const data = response && response.data ? response.data : {};
+		saasState.companies = Array.isArray(data.companies) ? data.companies : [];
+		saasState.plans = Array.isArray(data.plans) ? data.plans : [];
+		saasState.settings = data.settings || null;
+        renderCompanies();
+        renderPlans();
+    }
+
+    document.querySelectorAll('[data-saas-tab]').forEach(button => button.addEventListener('click', () => setTab(button.dataset.saasTab)));
+    document.querySelectorAll('[data-close-modal]').forEach(button => button.addEventListener('click', () => closeModal(button.dataset.closeModal)));
+    document.querySelectorAll('.saas-modal').forEach(modal => modal.addEventListener('click', event => { if (event.target === modal) closeModal(modal.id); }));
+    document.addEventListener('keydown', event => { if (event.key === 'Escape') document.querySelectorAll('.saas-modal.flex').forEach(modal => closeModal(modal.id)); });
+    document.getElementById('company-search').addEventListener('input', renderCompanies);
+    document.getElementById('new-plan-button').addEventListener('click', () => openPlanModal(null));
+    document.getElementById('header-primary-action').addEventListener('click', () => saasState.tab === 'companies' ? openCompanyModal(null) : openPlanModal(null));
+	bindCurrencyInput(document.getElementById('plan-monthly-price'));
+	bindCurrencyInput(document.getElementById('plan-annual-price'));
+	if (window.refreshAdminSelects) window.refreshAdminSelects();
+
+    document.getElementById('company-form').addEventListener('submit', async event => {
+        event.preventDefault();
+        const form = event.currentTarget;
+        const companyId = form.dataset.companyId;
+        const submit = document.getElementById('company-submit');
+        const errorBox = document.getElementById('company-form-error');
+        errorBox.classList.add('hidden');
+        submit.disabled = true;
+        const payload = {
+            name: document.getElementById('company-name').value.trim(), email: document.getElementById('company-email').value.trim(),
+			timezone: document.getElementById('company-timezone').value,
+			billingCycle: document.getElementById('company-billing-cycle').value
+        };
+		try {
+			if (companyId) {
+				await saasAPI('PUT', '/management/api/companies/' + companyId, payload);
+				showToast('Dados da empresa atualizados.');
+            } else {
+                payload.planId = Number(document.getElementById('company-plan').value);
+                payload.adminName = document.getElementById('company-admin-name').value.trim();
+                payload.adminEmail = document.getElementById('company-admin-email').value.trim();
+                payload.adminPassword = document.getElementById('company-admin-password').value;
+                await saasAPI('POST', '/management/api/companies', payload);
+                showToast('Empresa criada com administrador.');
+            }
+            closeModal('company-modal');
+            await loadOverview();
+        } catch (error) {
+            errorBox.textContent = error.message;
+            errorBox.classList.remove('hidden');
+		} finally { submit.disabled = false; }
+	});
+
+	document.getElementById('company-contract-submit').addEventListener('click', async event => {
+		const form = document.getElementById('company-form');
+		const companyId = form.dataset.companyId;
+		const button = event.currentTarget;
+		const errorBox = document.getElementById('company-form-error');
+		const planId = Number(document.getElementById('company-plan').value);
+		const billingCycle = document.getElementById('company-billing-cycle').value;
+		if (!companyId || !planId) return;
+		errorBox.classList.add('hidden');
+		button.disabled = true;
+		try {
+			await saasAPI('PUT', '/management/api/companies/' + companyId + '/plan', { planId, billingCycle });
+			form.dataset.planId = String(planId);
+			form.dataset.billingCycle = billingCycle;
+			showToast('Plano e ciclo atualizados.');
+			await loadOverview();
+		} catch (error) {
+			errorBox.textContent = error.message;
+			errorBox.classList.remove('hidden');
+		} finally { button.disabled = false; }
+	});
+
+	document.getElementById('company-due-date-submit').addEventListener('click', async event => {
+		const form = document.getElementById('company-form');
+		const companyId = form.dataset.companyId;
+		const button = event.currentTarget;
+		const errorBox = document.getElementById('company-form-error');
+		const dueDate = document.getElementById('company-due-date').value;
+		if (!companyId || !dueDate || dueDate === form.dataset.dueDate) return;
+		errorBox.classList.add('hidden');
+		button.disabled = true;
+		try {
+			await saasAPI('PUT', '/management/api/companies/' + companyId + '/due-date', { dueDate });
+			form.dataset.dueDate = dueDate;
+			showToast('Vencimento atualizado.');
+			await loadOverview();
+		} catch (error) {
+			errorBox.textContent = error.message;
+			errorBox.classList.remove('hidden');
+		} finally { button.disabled = false; }
+	});
+
+    document.getElementById('plan-form').addEventListener('submit', async event => {
+        event.preventDefault();
+        const form = event.currentTarget;
+        const planId = form.dataset.planId;
+        const submit = document.getElementById('plan-submit');
+        const errorBox = document.getElementById('plan-form-error');
+        errorBox.classList.add('hidden');
+        submit.disabled = true;
+        const payload = {
+            name: document.getElementById('plan-name').value.trim(), description: document.getElementById('plan-description').value.trim(),
+			monthlyPriceCents: currencyInputToCents(document.getElementById('plan-monthly-price').value), annualPriceCents: currencyInputToCents(document.getElementById('plan-annual-price').value),
+            agentLimit: Number(document.getElementById('plan-agent-limit').value), connectionLimit: Number(document.getElementById('plan-connection-limit').value),
+            isActive: document.getElementById('plan-active').checked
+        };
+        try {
+            await saasAPI(planId ? 'PUT' : 'POST', planId ? '/management/api/plans/' + planId : '/management/api/plans', payload);
+            showToast(planId ? 'Plano atualizado.' : 'Plano criado.');
+            closeModal('plan-modal');
+            await loadOverview();
+        } catch (error) {
+            errorBox.textContent = error.message;
+            errorBox.classList.remove('hidden');
+        } finally { submit.disabled = false; }
+    });
+
+    loadOverview().catch(error => {
+        document.getElementById('companies-loading').classList.add('hidden');
+        showError(error);
+    });
+    </script>
+		</body>
+	</html>
+}

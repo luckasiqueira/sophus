@@ -33,16 +33,19 @@ templ base(activeMenus ...string) {
                 <a href="/departments" title="Setores" class={ "p-3 rounded-2xl transition-all hover:bg-white hover:bg-opacity-20", templ.KV("shadow-md bg-white bg-opacity-20 hover:bg-opacity-30", menuIsActive(activeMenus, "departments")) }>
                     <i class="fas fa-layer-group text-white"></i>
                 </a>
-                <button class="p-3 hover:bg-white hover:bg-opacity-20 rounded-2xl transition-colors">
+                <a href="/agents" title="Agentes" class={ "p-3 rounded-2xl transition-all hover:bg-white hover:bg-opacity-20", templ.KV("shadow-md bg-white bg-opacity-20 hover:bg-opacity-30", menuIsActive(activeMenus, "agents")) }>
                     <i class="fas fa-user text-white"></i>
-                </button>
+                </a>
                 <a href="/instances/" title="Instâncias" class={ "p-3 rounded-2xl relative transition-colors hover:bg-white hover:bg-opacity-20", templ.KV("shadow-md bg-white bg-opacity-20 hover:bg-opacity-30", menuIsActive(activeMenus, "instances")) }>
                     <i class="fas fa-circle-notch text-white"></i>
                     <span class="absolute top-2 right-2 w-2 h-2 bg-blue-400 rounded-full border-2" style="border-color: #6123cc;"></span>
                 </a>
-                <button class="p-3 hover:bg-white hover:bg-opacity-20 rounded-2xl transition-colors">
-                    <i class="fas fa-phone text-white"></i>
-                </button>
+                <a href="/billing" title="Plano e pagamentos" class={ "p-3 rounded-2xl transition-all hover:bg-white hover:bg-opacity-20", templ.KV("shadow-md bg-white bg-opacity-20 hover:bg-opacity-30", menuIsActive(activeMenus, "billing")) }>
+                    <i class="fas fa-credit-card text-white"></i>
+                </a>
+				<a href="/settings" title="Configurações da empresa" class={ "p-3 rounded-2xl transition-all hover:bg-white hover:bg-opacity-20", templ.KV("shadow-md bg-white bg-opacity-20 hover:bg-opacity-30", menuIsActive(activeMenus, "settings")) }>
+					<i class="fas fa-gear text-white"></i>
+				</a>
             </div>
 
             <!-- Spacer -->

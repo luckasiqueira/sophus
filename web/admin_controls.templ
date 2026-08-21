@@ -1,0 +1,164 @@
+package web
+
+templ AdminControls() {
+	<script>
+function enhanceAdminSelect(select) {
+    if (select.dataset.adminEnhanced === 'true') return;
+    select.dataset.adminEnhanced = 'true';
+    const dark = select.dataset.adminTheme === 'dark';
+    const wrapper = document.createElement('div');
+    wrapper.className = 'relative w-full';
+    const trigger = document.createElement('button');
+    trigger.type = 'button';
+	trigger.setAttribute('aria-haspopup', 'listbox');
+    trigger.setAttribute('aria-expanded', 'false');
+	const controlId = (select.id || ('admin-select-' + Math.random().toString(36).slice(2))) + '-menu';
+	trigger.setAttribute('aria-controls', controlId);
+	const label = select.id ? document.querySelector('label[for="' + CSS.escape(select.id) + '"]') : null;
+    trigger.className = dark
+        ? 'flex w-full items-center justify-between gap-3 rounded-xl border border-white/10 bg-stone-900 px-4 py-3 text-left text-sm text-white shadow-sm transition hover:border-purple-400 focus:outline-none focus:ring-2 focus:ring-purple-500/30'
+        : 'flex w-full items-center justify-between gap-3 rounded-xl border border-stone-200 bg-white px-4 py-3 text-left text-sm text-gray-800 shadow-sm transition hover:border-purple-300 focus:outline-none focus:ring-2 focus:ring-purple-200';
+    const value = document.createElement('span');
+	value.id = controlId + '-value';
+    value.className = 'min-w-0 truncate';
+    const chevron = document.createElement('i');
+    chevron.className = 'fas fa-chevron-down shrink-0 text-xs text-gray-400 transition-transform';
+    trigger.append(value, chevron);
+	if (label) {
+		if (!label.id) label.id = controlId + '-label';
+		trigger.setAttribute('aria-labelledby', label.id + ' ' + value.id);
+		label.addEventListener('click', event => { event.preventDefault(); trigger.focus(); });
+	} else if (select.getAttribute('aria-label')) {
+		trigger.setAttribute('aria-label', select.getAttribute('aria-label'));
+	}
+    const menu = document.createElement('div');
+	menu.id = controlId;
+	menu.setAttribute('role', 'listbox');
+    menu.className = dark
+        ? 'absolute left-0 right-0 top-full z-[80] mt-1 hidden max-h-64 overflow-y-auto rounded-xl border border-white/10 bg-stone-900 py-1.5 shadow-2xl'
+        : 'absolute left-0 right-0 top-full z-[80] mt-1 hidden max-h-64 overflow-y-auto rounded-xl border border-stone-200 bg-white py-1.5 shadow-xl';
+    wrapper.append(trigger, menu);
+    select.insertAdjacentElement('afterend', wrapper);
+    select.classList.add('sr-only');
+    select.tabIndex = -1;
+    select.setAttribute('aria-hidden', 'true');
+	const required = select.required;
+	select.required = false;
+	if (required) trigger.setAttribute('aria-required', 'true');
+	const validation = document.createElement('p');
+	validation.id = controlId + '-validation';
+	validation.className = 'mt-1.5 hidden text-xs font-medium text-red-600';
+	validation.setAttribute('role', 'alert');
+	validation.textContent = 'Selecione uma opção.';
+	menu.setAttribute('aria-label', label ? label.textContent.trim() : (select.getAttribute('aria-label') || 'Opções'));
+	wrapper.insertAdjacentElement('afterend', validation);
+
+    function close() {
+        menu.classList.add('hidden');
+        trigger.setAttribute('aria-expanded', 'false');
+        chevron.classList.remove('rotate-180');
+    }
+	menu._closeAdminSelect = close;
+	function open(focusSelected) {
+		if (select.disabled) return;
+		document.querySelectorAll('[data-admin-select-menu]').forEach(other => {
+			if (other !== menu && other._closeAdminSelect) other._closeAdminSelect();
+		});
+		menu.classList.remove('hidden');
+		trigger.setAttribute('aria-expanded', 'true');
+		chevron.classList.add('rotate-180');
+		if (focusSelected) (menu.querySelector('[aria-selected="true"]') || menu.querySelector('button:not(:disabled)'))?.focus();
+	}
+    function render() {
+        const selected = select.options[select.selectedIndex];
+        value.textContent = selected ? selected.textContent : 'Selecione';
+        value.classList.toggle('text-gray-400', !selected || !selected.value);
+        trigger.disabled = select.disabled;
+        trigger.classList.toggle('cursor-not-allowed', select.disabled);
+        trigger.classList.toggle('opacity-60', select.disabled);
+		if (select.value) {
+			trigger.removeAttribute('aria-invalid');
+			trigger.removeAttribute('aria-describedby');
+			validation.classList.add('hidden');
+		}
+        menu.replaceChildren();
+        Array.from(select.options).forEach(option => {
+            const item = document.createElement('button');
+            item.type = 'button';
+			item.setAttribute('role', 'option');
+			item.setAttribute('aria-selected', String(option.selected));
+            item.disabled = option.disabled;
+            item.className = dark
+                ? 'flex w-full items-center gap-2.5 px-4 py-2.5 text-left text-sm text-stone-200 transition hover:bg-white/10 disabled:opacity-40'
+                : 'flex w-full items-center gap-2.5 px-4 py-2.5 text-left text-sm text-gray-700 transition hover:bg-purple-50 hover:text-purple-700 disabled:opacity-40';
+            if (option.selected) item.className += dark ? ' bg-purple-500/20 font-semibold text-purple-200' : ' bg-purple-50 font-semibold text-purple-700';
+            const dot = document.createElement('span');
+            dot.className = 'h-2 w-2 shrink-0 rounded-full ' + (option.selected ? 'bg-purple-500' : 'bg-stone-300');
+            const label = document.createElement('span');
+            label.className = 'min-w-0 flex-1 truncate';
+            label.textContent = option.textContent;
+            const check = document.createElement('i');
+            check.className = 'fas fa-check text-xs text-purple-500 ' + (option.selected ? '' : 'opacity-0');
+            item.append(dot, label, check);
+            item.addEventListener('click', () => {
+                select.value = option.value;
+                select.dispatchEvent(new Event('change', { bubbles: true }));
+                render();
+                close();
+                trigger.focus();
+            });
+			item.addEventListener('keydown', event => {
+				if (event.key === 'Escape') { event.stopPropagation(); close(); trigger.focus(); return; }
+				if (event.key !== 'ArrowDown' && event.key !== 'ArrowUp') return;
+				event.preventDefault();
+				const items = Array.from(menu.querySelectorAll('button:not(:disabled)'));
+				const direction = event.key === 'ArrowDown' ? 1 : -1;
+				items[(items.indexOf(item) + direction + items.length) % items.length]?.focus();
+			});
+            menu.appendChild(item);
+        });
+    }
+    trigger.addEventListener('click', () => {
+		if (select.disabled) return;
+		const opening = menu.classList.contains('hidden');
+		if (opening) open(false); else close();
+    });
+	trigger.addEventListener('keydown', event => {
+		if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
+			event.preventDefault();
+			open(true);
+		} else if (event.key === 'Escape') {
+			event.stopPropagation();
+			close();
+		}
+	});
+    menu.dataset.adminSelectMenu = 'true';
+    select.addEventListener('change', render);
+    new MutationObserver(render).observe(select, { childList: true, subtree: true, attributes: true });
+	select._refreshAdminSelect = render;
+	if (required && select.form) select.form.addEventListener('submit', event => {
+		if (select.value) return;
+		event.preventDefault();
+		event.stopImmediatePropagation();
+		trigger.setAttribute('aria-invalid', 'true');
+		trigger.setAttribute('aria-describedby', validation.id);
+		validation.classList.remove('hidden');
+		trigger.focus();
+	}, true);
+    render();
+}
+
+window.refreshAdminSelects = function(root) {
+    (root || document).querySelectorAll('select:not([data-native])').forEach(select => {
+        enhanceAdminSelect(select);
+        if (select._refreshAdminSelect) select._refreshAdminSelect();
+    });
+};
+
+document.addEventListener('click', event => {
+    document.querySelectorAll('[data-admin-select-menu]').forEach(menu => {
+		if (!menu.parentElement.contains(event.target) && menu._closeAdminSelect) menu._closeAdminSelect();
+    });
+});
+	</script>
+}

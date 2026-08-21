@@ -1,0 +1,301 @@
+package web
+
+templ AgentSettings() {
+	@base("agents") {
+		<main class="min-w-0 flex-1 overflow-y-auto rounded-2xl bg-stone-50 shadow-sm">
+			<div class="mx-auto max-w-6xl p-4 sm:p-6 lg:p-8">
+				<header class="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+					<div>
+						<p class="text-xs font-bold uppercase tracking-[0.2em] text-purple-600">Equipe e acesso</p>
+						<h1 class="mt-2 text-2xl font-black tracking-tight text-gray-950 sm:text-3xl">Agentes da empresa</h1>
+						<p class="mt-2 max-w-2xl text-sm leading-relaxed text-gray-500">Controle quem atende conversas e quem pode administrar as configurações da conta.</p>
+					</div>
+					<button id="new-agent-button" type="button" class="inline-flex items-center justify-center gap-2 rounded-xl px-5 py-3 text-sm font-semibold text-white shadow-md transition hover:-translate-y-0.5 hover:shadow-lg" style="background: linear-gradient(to right, #3b82f6, #6123cc);"><i class="fas fa-user-plus"></i> Novo agente</button>
+				</header>
+				<section class="mt-6 grid gap-3 sm:grid-cols-3">
+					<article class="rounded-2xl border border-stone-200 bg-white p-5 shadow-sm">
+						<div class="flex items-start justify-between"><div><p class="text-xs font-semibold uppercase tracking-wider text-gray-500">Equipe</p><p id="agents-total" class="mt-3 text-3xl font-black text-gray-950">-</p></div><span class="grid h-10 w-10 place-items-center rounded-xl bg-purple-100 text-purple-700"><i class="fas fa-users"></i></span></div>
+					</article>
+					<article class="rounded-2xl border border-stone-200 bg-white p-5 shadow-sm">
+						<div class="flex items-start justify-between"><div><p class="text-xs font-semibold uppercase tracking-wider text-gray-500">Ativos</p><p id="agents-active" class="mt-3 text-3xl font-black text-gray-950">-</p></div><span class="grid h-10 w-10 place-items-center rounded-xl bg-emerald-100 text-emerald-700"><i class="fas fa-headset"></i></span></div>
+					</article>
+					<article class="rounded-2xl border border-stone-200 bg-white p-5 shadow-sm">
+						<div class="flex items-start justify-between"><div><p class="text-xs font-semibold uppercase tracking-wider text-gray-500">Administradores</p><p id="agents-admins" class="mt-3 text-3xl font-black text-gray-950">-</p></div><span class="grid h-10 w-10 place-items-center rounded-xl bg-blue-100 text-blue-700"><i class="fas fa-user-shield"></i></span></div>
+					</article>
+				</section>
+				<div class="mt-5 flex gap-3 rounded-2xl border border-blue-200 bg-blue-50 p-4 text-sm text-blue-900">
+					<span class="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-blue-100 text-blue-700"><i class="fas fa-shield-halved"></i></span>
+					<div><p class="font-bold">Proteção do último administrador ativo</p><p class="mt-1 leading-relaxed text-blue-800">A empresa precisa manter pelo menos um administrador ativo. Para desativar ou rebaixar o último, primeiro promova e ative outro agente.</p></div>
+				</div>
+				<div id="agent-page-error" role="alert" class="mt-5 hidden items-start justify-between gap-4 rounded-2xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">
+					<div class="flex gap-3"><i class="fas fa-circle-exclamation mt-0.5"></i><span id="agent-page-error-text"></span></div>
+					<button id="close-agent-error" type="button" aria-label="Fechar aviso"><i class="fas fa-xmark"></i></button>
+				</div>
+				<section class="mt-6 overflow-hidden rounded-2xl border border-stone-200 bg-white shadow-sm">
+					<div class="flex flex-col gap-4 border-b border-stone-200 p-5 sm:flex-row sm:items-center sm:justify-between">
+						<div><h2 class="font-bold text-gray-950">Pessoas com acesso</h2><p class="mt-1 text-sm text-gray-500">Perfis administrativos e de atendimento.</p></div>
+						<label class="relative block sm:w-72"><i class="fas fa-magnifying-glass absolute left-3 top-1/2 -translate-y-1/2 text-sm text-gray-400"></i><input id="agent-search" type="search" placeholder="Buscar nome ou email" class="w-full rounded-xl border border-stone-200 bg-stone-50 py-2.5 pl-10 pr-3 text-sm outline-none transition focus:border-purple-400 focus:bg-white focus:ring-2 focus:ring-purple-100"/></label>
+					</div>
+					<div id="agents-loading" class="p-12 text-center text-sm text-gray-500"><i class="fas fa-circle-notch fa-spin mr-2 text-purple-600"></i> Carregando equipe...</div>
+					<div id="agents-table-wrap" class="hidden overflow-x-auto">
+						<table class="w-full min-w-[760px] text-left text-sm">
+							<thead class="bg-stone-50 text-[11px] uppercase tracking-wider text-gray-500"><tr><th class="px-5 py-3 font-semibold">Agente</th><th class="px-5 py-3 font-semibold">Papel</th><th class="px-5 py-3 font-semibold">Status</th><th class="px-5 py-3 font-semibold">Atualizado</th><th class="px-5 py-3 text-right font-semibold">Ação</th></tr></thead>
+							<tbody id="agents-table-body" class="divide-y divide-stone-100"></tbody>
+						</table>
+					</div>
+					<div id="agents-mobile" class="divide-y divide-stone-100 lg:hidden"></div>
+					<div id="agents-empty" class="hidden p-12 text-center"><span class="mx-auto grid h-14 w-14 place-items-center rounded-2xl bg-stone-100 text-xl text-gray-400"><i class="fas fa-user-slash"></i></span><p class="mt-4 font-semibold text-gray-700">Nenhum agente encontrado</p><p class="mt-1 text-sm text-gray-500">Adicione uma pessoa ou ajuste a busca.</p></div>
+				</section>
+			</div>
+		</main>
+		<div id="agent-modal" class="fixed inset-0 z-50 hidden items-end justify-center bg-stone-950/60 p-0 backdrop-blur-sm sm:items-center sm:p-5" role="dialog" aria-modal="true" aria-labelledby="agent-modal-title">
+			<div class="max-h-[94vh] w-full max-w-xl overflow-y-auto rounded-t-3xl bg-white shadow-2xl sm:rounded-3xl">
+				<div class="sticky top-0 z-10 flex items-center justify-between border-b border-stone-200 bg-white px-5 py-4 sm:px-7">
+					<div><p class="text-[10px] font-bold uppercase tracking-[0.2em] text-purple-600">Acesso da equipe</p><h2 id="agent-modal-title" class="mt-1 text-xl font-black text-gray-950">Novo agente</h2></div>
+					<button id="close-agent-modal" type="button" class="grid h-10 w-10 place-items-center rounded-xl bg-stone-100 text-gray-500 transition hover:bg-stone-200" aria-label="Fechar"><i class="fas fa-xmark"></i></button>
+				</div>
+				<form id="agent-form" class="p-5 sm:p-7">
+					<div id="agent-form-error" role="alert" class="mb-5 hidden rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700"></div>
+					<div class="space-y-5">
+						<div><label for="agent-name" class="mb-2 block text-sm font-semibold text-gray-700">Nome completo</label><div class="relative"><i class="fas fa-user absolute left-4 top-1/2 -translate-y-1/2 text-gray-400"></i><input id="agent-name" name="name" required maxlength="40" autocomplete="name" placeholder="Nome do agente" class="w-full rounded-xl border border-stone-200 py-3 pl-12 pr-4 outline-none focus:border-purple-400 focus:ring-2 focus:ring-purple-100"/></div></div>
+						<div><label for="agent-email" class="mb-2 block text-sm font-semibold text-gray-700">Email de acesso</label><div class="relative"><i class="fas fa-envelope absolute left-4 top-1/2 -translate-y-1/2 text-gray-400"></i><input id="agent-email" type="email" name="email" required maxlength="180" autocomplete="email" placeholder="agente@empresa.com.br" class="w-full rounded-xl border border-stone-200 py-3 pl-12 pr-4 outline-none focus:border-purple-400 focus:ring-2 focus:ring-purple-100"/></div></div>
+						<div><div class="mb-2 flex items-center justify-between"><label for="agent-password" class="block text-sm font-semibold text-gray-700">Senha</label><span id="agent-password-hint" class="text-xs text-gray-500">Obrigatória no cadastro</span></div><div class="relative"><i class="fas fa-lock absolute left-4 top-1/2 -translate-y-1/2 text-gray-400"></i><input id="agent-password" type="password" name="password" required minlength="8" autocomplete="new-password" placeholder="Mínimo de 8 caracteres" class="w-full rounded-xl border border-stone-200 py-3 pl-12 pr-4 outline-none focus:border-purple-400 focus:ring-2 focus:ring-purple-100"/></div></div>
+						<div class="grid gap-4 sm:grid-cols-2">
+							<div><label for="agent-role" class="mb-2 block text-sm font-semibold text-gray-700">Papel</label><select id="agent-role" name="role" required class="w-full rounded-xl border border-stone-200 bg-white px-4 py-3 outline-none focus:border-purple-400 focus:ring-2 focus:ring-purple-100"><option value="agent">Agente</option><option value="admin">Administrador</option></select></div>
+							<label class="mt-auto flex items-center gap-3 rounded-xl border border-stone-200 bg-stone-50 px-4 py-3"><input id="agent-active" type="checkbox" name="isActive" checked class="h-4 w-4 accent-purple-600"/><span><span class="block text-sm font-semibold text-gray-700">Acesso ativo</span><span class="block text-xs text-gray-500">Pode entrar no sistema</span></span></label>
+						</div>
+					</div>
+					<div id="agent-admin-warning" class="mt-5 hidden gap-3 rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900"><i class="fas fa-triangle-exclamation mt-0.5 text-amber-600"></i><p>Ao retirar o papel administrativo ou desativar este usuário, a operação só será permitida se existir outro administrador ativo.</p></div>
+					<div class="mt-7 flex flex-col-reverse gap-3 sm:flex-row sm:justify-end"><button id="cancel-agent-button" type="button" class="rounded-xl border border-stone-200 px-5 py-3 text-sm font-semibold text-gray-700 hover:bg-stone-50">Cancelar</button><button id="agent-submit" type="submit" class="rounded-xl px-5 py-3 text-sm font-semibold text-white shadow-md disabled:cursor-wait disabled:opacity-60" style="background: linear-gradient(to right, #3b82f6, #6123cc);">Criar agente</button></div>
+				</form>
+			</div>
+		</div>
+		<div id="agent-toast" class="fixed bottom-5 right-5 z-[60] hidden max-w-sm items-center gap-3 rounded-2xl bg-gray-950 px-5 py-4 text-sm font-medium text-white shadow-2xl" role="status"><i class="fas fa-check-circle text-emerald-400"></i><span id="agent-toast-text"></span></div>
+		<script>
+const agentState = { agents: [] };
+
+function agentElement(tag, className, text) {
+    const node = document.createElement(tag);
+    if (className) node.className = className;
+    if (text !== undefined && text !== null) node.textContent = String(text);
+    return node;
+}
+
+function agentErrorMessage(payload, fallback) {
+    if (!payload) return fallback;
+    const value = payload.error || payload.message;
+    if (typeof value === 'string') return value;
+    if (value && typeof value.message === 'string') return value.message;
+    return fallback;
+}
+
+async function agentAPI(method, url, body) {
+    const options = { method: method, credentials: 'same-origin', headers: { 'Accept': 'application/json' } };
+    if (body !== undefined) {
+        options.headers['Content-Type'] = 'application/json';
+        options.body = JSON.stringify(body);
+    }
+    const response = await fetch(url, options);
+    const text = await response.text();
+    let payload = null;
+    if (text) {
+        try { payload = JSON.parse(text); } catch (_) { payload = { error: text }; }
+    }
+    if (!response.ok) throw new Error(agentErrorMessage(payload, 'Erro ' + response.status));
+    return payload;
+}
+
+function friendlyAgentError(error) {
+    const message = error instanceof Error ? error.message : String(error);
+    const normalized = message.toLocaleLowerCase('pt-BR');
+    if ((normalized.includes('admin') && normalized.includes('active')) || normalized.includes('at least one active admin') || normalized.includes('último administrador')) {
+        return 'Não é possível remover o último administrador ativo. Ative ou promova outro agente antes desta alteração.';
+    }
+    if (normalized.includes('email') && (normalized.includes('use') || normalized.includes('uso'))) return 'Este email já está em uso por outro agente.';
+    return message;
+}
+
+function showAgentPageError(error) {
+    const box = document.getElementById('agent-page-error');
+    document.getElementById('agent-page-error-text').textContent = friendlyAgentError(error);
+    box.classList.remove('hidden');
+    box.classList.add('flex');
+}
+
+let agentToastTimer;
+function showAgentToast(message) {
+    const toast = document.getElementById('agent-toast');
+    document.getElementById('agent-toast-text').textContent = message;
+    toast.classList.remove('hidden');
+    toast.classList.add('flex');
+    clearTimeout(agentToastTimer);
+    agentToastTimer = setTimeout(() => { toast.classList.add('hidden'); toast.classList.remove('flex'); }, 3000);
+}
+
+function formatAgentDate(value) {
+    if (!value) return 'Não informado';
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) return 'Não informado';
+    return new Intl.DateTimeFormat('pt-BR', { dateStyle: 'short', timeStyle: 'short' }).format(date);
+}
+
+function agentBadge(agent) {
+    if (!agent.isActive) return agentElement('span', 'inline-flex rounded-full bg-stone-100 px-2.5 py-1 text-xs font-semibold text-stone-600', 'Inativo');
+    return agentElement('span', 'inline-flex rounded-full bg-emerald-100 px-2.5 py-1 text-xs font-semibold text-emerald-700', 'Ativo');
+}
+
+function roleBadge(role) {
+    const admin = role === 'admin';
+    return agentElement('span', 'inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-semibold ' + (admin ? 'bg-purple-100 text-purple-700' : 'bg-blue-100 text-blue-700'), admin ? 'Administrador' : 'Agente');
+}
+
+function editAgentButton(agent, mobile) {
+    const button = agentElement('button', 'inline-flex items-center justify-center gap-2 rounded-lg bg-stone-100 px-3 py-2 text-xs font-semibold text-gray-700 transition hover:bg-stone-200' + (mobile ? ' w-full' : ''));
+    button.type = 'button';
+    button.append(agentElement('i', 'fas fa-pen'), document.createTextNode('Editar'));
+    button.addEventListener('click', () => openAgentModal(agent));
+    return button;
+}
+
+function renderAgentTable(agents) {
+    const body = document.getElementById('agents-table-body');
+    body.replaceChildren();
+    agents.forEach(agent => {
+        const row = agentElement('tr', 'transition hover:bg-stone-50');
+        const identity = agentElement('td', 'px-5 py-4');
+        const wrap = agentElement('div', 'flex items-center gap-3');
+        const initial = String(agent.name || '?').trim().slice(0, 1).toUpperCase();
+        const avatar = agentElement('span', 'grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-gradient-to-br from-blue-100 to-purple-100 font-black text-purple-700', initial);
+        const text = agentElement('div', 'min-w-0');
+        text.append(agentElement('p', 'max-w-[260px] truncate font-bold text-gray-900', agent.name || 'Sem nome'), agentElement('p', 'mt-0.5 max-w-[260px] truncate text-xs text-gray-500', agent.email || 'Sem email'));
+        wrap.append(avatar, text);
+        identity.appendChild(wrap);
+        const role = agentElement('td', 'px-5 py-4');
+        role.appendChild(roleBadge(agent.role));
+        const status = agentElement('td', 'px-5 py-4');
+        status.appendChild(agentBadge(agent));
+        const updated = agentElement('td', 'px-5 py-4 text-xs text-gray-500', formatAgentDate(agent.updatedAt));
+        const action = agentElement('td', 'px-5 py-4 text-right');
+        action.appendChild(editAgentButton(agent, false));
+        row.append(identity, role, status, updated, action);
+        body.appendChild(row);
+    });
+}
+
+function renderAgentCards(agents) {
+    const list = document.getElementById('agents-mobile');
+    list.replaceChildren();
+    agents.forEach(agent => {
+        const card = agentElement('article', 'p-5');
+        const heading = agentElement('div', 'flex items-start justify-between gap-3');
+        const identity = agentElement('div', 'min-w-0');
+        identity.append(agentElement('h3', 'truncate font-bold text-gray-950', agent.name || 'Sem nome'), agentElement('p', 'mt-1 truncate text-xs text-gray-500', agent.email || 'Sem email'));
+        heading.append(identity, agentBadge(agent));
+        const meta = agentElement('div', 'my-4 flex items-center justify-between rounded-xl bg-stone-50 p-3');
+        meta.append(roleBadge(agent.role), agentElement('span', 'text-xs text-gray-500', formatAgentDate(agent.updatedAt)));
+        card.append(heading, meta, editAgentButton(agent, true));
+        list.appendChild(card);
+    });
+}
+
+function renderAgents() {
+    const query = document.getElementById('agent-search').value.trim().toLocaleLowerCase('pt-BR');
+    const agents = agentState.agents.filter(agent => !query || String(agent.name || '').toLocaleLowerCase('pt-BR').includes(query) || String(agent.email || '').toLocaleLowerCase('pt-BR').includes(query));
+    document.getElementById('agents-loading').classList.add('hidden');
+    document.getElementById('agents-total').textContent = String(agentState.agents.length);
+    document.getElementById('agents-active').textContent = String(agentState.agents.filter(agent => agent.isActive).length);
+    document.getElementById('agents-admins').textContent = String(agentState.agents.filter(agent => agent.isActive && agent.role === 'admin').length);
+    document.getElementById('agents-empty').classList.toggle('hidden', agents.length > 0);
+    document.getElementById('agents-table-wrap').classList.toggle('lg:block', agents.length > 0);
+    renderAgentTable(agents);
+    renderAgentCards(agents);
+}
+
+async function loadAgents() {
+    const response = await agentAPI('GET', '/management/api/agents');
+    const data = response && response.data;
+    agentState.agents = Array.isArray(data) ? data : (data && Array.isArray(data.agents) ? data.agents : []);
+    renderAgents();
+}
+
+function openAgentModal(agent) {
+    const form = document.getElementById('agent-form');
+    form.reset();
+    document.getElementById('agent-form-error').classList.add('hidden');
+    const editing = Boolean(agent);
+    form.dataset.agentId = editing ? String(agent.id) : '';
+    form.dataset.originalRole = editing ? String(agent.role) : '';
+    document.getElementById('agent-modal-title').textContent = editing ? 'Editar agente' : 'Novo agente';
+    document.getElementById('agent-submit').textContent = editing ? 'Salvar alterações' : 'Criar agente';
+    document.getElementById('agent-password').required = !editing;
+    document.getElementById('agent-password-hint').textContent = editing ? 'Opcional: deixe em branco para manter' : 'Obrigatória no cadastro';
+    document.getElementById('agent-admin-warning').classList.toggle('hidden', !editing || agent.role !== 'admin' || !agent.isActive);
+    document.getElementById('agent-admin-warning').classList.toggle('flex', editing && agent.role === 'admin' && agent.isActive);
+    if (editing) {
+        document.getElementById('agent-name').value = agent.name || '';
+        document.getElementById('agent-email').value = agent.email || '';
+        document.getElementById('agent-role').value = agent.role || 'agent';
+        document.getElementById('agent-active').checked = Boolean(agent.isActive);
+    } else {
+        document.getElementById('agent-role').value = 'agent';
+        document.getElementById('agent-active').checked = true;
+    }
+    const modal = document.getElementById('agent-modal');
+    modal.classList.remove('hidden');
+    modal.classList.add('flex');
+    document.body.classList.add('overflow-hidden');
+    setTimeout(() => document.getElementById('agent-name').focus(), 50);
+}
+
+function closeAgentModal() {
+    const modal = document.getElementById('agent-modal');
+    modal.classList.add('hidden');
+    modal.classList.remove('flex');
+    document.body.classList.remove('overflow-hidden');
+}
+
+document.getElementById('new-agent-button').addEventListener('click', () => openAgentModal(null));
+document.getElementById('close-agent-modal').addEventListener('click', closeAgentModal);
+document.getElementById('cancel-agent-button').addEventListener('click', closeAgentModal);
+document.getElementById('agent-modal').addEventListener('click', event => { if (event.target === event.currentTarget) closeAgentModal(); });
+document.addEventListener('keydown', event => { if (event.key === 'Escape') closeAgentModal(); });
+document.getElementById('agent-search').addEventListener('input', renderAgents);
+document.getElementById('close-agent-error').addEventListener('click', () => {
+    const box = document.getElementById('agent-page-error');
+    box.classList.add('hidden');
+    box.classList.remove('flex');
+});
+
+document.getElementById('agent-form').addEventListener('submit', async event => {
+    event.preventDefault();
+    const form = event.currentTarget;
+    const agentId = form.dataset.agentId;
+    const submit = document.getElementById('agent-submit');
+    const errorBox = document.getElementById('agent-form-error');
+    errorBox.classList.add('hidden');
+    submit.disabled = true;
+    const payload = {
+        name: document.getElementById('agent-name').value.trim(),
+        email: document.getElementById('agent-email').value.trim(),
+        password: document.getElementById('agent-password').value,
+        role: document.getElementById('agent-role').value,
+        isActive: document.getElementById('agent-active').checked
+    };
+    try {
+        await agentAPI(agentId ? 'PUT' : 'POST', agentId ? '/management/api/agents/' + agentId : '/management/api/agents', payload);
+        showAgentToast(agentId ? 'Agente atualizado.' : 'Agente criado.');
+        closeAgentModal();
+        await loadAgents();
+    } catch (error) {
+        errorBox.textContent = friendlyAgentError(error);
+        errorBox.classList.remove('hidden');
+    } finally { submit.disabled = false; }
+});
+
+loadAgents().catch(error => {
+    document.getElementById('agents-loading').classList.add('hidden');
+    showAgentPageError(error);
+});
+</script>
+	}
+}

@@ -2,6 +2,7 @@ package middlewares
 
 import (
 	"errors"
+	"strings"
 
 	"sophus/internal/repo"
 	"sophus/utils/env"
@@ -10,9 +11,27 @@ import (
 	"github.com/kataras/iris/v12/middleware/jwt"
 )
 
-var secret = []byte(env.Backend["SALT_JWT"])
+var secret = []byte(strings.TrimSpace(env.Backend["SALT_JWT"]))
 
 const agentContextKey = "authenticatedAgent"
+
+func AuthUser(ctx iris.Context) {
+	if admin, err := identifyPlatformAdmin(ctx); err == nil {
+		ctx.Values().Set(platformAdminContextKey, admin)
+		ctx.Next()
+		return
+	}
+	if agent, err := identifyAgent(ctx); err == nil {
+		ctx.Values().Set(agentContextKey, agent)
+		ctx.Next()
+		return
+	}
+	if strings.HasPrefix(ctx.Path(), "/management/api/") {
+		ctx.StopWithStatus(iris.StatusUnauthorized)
+		return
+	}
+	ctx.Redirect("/login", iris.StatusFound)
+}
 
 func AuthLogin(ctx iris.Context) {
 	agent, err := identifyAgent(ctx)
@@ -56,6 +75,9 @@ func AgentIdentifier(ctx iris.Context) (repo.Agent, error) {
 }
 
 func identifyAgent(ctx iris.Context) (repo.Agent, error) {
+	if len(secret) == 0 {
+		return repo.Agent{}, errors.New("JWT secret is empty")
+	}
 	token := ctx.GetCookie("token")
 	if token == "" {
 		return repo.Agent{}, errors.New("token is empty")
@@ -65,16 +87,32 @@ func identifyAgent(ctx iris.Context) (repo.Agent, error) {
 		return repo.Agent{}, errors.New("error decoding token")
 	}
 
-	var agent repo.Agent
-	if err := jwtToken.Claims(&agent); err != nil {
+	var claims struct {
+		Id      int `json:"id"`
+		Version int `json:"version"`
+	}
+	if err := jwtToken.Claims(&claims); err != nil {
 		return repo.Agent{}, err
 	}
-	agent, err = repo.GetAgentByEmail(agent.Email)
+	if claims.Id <= 0 {
+		return repo.Agent{}, errors.New("invalid agent claims")
+	}
+	agent, err := repo.GetAgentById(claims.Id)
 	if err != nil {
 		return repo.Agent{}, err
 	}
+	if claims.Version != agent.SessionVersion {
+		return repo.Agent{}, errors.New("agent session is no longer valid")
+	}
 	if !agent.IsActive {
 		return repo.Agent{}, errors.New("agent is inactive")
+	}
+	companyActive, err := repo.IsCompanyActive(agent.CompanyId)
+	if err != nil {
+		return repo.Agent{}, err
+	}
+	if !companyActive {
+		return repo.Agent{}, errors.New("company is inactive")
 	}
 	return agent, nil
 }

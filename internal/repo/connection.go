@@ -1,6 +1,7 @@
 package repo
 
 import (
+	"database/sql"
 	"fmt"
 	"time"
 
@@ -37,11 +38,46 @@ func (c ConnectionEVO) EvolutionAPIKey() string {
 }
 
 func CreateConnection(c ConnectionEVO) (int, error) {
-	return insertInt(`INSERT INTO connections
+	tx, err := db.Begin()
+	if err != nil {
+		return 0, err
+	}
+	defer tx.Rollback()
+
+	var companyID int
+	if err := tx.QueryRow(`SELECT id FROM companies WHERE id = $1 FOR UPDATE`, c.CompanyID).Scan(&companyID); err != nil {
+		return 0, err
+	}
+	var connectionLimit, connectionCount int
+	err = tx.QueryRow(`SELECT p."connectionLimit", COUNT(c.id)
+		FROM subscriptions s
+		JOIN plans p ON p.id = s."planId"
+		LEFT JOIN connections c ON c."companyId" = s."companyId"
+		WHERE s."companyId" = $1 AND s.status IN ('trialing', 'active', 'past_due')
+		GROUP BY p."connectionLimit"`, c.CompanyID).Scan(&connectionLimit, &connectionCount)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return 0, err
+		}
+		return 0, err
+	}
+	if connectionCount >= connectionLimit {
+		return 0, ErrConnectionLimitReached
+	}
+
+	var id int
+	err = tx.QueryRow(`INSERT INTO connections
 		(name, number, status, "companyId", qrcode, "createdAt", "instanceId", webhook, "apiToken", "connectionKey")
 		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) RETURNING id`,
 		c.Name, c.Number, c.Status, c.CompanyID, c.QRCode, c.CreatedAt,
-		c.InstanceID, c.Webhook, c.APIToken, c.ConnectionKey)
+		c.InstanceID, c.Webhook, c.APIToken, c.ConnectionKey).Scan(&id)
+	if err != nil {
+		return 0, err
+	}
+	if err := tx.Commit(); err != nil {
+		return 0, err
+	}
+	return id, nil
 }
 
 func UpdateConnectionQRCode(id int, qrcode string) (bool, error) {
@@ -99,13 +135,16 @@ func SetConnectionConnected(id int, number string) (bool, error) {
 }
 
 func GetConnectionByAPI(apiToken string) (ConnectionEVO, error) {
-	stmt, err := db.Prepare(`SELECT "id", "status", "instanceId", "connectionKey" FROM connections WHERE "apiToken" = $1`)
+	stmt, err := db.Prepare(`SELECT "id", "status", "instanceId", "connectionKey", "companyId"
+		FROM connections
+		WHERE "apiToken" = $1
+			AND (SELECT COUNT(*) FROM connections WHERE "apiToken" = $1) = 1`)
 	if err != nil {
 		return ConnectionEVO{}, err
 	}
 	defer stmt.Close()
 	var c ConnectionEVO
-	err = stmt.QueryRow(apiToken).Scan(&c.Id, &c.Status, &c.InstanceID, &c.ConnectionKey)
+	err = stmt.QueryRow(apiToken).Scan(&c.Id, &c.Status, &c.InstanceID, &c.ConnectionKey, &c.CompanyID)
 	c.APIToken = apiToken
 	return c, err
 }
