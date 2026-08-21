@@ -142,7 +142,7 @@ func Webhook(ctx iris.Context) {
 			if convErr == nil {
 				messageText := repo.CheckMessageText(msg)
 				log.Printf("dispatching inbound message to flows: connection=%d conversation=%d status=%s text_length=%d", connection.Id, conversation.Id, conversation.Status, len(strings.TrimSpace(messageText)))
-				flowengine.HandleIncomingMessage(conversation, connection, messageText, msg.Data.Info.PushName)
+				flowengine.HandleIncomingMessage(conversation, connection, messageText, msg.Data.Info.PushName, repo.CheckFlowMessageType(msg))
 			} else {
 				log.Printf("failed to find conversation for flow dispatch: connection=%d message=%s error=%v", connection.Id, msg.Data.Info.ID, convErr)
 			}
@@ -169,7 +169,7 @@ func Webhook(ctx iris.Context) {
 						conversation.Status = repo.ConversationStatusOpen
 					}
 				}
-				flowengine.HandleIncomingMessage(conversation, connection, responseID, click.Data.PushName)
+				flowengine.HandleIncomingMessage(conversation, connection, responseID, click.Data.PushName, "interactive")
 			}
 		}
 	}

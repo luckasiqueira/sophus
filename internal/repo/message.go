@@ -146,6 +146,15 @@ func CheckMessageType(msg EventMessageEVO) string {
 	return "text"
 }
 
+func CheckFlowMessageType(msg EventMessageEVO) string {
+	mediaType := strings.ToLower(strings.TrimSpace(msg.Data.Info.Mediatype))
+	switch mediaType {
+	case "image", "video", "audio", "document":
+		return mediaType
+	}
+	return CheckMessageType(msg)
+}
+
 func saveMessageMedia(msg EventMessageEVO, companyId int, messageType string) (string, error) {
 	var format string
 	switch messageType {

@@ -38,6 +38,54 @@ func ReplaceVariables(text string, ctx ExecutionContext) string {
 	})
 }
 
+func replaceVariablesLimited(text string, ctx ExecutionContext, maxBytes int) (string, error) {
+	if len(text) > maxBytes {
+		return "", fmt.Errorf("valor expandido excede o limite de %d bytes", maxBytes)
+	}
+	var result strings.Builder
+	cursor := 0
+	appendValue := func(value string) error {
+		if result.Len()+len(value) > maxBytes {
+			return fmt.Errorf("valor expandido excede o limite de %d bytes", maxBytes)
+		}
+		result.WriteString(value)
+		return nil
+	}
+	for _, indexes := range varPattern.FindAllStringSubmatchIndex(text, -1) {
+		if err := appendValue(text[cursor:indexes[0]]); err != nil {
+			return "", err
+		}
+		match := text[indexes[0]:indexes[1]]
+		path := text[indexes[2]:indexes[3]]
+		value := match
+		if !strings.HasPrefix(path, "_") {
+			if resolved := resolvePath(ctx, path); resolved != nil {
+				value = flowVariableText(resolved)
+			}
+		}
+		if err := appendValue(value); err != nil {
+			return "", err
+		}
+		cursor = indexes[1]
+	}
+	if err := appendValue(text[cursor:]); err != nil {
+		return "", err
+	}
+	return result.String(), nil
+}
+
+func flowVariableText(value interface{}) string {
+	switch typed := value.(type) {
+	case string:
+		return typed
+	case float64, int, int64, bool:
+		return fmt.Sprint(typed)
+	default:
+		encoded, _ := json.Marshal(typed)
+		return string(encoded)
+	}
+}
+
 func resolvePath(ctx ExecutionContext, path string) interface{} {
 	parts := strings.Split(path, ".")
 	var current interface{} = ctx

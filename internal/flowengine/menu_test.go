@@ -121,3 +121,56 @@ func TestMenuOutputDoesNotUseAnotherOption(t *testing.T) {
 		t.Fatalf("getNextNode() = %q, want legacy-node for a menu saved before named outputs", next)
 	}
 }
+
+func TestMenuNavigationActionsFollowPersistedHistory(t *testing.T) {
+	data := map[string]interface{}{
+		"allowBackPrevious": true,
+		"allowBackMain":     true,
+		"sections": []interface{}{map[string]interface{}{
+			"rows": []interface{}{
+				map[string]interface{}{"rowId": "sales", "_handleId": "sales-handle"},
+				map[string]interface{}{"rowId": "support", "_handleId": "support-handle"},
+			},
+		}},
+	}
+	ctx := ExecutionContext{"_menuHistory": []interface{}{"main-menu", "sales-menu", "details-menu"}}
+
+	handle, action := menuResponseResult(data, "3", ctx)
+	if handle != "" || action != menuActionPrevious {
+		t.Fatalf("previous result = (%q, %q)", handle, action)
+	}
+	target, history := menuNavigationTarget(action, ctx)
+	if target != "sales-menu" || strings.Join(history, ",") != "main-menu,sales-menu" {
+		t.Fatalf("previous target = %q, history = %#v", target, history)
+	}
+
+	handle, action = menuResponseResult(data, "4", ctx)
+	if handle != "" || action != menuActionMain {
+		t.Fatalf("main result = (%q, %q)", handle, action)
+	}
+	target, history = menuNavigationTarget(action, ctx)
+	if target != "main-menu" || len(history) != 1 || history[0] != "main-menu" {
+		t.Fatalf("main target = %q, history = %#v", target, history)
+	}
+}
+
+func TestMenuNavigationIsHiddenOnMainMenu(t *testing.T) {
+	data := map[string]interface{}{"allowBackPrevious": true, "allowBackMain": true}
+	ctx := ExecutionContext{"_menuHistory": []interface{}{"main-menu"}}
+	if options := menuNavigationOptions(data, ctx); len(options) != 0 {
+		t.Fatalf("got navigation options on main menu: %#v", options)
+	}
+	history := menuHistoryWithCurrent(ctx, "submenu")
+	ctx["_menuHistory"] = history
+	if options := menuNavigationOptions(data, ctx); len(options) != 2 {
+		t.Fatalf("got %d navigation options, want 2", len(options))
+	}
+}
+
+func TestMenuHistoryDoesNotDuplicateCurrentMenu(t *testing.T) {
+	ctx := ExecutionContext{"_menuHistory": []interface{}{"main-menu", "submenu"}}
+	history := menuHistoryWithCurrent(ctx, "submenu")
+	if strings.Join(history, ",") != "main-menu,submenu" {
+		t.Fatalf("history = %#v", history)
+	}
+}

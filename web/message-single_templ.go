@@ -29,7 +29,7 @@ func canReplyToConversation(conversation repo.Conversation, agent repo.Agent) bo
 	return agent.IsAdmin() || (conversation.AgentID != nil && *conversation.AgentID == agent.Id)
 }
 
-func MessageSingle(activeConversation repo.Conversation, agent repo.Agent, conversations []repo.Conversation, messages []repo.MessageData) templ.Component {
+func MessageSingle(activeConversation repo.Conversation, agent repo.Agent, conversations []repo.Conversation, messages []repo.MessageData, events []repo.ConversationEvent) templ.Component {
 	return templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
 		templ_7745c5c3_W, ctx := templ_7745c5c3_Input.Writer, templ_7745c5c3_Input.Context
 		if templ_7745c5c3_CtxErr := ctx.Err(); templ_7745c5c3_CtxErr != nil {
@@ -75,66 +75,79 @@ func MessageSingle(activeConversation repo.Conversation, agent repo.Agent, conve
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 2, "</div><div class=\"text-xs text-gray-500\">Last seen Dec 16, 2019</div></div></div><div class=\"flex items-center gap-2\">")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 2, "</div><div class=\"text-xs text-gray-500\">")
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+			var templ_7745c5c3_Var4 string
+			templ_7745c5c3_Var4, templ_7745c5c3_Err = templ.JoinStringErrs(activeConversation.Contact.Number)
+			if templ_7745c5c3_Err != nil {
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/message-single.templ`, Line: 33, Col: 75}
+			}
+			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var4))
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 3, "</div></div></div><div class=\"flex items-center gap-2\">")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
 			if activeConversation.AgentID == nil && activeConversation.Status != repo.ConversationStatusRunning {
-				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 3, "<button type=\"button\" hx-post=\"")
-				if templ_7745c5c3_Err != nil {
-					return templ_7745c5c3_Err
-				}
-				var templ_7745c5c3_Var4 string
-				templ_7745c5c3_Var4, templ_7745c5c3_Err = templ.ResolveAttributeValue(fmt.Sprintf("/messages/%s/accept", activeConversation.URL.String()))
-				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/message-single.templ`, Line: 38, Col: 113}
-				}
-				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var4)
-				if templ_7745c5c3_Err != nil {
-					return templ_7745c5c3_Err
-				}
-				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 4, "\" hx-swap=\"none\" class=\"px-4 py-2 bg-green-600 text-white hover:bg-green-700 rounded-xl text-sm font-semibold\"><i class=\"fas fa-check mr-1\"></i>Aceitar</button> <button type=\"button\" hx-post=\"")
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 4, "<button type=\"button\" hx-post=\"")
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
 				var templ_7745c5c3_Var5 string
-				templ_7745c5c3_Var5, templ_7745c5c3_Err = templ.ResolveAttributeValue(fmt.Sprintf("/messages/%s/ignore", activeConversation.URL.String()))
+				templ_7745c5c3_Var5, templ_7745c5c3_Err = templ.ResolveAttributeValue(fmt.Sprintf("/messages/%s/accept", activeConversation.URL.String()))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/message-single.templ`, Line: 41, Col: 113}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/message-single.templ`, Line: 38, Col: 113}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var5)
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
-				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 5, "\" hx-swap=\"none\" hx-confirm=\"Recusar e fechar esta conversa?\" class=\"px-4 py-2 bg-stone-100 text-gray-700 hover:bg-red-50 hover:text-red-700 rounded-xl text-sm font-semibold\">Recusar</button> ")
-				if templ_7745c5c3_Err != nil {
-					return templ_7745c5c3_Err
-				}
-			} else if activeConversation.Status != repo.ConversationStatusClosed && canReplyToConversation(activeConversation, agent) {
-				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 6, "<button type=\"button\" hx-post=\"")
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 5, "\" hx-swap=\"none\" class=\"px-4 py-2 bg-green-600 text-white hover:bg-green-700 rounded-xl text-sm font-semibold\"><i class=\"fas fa-check mr-1\"></i>Aceitar</button> <button type=\"button\" hx-post=\"")
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
 				var templ_7745c5c3_Var6 string
-				templ_7745c5c3_Var6, templ_7745c5c3_Err = templ.ResolveAttributeValue(fmt.Sprintf("/messages/%s/close", activeConversation.URL.String()))
+				templ_7745c5c3_Var6, templ_7745c5c3_Err = templ.ResolveAttributeValue(fmt.Sprintf("/messages/%s/ignore", activeConversation.URL.String()))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/message-single.templ`, Line: 47, Col: 93}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/message-single.templ`, Line: 41, Col: 113}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var6)
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
-				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 7, "\" hx-swap=\"none\" hx-confirm=\"Deseja fechar esta conversa? O fluxo em andamento será cancelado.\" class=\"px-4 py-2 bg-red-600 text-white hover:bg-red-700 rounded-xl transition-colors flex items-center gap-2 text-sm font-semibold shadow-sm\" title=\"Fechar conversa\"><i class=\"fas fa-check-circle\"></i> <span>Fechar conversa</span></button> ")
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 6, "\" hx-swap=\"none\" hx-confirm=\"Recusar e fechar esta conversa?\" class=\"px-4 py-2 bg-stone-100 text-gray-700 hover:bg-red-50 hover:text-red-700 rounded-xl text-sm font-semibold\">Recusar</button> ")
+				if templ_7745c5c3_Err != nil {
+					return templ_7745c5c3_Err
+				}
+			} else if activeConversation.Status != repo.ConversationStatusClosed && canReplyToConversation(activeConversation, agent) {
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 7, "<button type=\"button\" hx-post=\"")
+				if templ_7745c5c3_Err != nil {
+					return templ_7745c5c3_Err
+				}
+				var templ_7745c5c3_Var7 string
+				templ_7745c5c3_Var7, templ_7745c5c3_Err = templ.ResolveAttributeValue(fmt.Sprintf("/messages/%s/close", activeConversation.URL.String()))
+				if templ_7745c5c3_Err != nil {
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/message-single.templ`, Line: 47, Col: 93}
+				}
+				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var7)
+				if templ_7745c5c3_Err != nil {
+					return templ_7745c5c3_Err
+				}
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 8, "\" hx-swap=\"none\" hx-confirm=\"Deseja fechar esta conversa? O fluxo em andamento será cancelado.\" class=\"px-4 py-2 bg-red-600 text-white hover:bg-red-700 rounded-xl transition-colors flex items-center gap-2 text-sm font-semibold shadow-sm\" title=\"Fechar conversa\"><i class=\"fas fa-check-circle\"></i> <span>Fechar conversa</span></button> ")
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
 			} else if activeConversation.Status == repo.ConversationStatusClosed {
-				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 8, "<span class=\"px-3 py-2 bg-stone-100 text-gray-500 rounded-xl flex items-center gap-2 text-sm font-medium\"><i class=\"fas fa-lock\"></i> <span>Conversa fechada</span></span> ")
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 9, "<span class=\"px-3 py-2 bg-stone-100 text-gray-500 rounded-xl flex items-center gap-2 text-sm font-medium\"><i class=\"fas fa-lock\"></i> <span>Conversa fechada</span></span> ")
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 9, "<button class=\"p-2 hover:bg-stone-200 rounded-xl transition-colors\"><i class=\"fas fa-search text-gray-600\"></i></button> <button class=\"p-2 hover:bg-stone-200 rounded-xl transition-colors\" onclick=\"document.getElementById('contactPanel').classList.toggle('hidden')\"><i class=\"fas fa-ellipsis-v text-gray-600\"></i></button></div></div><!-- Messages Area --><div hx-ext=\"sse\" sse-connect=\"/sse\" sse-swap=\"message\" hx-swap=\"beforeend\" hx-target=\"#chatMessages\" class=\"flex-1 overflow-y-auto p-6 space-y-6\" style=\"background: linear-gradient(to bottom, #f5f5f4, #e7e5e4);\" id=\"chatMessages\">")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 10, "<button class=\"p-2 hover:bg-stone-200 rounded-xl transition-colors\"><i class=\"fas fa-search text-gray-600\"></i></button> <button class=\"p-2 hover:bg-stone-200 rounded-xl transition-colors\" onclick=\"document.getElementById('contactPanel').classList.toggle('hidden')\"><i class=\"fas fa-ellipsis-v text-gray-600\"></i></button></div></div><!-- Messages Area --><div hx-ext=\"sse\" sse-connect=\"/sse\" sse-swap=\"message\" hx-swap=\"beforeend\" hx-target=\"#chatMessages\" class=\"flex-1 overflow-y-auto p-6 space-y-6\" style=\"background: linear-gradient(to bottom, #f5f5f4, #e7e5e4);\" id=\"chatMessages\">")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
@@ -151,60 +164,206 @@ func MessageSingle(activeConversation repo.Conversation, agent repo.Agent, conve
 					}
 				}
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 10, "</div><!-- Input Area -->")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 11, "</div><!-- Input Area -->")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
 			if canReplyToConversation(activeConversation, agent) && activeConversation.AgentID != nil && activeConversation.Status != repo.ConversationStatusClosed && activeConversation.Status != repo.ConversationStatusRunning {
-				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 11, "<div class=\"p-4 border-t border-stone-200 bg-stone-50\"><form class=\"flex items-center gap-3 w-full\" hx-post=\"/api/message/send\" hx-swap=\"beforeend\" hx-target=\"#chatMessages\"><input type=\"hidden\" name=\"conversation\" value=\"")
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 12, "<div class=\"p-4 border-t border-stone-200 bg-stone-50\"><form class=\"flex items-center gap-3 w-full\" hx-post=\"/api/message/send\" hx-swap=\"beforeend\" hx-target=\"#chatMessages\"><input type=\"hidden\" name=\"conversation\" value=\"")
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
-				var templ_7745c5c3_Var7 string
-				templ_7745c5c3_Var7, templ_7745c5c3_Err = templ.ResolveAttributeValue(activeConversation.URL.String())
+				var templ_7745c5c3_Var8 string
+				templ_7745c5c3_Var8, templ_7745c5c3_Err = templ.ResolveAttributeValue(activeConversation.URL.String())
 				if templ_7745c5c3_Err != nil {
 					return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/message-single.templ`, Line: 83, Col: 96}
 				}
-				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var7)
+				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var8)
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
-				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 12, "\"> <button class=\"p-2 hover:bg-stone-200 rounded-xl transition-colors\"><i class=\"fas fa-paperclip text-gray-400 text-xl\"></i></button> <input type=\"text\" placeholder=\"Escreva sua mensagem aqui\" name=\"message\" class=\"flex-1 px-4 py-3 bg-white border border-stone-200 rounded-full text-sm focus:outline-none focus:ring-2 focus:ring-purple-400 transition-all\"> <button class=\"p-2 hover:bg-stone-200 rounded-xl transition-colors\"><i class=\"far fa-smile text-gray-400 text-xl\"></i></button> <button class=\"p-2 hover:bg-stone-200 rounded-xl transition-colors\"><i class=\"fas fa-microphone text-gray-400 text-xl\"></i></button> <button type=\"submit\" class=\"p-3 rounded-full hover:shadow-md shadow-sm transition-all\" style=\"background: linear-gradient(to right, #3b82f6, #9333ea);\"><i class=\"fas fa-paper-plane text-white\"></i></button></form></div>")
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 13, "\"> <button class=\"p-2 hover:bg-stone-200 rounded-xl transition-colors\"><i class=\"fas fa-paperclip text-gray-400 text-xl\"></i></button> <input type=\"text\" placeholder=\"Escreva sua mensagem aqui\" name=\"message\" class=\"flex-1 px-4 py-3 bg-white border border-stone-200 rounded-full text-sm focus:outline-none focus:ring-2 focus:ring-purple-400 transition-all\"> <button class=\"p-2 hover:bg-stone-200 rounded-xl transition-colors\"><i class=\"far fa-smile text-gray-400 text-xl\"></i></button> <button class=\"p-2 hover:bg-stone-200 rounded-xl transition-colors\"><i class=\"fas fa-microphone text-gray-400 text-xl\"></i></button> <button type=\"submit\" class=\"p-3 rounded-full hover:shadow-md shadow-sm transition-all\" style=\"background: linear-gradient(to right, #3b82f6, #9333ea);\"><i class=\"fas fa-paper-plane text-white\"></i></button></form></div>")
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
 			} else {
-				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 13, "<div class=\"p-4 border-t border-stone-200 bg-stone-50 text-center text-sm text-gray-500\">")
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 14, "<div class=\"p-4 border-t border-stone-200 bg-stone-50 text-center text-sm text-gray-500\">")
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
 				if activeConversation.Status == repo.ConversationStatusClosed {
-					templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 14, "Conversa fechada.")
+					templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 15, "Conversa fechada.")
 					if templ_7745c5c3_Err != nil {
 						return templ_7745c5c3_Err
 					}
 				} else if activeConversation.AgentID == nil && activeConversation.Status != repo.ConversationStatusRunning {
-					templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 15, "Aceite a conversa para responder.")
+					templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 16, "Aceite a conversa para responder.")
 					if templ_7745c5c3_Err != nil {
 						return templ_7745c5c3_Err
 					}
 				} else if activeConversation.Status == repo.ConversationStatusRunning {
-					templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 16, "Atendimento automático em andamento.")
+					templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 17, "Atendimento automático em andamento.")
 					if templ_7745c5c3_Err != nil {
 						return templ_7745c5c3_Err
 					}
 				} else {
-					templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 17, "Conversa atribuída a outro agente.")
+					templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 18, "Conversa atribuída a outro agente.")
 					if templ_7745c5c3_Err != nil {
 						return templ_7745c5c3_Err
 					}
 				}
-				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 18, "</div>")
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 19, "</div>")
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 19, "<script>\r\n          (function () {\r\n             function scrollChatToBottom() {\r\n                requestAnimationFrame(function () {\r\n                   var chat = document.getElementById('chatMessages');\r\n                   if (chat) chat.scrollTop = chat.scrollHeight;\r\n                });\r\n             }\r\n             scrollChatToBottom();\r\n             document.body.addEventListener('htmx:sseMessage', scrollChatToBottom);\r\n             document.body.addEventListener('htmx:afterSwap', function (e) {\r\n                if (e.detail.target && e.detail.target.id === 'chatMessages') {\r\n                   scrollChatToBottom();\r\n                }\r\n             });\r\n          })();\r\n       </script><script>\r\n           window._audioCurrentlyPlaying = null;\r\n\r\n           function initAudioPlayer(player) {\r\n               const audio = player.querySelector('audio');\r\n               const playBtn = player.querySelector('[data-play-btn]');\r\n               const playIcon = playBtn.querySelector('i');\r\n               const progressBar = player.querySelector('[data-progress-bar]');\r\n               const progressTrack = player.querySelector('[data-progress-track]');\r\n               const timeDisplay = player.querySelector('[data-time-display]');\r\n\r\n               function formatTime(secs) {\r\n                   if (isNaN(secs) || secs === Infinity) return '0:00';\r\n                   const m = Math.floor(secs / 60);\r\n                   const s = Math.floor(secs % 60).toString().padStart(2, '0');\r\n                   return `${m}:${s}`;\r\n               }\r\n\r\n               audio.addEventListener('loadedmetadata', () => {\r\n                   timeDisplay.textContent = formatTime(audio.duration);\r\n               });\r\n\r\n               playBtn.addEventListener('click', () => {\r\n                   if (audio.paused) {\r\n                       if (window._audioCurrentlyPlaying && window._audioCurrentlyPlaying !== audio) {\r\n                           window._audioCurrentlyPlaying.pause();\r\n                           const otherPlayer = window._audioCurrentlyPlaying.closest('[data-audio-player]');\r\n                           const otherIcon = otherPlayer.querySelector('[data-play-btn] i');\r\n                           otherIcon.classList.remove('fa-pause');\r\n                           otherIcon.classList.add('fa-play');\r\n                       }\r\n                       audio.load();\r\n                       audio.play().catch(err => console.warn('Audio play error:', err));\r\n                       window._audioCurrentlyPlaying = audio;\r\n                       playIcon.classList.remove('fa-play');\r\n                       playIcon.classList.add('fa-pause');\r\n                   } else {\r\n                       audio.pause();\r\n                       playIcon.classList.remove('fa-pause');\r\n                       playIcon.classList.add('fa-play');\r\n                   }\r\n               });\r\n\r\n               audio.addEventListener('timeupdate', () => {\r\n                   if (!audio.duration) return;\r\n                   progressBar.style.width = (audio.currentTime / audio.duration * 100) + '%';\r\n                   timeDisplay.textContent = formatTime(audio.currentTime);\r\n               });\r\n\r\n               audio.addEventListener('ended', () => {\r\n                   playIcon.classList.remove('fa-pause');\r\n                   playIcon.classList.add('fa-play');\r\n                   progressBar.style.width = '0%';\r\n                   timeDisplay.textContent = formatTime(audio.duration);\r\n                   window._audioCurrentlyPlaying = null;\r\n               });\r\n\r\n               progressTrack.addEventListener('click', (e) => {\r\n                   if (!audio.duration) return;\r\n                   const rect = progressTrack.getBoundingClientRect();\r\n                   audio.currentTime = ((e.clientX - rect.left) / rect.width) * audio.duration;\r\n               });\r\n           }\r\n\r\n           // Inicializa players já presentes no carregamento da página\r\n           document.querySelectorAll('[data-audio-player]').forEach(p => initAudioPlayer(p));\r\n\r\n           // Inicializa players injetados via SSE/HTMX\r\n           document.addEventListener('htmx:afterSettle', (e) => {\r\n               e.target.querySelectorAll('[data-audio-player]').forEach(p => initAudioPlayer(p));\r\n           });\r\n       </script></div><!-- Contact Details Sidebar --> <div id=\"contactPanel\" class=\"hidden w-80 bg-stone-50 rounded-2xl shadow-sm flex flex-col overflow-hidden\"><!-- Header --><div class=\"p-4 border-b border-stone-200 flex items-center justify-between\"><h2 class=\"text-lg font-medium text-gray-800\">Detalhes do Contato</h2><button class=\"p-2 hover:bg-stone-200 rounded-xl transition-colors\" onclick=\"document.getElementById('contactPanel').classList.toggle('hidden')\"><i class=\"fas fa-times text-gray-600\"></i></button></div><!-- Content --><div class=\"flex-1 overflow-y-auto p-6 space-y-6\"><!-- Profile Section --><div class=\"flex flex-col items-center text-center\"><img src=\"/\" alt=\"Avatar\" class=\"w-20 h-20 rounded-full mb-4 shadow-sm\"><h3 class=\"text-lg font-medium text-gray-900\">FElijah Sabrina</h3><p class=\"text-sm text-gray-500\">elijah_sabrina</p><span class=\"mt-2 inline-block px-3 py-1 bg-green-100 text-green-700 text-xs rounded-full\">Online</span></div><!-- Divider --><div class=\"h-px bg-stone-200\"></div><!-- Contact Info --><div class=\"space-y-4\"><div><p class=\"text-xs font-medium text-gray-500 uppercase mb-2\">Telefone</p><div class=\"flex items-center gap-3 p-3 bg-white rounded-xl hover:bg-stone-100 transition-colors cursor-pointer\"><i class=\"fas fa-phone text-purple-600\"></i> <span class=\"text-sm text-gray-800\">+55 (21) 99999-8888</span></div></div><div><p class=\"text-xs font-medium text-gray-500 uppercase mb-2\">Email</p><div class=\"flex items-center gap-3 p-3 bg-white rounded-xl hover:bg-stone-100 transition-colors cursor-pointer\"><i class=\"fas fa-envelope text-purple-600\"></i> <span class=\"text-sm text-gray-800\">elijah@email.com</span></div></div></div><!-- Divider --><div class=\"h-px bg-stone-200\"></div><!-- Additional Info --><div class=\"space-y-3\"><div class=\"flex items-center justify-between p-3 bg-white rounded-xl\"><div class=\"flex items-center gap-3\"><i class=\"fas fa-calendar text-purple-600 w-5\"></i><div><p class=\"text-xs text-gray-500\">Membro desde</p><p class=\"text-sm font-medium text-gray-900\">Dec 16, 2019</p></div></div></div><div class=\"flex items-center justify-between p-3 bg-white rounded-xl\"><div class=\"flex items-center gap-3\"><i class=\"fas fa-messages text-purple-600 w-5\"></i><div><p class=\"text-xs text-gray-500\">Mensagens</p><p class=\"text-sm font-medium text-gray-900\">147</p></div></div></div></div><!-- Divider --><div class=\"h-px bg-stone-200\"></div><!-- Action Buttons --><div class=\"space-y-2\"><button class=\"w-full px-4 py-3 bg-purple-100 text-purple-700 rounded-xl font-medium hover:bg-purple-200 transition-colors flex items-center justify-center gap-2\"><i class=\"fas fa-video\"></i> Chamada de Vídeo</button> <button class=\"w-full px-4 py-3 bg-purple-100 text-purple-700 rounded-xl font-medium hover:bg-purple-200 transition-colors flex items-center justify-center gap-2\"><i class=\"fas fa-phone\"></i> Chamada de Áudio</button> <button class=\"w-full px-4 py-3 bg-red-100 text-red-700 rounded-xl font-medium hover:bg-red-200 transition-colors flex items-center justify-center gap-2\"><i class=\"fas fa-trash\"></i> Bloquear Contato</button></div></div></div>")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 20, "<script>\r\n          (function () {\r\n             function scrollChatToBottom() {\r\n                requestAnimationFrame(function () {\r\n                   var chat = document.getElementById('chatMessages');\r\n                   if (chat) chat.scrollTop = chat.scrollHeight;\r\n                });\r\n             }\r\n             scrollChatToBottom();\r\n             document.body.addEventListener('htmx:sseMessage', scrollChatToBottom);\r\n             document.body.addEventListener('htmx:afterSwap', function (e) {\r\n                if (e.detail.target && e.detail.target.id === 'chatMessages') {\r\n                   scrollChatToBottom();\r\n                }\r\n             });\r\n          })();\r\n       </script><script>\r\n           window._audioCurrentlyPlaying = null;\r\n\r\n           function initAudioPlayer(player) {\r\n               const audio = player.querySelector('audio');\r\n               const playBtn = player.querySelector('[data-play-btn]');\r\n               const playIcon = playBtn.querySelector('i');\r\n               const progressBar = player.querySelector('[data-progress-bar]');\r\n               const progressTrack = player.querySelector('[data-progress-track]');\r\n               const timeDisplay = player.querySelector('[data-time-display]');\r\n\r\n               function formatTime(secs) {\r\n                   if (isNaN(secs) || secs === Infinity) return '0:00';\r\n                   const m = Math.floor(secs / 60);\r\n                   const s = Math.floor(secs % 60).toString().padStart(2, '0');\r\n                   return `${m}:${s}`;\r\n               }\r\n\r\n               audio.addEventListener('loadedmetadata', () => {\r\n                   timeDisplay.textContent = formatTime(audio.duration);\r\n               });\r\n\r\n               playBtn.addEventListener('click', () => {\r\n                   if (audio.paused) {\r\n                       if (window._audioCurrentlyPlaying && window._audioCurrentlyPlaying !== audio) {\r\n                           window._audioCurrentlyPlaying.pause();\r\n                           const otherPlayer = window._audioCurrentlyPlaying.closest('[data-audio-player]');\r\n                           const otherIcon = otherPlayer.querySelector('[data-play-btn] i');\r\n                           otherIcon.classList.remove('fa-pause');\r\n                           otherIcon.classList.add('fa-play');\r\n                       }\r\n                       audio.load();\r\n                       audio.play().catch(err => console.warn('Audio play error:', err));\r\n                       window._audioCurrentlyPlaying = audio;\r\n                       playIcon.classList.remove('fa-play');\r\n                       playIcon.classList.add('fa-pause');\r\n                   } else {\r\n                       audio.pause();\r\n                       playIcon.classList.remove('fa-pause');\r\n                       playIcon.classList.add('fa-play');\r\n                   }\r\n               });\r\n\r\n               audio.addEventListener('timeupdate', () => {\r\n                   if (!audio.duration) return;\r\n                   progressBar.style.width = (audio.currentTime / audio.duration * 100) + '%';\r\n                   timeDisplay.textContent = formatTime(audio.currentTime);\r\n               });\r\n\r\n               audio.addEventListener('ended', () => {\r\n                   playIcon.classList.remove('fa-pause');\r\n                   playIcon.classList.add('fa-play');\r\n                   progressBar.style.width = '0%';\r\n                   timeDisplay.textContent = formatTime(audio.duration);\r\n                   window._audioCurrentlyPlaying = null;\r\n               });\r\n\r\n               progressTrack.addEventListener('click', (e) => {\r\n                   if (!audio.duration) return;\r\n                   const rect = progressTrack.getBoundingClientRect();\r\n                   audio.currentTime = ((e.clientX - rect.left) / rect.width) * audio.duration;\r\n               });\r\n           }\r\n\r\n           // Inicializa players já presentes no carregamento da página\r\n           document.querySelectorAll('[data-audio-player]').forEach(p => initAudioPlayer(p));\r\n\r\n           // Inicializa players injetados via SSE/HTMX\r\n           document.addEventListener('htmx:afterSettle', (e) => {\r\n               e.target.querySelectorAll('[data-audio-player]').forEach(p => initAudioPlayer(p));\r\n           });\r\n       </script></div><!-- Contact Details Sidebar --> <div id=\"contactPanel\" class=\"hidden w-80 bg-stone-50 rounded-2xl shadow-sm flex flex-col overflow-hidden\"><!-- Header --><div class=\"p-4 border-b border-stone-200 flex items-center justify-between\"><h2 class=\"text-lg font-medium text-gray-800\">Detalhes do Contato</h2><button class=\"p-2 hover:bg-stone-200 rounded-xl transition-colors\" onclick=\"document.getElementById('contactPanel').classList.toggle('hidden')\"><i class=\"fas fa-times text-gray-600\"></i></button></div><!-- Content --><div class=\"flex-1 overflow-y-auto p-6 space-y-6\"><!-- Profile Section --><div class=\"flex flex-col items-center text-center\"><img src=\"/\" alt=\"Avatar\" class=\"w-20 h-20 rounded-full mb-4 shadow-sm\"><h3 class=\"text-lg font-medium text-gray-900\">")
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+			var templ_7745c5c3_Var9 string
+			templ_7745c5c3_Var9, templ_7745c5c3_Err = templ.JoinStringErrs(activeConversation.Contact.Name)
+			if templ_7745c5c3_Err != nil {
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/message-single.templ`, Line: 216, Col: 84}
+			}
+			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var9))
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 21, "</h3><p class=\"text-sm text-gray-500\">")
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+			var templ_7745c5c3_Var10 string
+			templ_7745c5c3_Var10, templ_7745c5c3_Err = templ.JoinStringErrs(activeConversation.Contact.Number)
+			if templ_7745c5c3_Err != nil {
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/message-single.templ`, Line: 217, Col: 73}
+			}
+			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var10))
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 22, "</p><span class=\"mt-2 inline-block px-3 py-1 bg-purple-100 text-purple-700 text-xs rounded-full\">")
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+			var templ_7745c5c3_Var11 string
+			templ_7745c5c3_Var11, templ_7745c5c3_Err = templ.JoinStringErrs(activeConversation.Status)
+			if templ_7745c5c3_Err != nil {
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/message-single.templ`, Line: 218, Col: 125}
+			}
+			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var11))
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 23, "</span></div><!-- Divider --><div class=\"h-px bg-stone-200\"></div><!-- Contact Info --><div class=\"space-y-4\"><div><p class=\"text-xs font-medium text-gray-500 uppercase mb-2\">Telefone</p><div class=\"flex items-center gap-3 p-3 bg-white rounded-xl hover:bg-stone-100 transition-colors cursor-pointer\"><i class=\"fas fa-phone text-purple-600\"></i> <span class=\"text-sm text-gray-800\">")
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+			var templ_7745c5c3_Var12 string
+			templ_7745c5c3_Var12, templ_7745c5c3_Err = templ.JoinStringErrs(activeConversation.Contact.Number)
+			if templ_7745c5c3_Err != nil {
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/message-single.templ`, Line: 228, Col: 76}
+			}
+			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var12))
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 24, "</span></div></div><div><p class=\"text-xs font-medium text-gray-500 uppercase mb-2\">Email</p><div class=\"flex items-center gap-3 p-3 bg-white rounded-xl hover:bg-stone-100 transition-colors cursor-pointer\"><i class=\"fas fa-envelope text-purple-600\"></i> <span class=\"text-sm text-gray-800\">")
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+			var templ_7745c5c3_Var13 string
+			templ_7745c5c3_Var13, templ_7745c5c3_Err = templ.JoinStringErrs(activeConversation.Contact.Email)
+			if templ_7745c5c3_Err != nil {
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/message-single.templ`, Line: 235, Col: 75}
+			}
+			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var13))
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 25, "</span></div></div></div><!-- Divider --><div class=\"h-px bg-stone-200\"></div><!-- Additional Info --><div class=\"space-y-3\"><div class=\"flex items-center justify-between p-3 bg-white rounded-xl\"><div class=\"flex items-center gap-3\"><i class=\"fas fa-calendar text-purple-600 w-5\"></i><div><p class=\"text-xs text-gray-500\">Atendimento</p><p class=\"text-sm font-medium text-gray-900\">")
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+			var templ_7745c5c3_Var14 string
+			templ_7745c5c3_Var14, templ_7745c5c3_Err = templ.JoinStringErrs(activeConversation.Status)
+			if templ_7745c5c3_Err != nil {
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/message-single.templ`, Line: 248, Col: 80}
+			}
+			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var14))
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 26, "</p></div></div></div><div class=\"flex items-center justify-between p-3 bg-white rounded-xl\"><div class=\"flex items-center gap-3\"><i class=\"fas fa-messages text-purple-600 w-5\"></i><div><p class=\"text-xs text-gray-500\">Mensagens</p><p class=\"text-sm font-medium text-gray-900\">")
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+			var templ_7745c5c3_Var15 string
+			templ_7745c5c3_Var15, templ_7745c5c3_Err = templ.JoinStringErrs(fmt.Sprintf("%d", len(messages)))
+			if templ_7745c5c3_Err != nil {
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/message-single.templ`, Line: 257, Col: 87}
+			}
+			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var15))
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 27, "</p></div></div></div></div><!-- Divider --><div class=\"h-px bg-stone-200\"></div><div><p class=\"text-xs font-medium text-gray-500 uppercase mb-3\">Histórico interno</p><div class=\"space-y-2\">")
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+			if len(events) == 0 {
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 28, "<p class=\"text-xs text-gray-400\">Nenhum registro interno.</p>")
+				if templ_7745c5c3_Err != nil {
+					return templ_7745c5c3_Err
+				}
+			}
+			for _, event := range events {
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 29, "<div class=\"rounded-xl border border-stone-200 bg-white p-3\"><div class=\"flex items-center justify-between gap-2\"><span class=\"text-[10px] font-semibold uppercase text-purple-600\">")
+				if templ_7745c5c3_Err != nil {
+					return templ_7745c5c3_Err
+				}
+				var templ_7745c5c3_Var16 string
+				templ_7745c5c3_Var16, templ_7745c5c3_Err = templ.JoinStringErrs(event.EventType)
+				if templ_7745c5c3_Err != nil {
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/message-single.templ`, Line: 273, Col: 91}
+				}
+				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var16))
+				if templ_7745c5c3_Err != nil {
+					return templ_7745c5c3_Err
+				}
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 30, "</span> <time class=\"text-[10px] text-gray-400\">")
+				if templ_7745c5c3_Err != nil {
+					return templ_7745c5c3_Err
+				}
+				var templ_7745c5c3_Var17 string
+				templ_7745c5c3_Var17, templ_7745c5c3_Err = templ.JoinStringErrs(event.CreatedAt.Format("02/01/2006 15:04"))
+				if templ_7745c5c3_Err != nil {
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/message-single.templ`, Line: 274, Col: 92}
+				}
+				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var17))
+				if templ_7745c5c3_Err != nil {
+					return templ_7745c5c3_Err
+				}
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 31, "</time></div><p class=\"mt-1 text-xs leading-relaxed text-gray-700 whitespace-pre-wrap\">")
+				if templ_7745c5c3_Err != nil {
+					return templ_7745c5c3_Err
+				}
+				var templ_7745c5c3_Var18 string
+				templ_7745c5c3_Var18, templ_7745c5c3_Err = templ.JoinStringErrs(event.Content)
+				if templ_7745c5c3_Err != nil {
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/message-single.templ`, Line: 276, Col: 94}
+				}
+				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var18))
+				if templ_7745c5c3_Err != nil {
+					return templ_7745c5c3_Err
+				}
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 32, "</p></div>")
+				if templ_7745c5c3_Err != nil {
+					return templ_7745c5c3_Err
+				}
+			}
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 33, "</div></div><div class=\"h-px bg-stone-200\"></div><!-- Action Buttons --><div class=\"space-y-2\"><button class=\"w-full px-4 py-3 bg-purple-100 text-purple-700 rounded-xl font-medium hover:bg-purple-200 transition-colors flex items-center justify-center gap-2\"><i class=\"fas fa-video\"></i> Chamada de Vídeo</button> <button class=\"w-full px-4 py-3 bg-purple-100 text-purple-700 rounded-xl font-medium hover:bg-purple-200 transition-colors flex items-center justify-center gap-2\"><i class=\"fas fa-phone\"></i> Chamada de Áudio</button> <button class=\"w-full px-4 py-3 bg-red-100 text-red-700 rounded-xl font-medium hover:bg-red-200 transition-colors flex items-center justify-center gap-2\"><i class=\"fas fa-trash\"></i> Bloquear Contato</button></div></div></div>")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
@@ -234,12 +393,12 @@ func Messages(conversations []repo.Conversation, tab string) templ.Component {
 			}()
 		}
 		ctx = templ.InitializeContext(ctx)
-		templ_7745c5c3_Var8 := templ.GetChildren(ctx)
-		if templ_7745c5c3_Var8 == nil {
-			templ_7745c5c3_Var8 = templ.NopComponent
+		templ_7745c5c3_Var19 := templ.GetChildren(ctx)
+		if templ_7745c5c3_Var19 == nil {
+			templ_7745c5c3_Var19 = templ.NopComponent
 		}
 		ctx = templ.ClearChildren(ctx)
-		templ_7745c5c3_Var9 := templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
+		templ_7745c5c3_Var20 := templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
 			templ_7745c5c3_W, ctx := templ_7745c5c3_Input.Writer, templ_7745c5c3_Input.Context
 			templ_7745c5c3_Buffer, templ_7745c5c3_IsBuffer := templruntime.GetBuffer(templ_7745c5c3_W)
 			if !templ_7745c5c3_IsBuffer {
@@ -251,13 +410,13 @@ func Messages(conversations []repo.Conversation, tab string) templ.Component {
 				}()
 			}
 			ctx = templ.InitializeContext(ctx)
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 20, "<!-- Main Chat Area - Empty State --> <div class=\"flex-1 bg-stone-50 rounded-2xl shadow-sm flex flex-col items-center justify-center overflow-hidden\"><!-- Empty State Content --><div class=\"text-center space-y-6\"><!-- Icon --><div class=\"inline-block p-6 rounded-3xl\" style=\"background: rgba(97, 35, 204, 0.1);\"><i class=\"fas fa-inbox text-6xl\" style=\"color: #6123cc;\"></i></div><!-- Text --><div><h2 class=\"text-2xl font-bold text-gray-900 mb-2\">Nenhuma conversa selecionada</h2><p class=\"text-gray-500 max-w-md\">Selecione uma conversa na lista ao lado para começar a visualizar mensagens e responder aos seus contatos.</p></div><!-- Quick Actions --><div class=\"flex items-center gap-3 justify-center\"><button class=\"px-6 py-3 rounded-xl font-medium text-white shadow-sm hover:shadow-md transition-all flex items-center gap-2\" style=\"background: linear-gradient(to right, #3b82f6, #6123cc);\"><i class=\"fas fa-pen-square\"></i> Nova Conversa</button> <button class=\"px-6 py-3 rounded-xl font-medium border-2 border-stone-200 text-gray-700 hover:bg-stone-100 transition-colors flex items-center gap-2\"><i class=\"fas fa-search\"></i> Buscar</button></div><!-- Tips --><div class=\"mt-8 bg-white rounded-2xl p-6 max-w-md text-left border border-stone-200\"><h3 class=\"font-medium text-gray-900 mb-3 flex items-center gap-2\"><i class=\"fas fa-lightbulb text-amber-500\"></i> Dica</h3><p class=\"text-sm text-gray-600\">Você pode usar os filtros de departamento e status para encontrar conversas específicas com mais rapidez.</p></div></div></div>")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 34, "<!-- Main Chat Area - Empty State --> <div class=\"flex-1 bg-stone-50 rounded-2xl shadow-sm flex flex-col items-center justify-center overflow-hidden\"><!-- Empty State Content --><div class=\"text-center space-y-6\"><!-- Icon --><div class=\"inline-block p-6 rounded-3xl\" style=\"background: rgba(97, 35, 204, 0.1);\"><i class=\"fas fa-inbox text-6xl\" style=\"color: #6123cc;\"></i></div><!-- Text --><div><h2 class=\"text-2xl font-bold text-gray-900 mb-2\">Nenhuma conversa selecionada</h2><p class=\"text-gray-500 max-w-md\">Selecione uma conversa na lista ao lado para começar a visualizar mensagens e responder aos seus contatos.</p></div><!-- Quick Actions --><div class=\"flex items-center gap-3 justify-center\"><button class=\"px-6 py-3 rounded-xl font-medium text-white shadow-sm hover:shadow-md transition-all flex items-center gap-2\" style=\"background: linear-gradient(to right, #3b82f6, #6123cc);\"><i class=\"fas fa-pen-square\"></i> Nova Conversa</button> <button class=\"px-6 py-3 rounded-xl font-medium border-2 border-stone-200 text-gray-700 hover:bg-stone-100 transition-colors flex items-center gap-2\"><i class=\"fas fa-search\"></i> Buscar</button></div><!-- Tips --><div class=\"mt-8 bg-white rounded-2xl p-6 max-w-md text-left border border-stone-200\"><h3 class=\"font-medium text-gray-900 mb-3 flex items-center gap-2\"><i class=\"fas fa-lightbulb text-amber-500\"></i> Dica</h3><p class=\"text-sm text-gray-600\">Você pode usar os filtros de departamento e status para encontrar conversas específicas com mais rapidez.</p></div></div></div>")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
 			return nil
 		})
-		templ_7745c5c3_Err = messagesDefault(conversations, tab).Render(templ.WithChildren(ctx, templ_7745c5c3_Var9), templ_7745c5c3_Buffer)
+		templ_7745c5c3_Err = messagesDefault(conversations, tab).Render(templ.WithChildren(ctx, templ_7745c5c3_Var20), templ_7745c5c3_Buffer)
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}

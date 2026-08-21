@@ -81,7 +81,12 @@ func MessageOpen(ctx iris.Context) {
 		ctx.StopWithStatus(iris.StatusBadRequest)
 		return
 	}
-	ctx.RenderComponent(web.MessageSingle(activeConversation, agent, conversations, messages))
+	events, err := repo.GetConversationEvents(activeConversation.Id, agent.CompanyId)
+	if err != nil {
+		ctx.StopWithStatus(iris.StatusInternalServerError)
+		return
+	}
+	ctx.RenderComponent(web.MessageSingle(activeConversation, agent, conversations, messages, events))
 }
 
 func conversationTab(conversation repo.Conversation) string {

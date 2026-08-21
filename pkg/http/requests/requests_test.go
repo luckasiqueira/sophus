@@ -1,6 +1,7 @@
 package requests
 
 import (
+	"errors"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -9,6 +10,24 @@ import (
 	"testing"
 	"time"
 )
+
+func TestPublicRedirectPolicy(t *testing.T) {
+	request := httptest.NewRequest(http.MethodGet, "https://example.com/next", nil)
+	if err := publicRedirectPolicy(false)(request, nil); !errors.Is(err, http.ErrUseLastResponse) {
+		t.Fatalf("disabled redirect error = %v", err)
+	}
+	if err := publicRedirectPolicy(true)(request, nil); err != nil {
+		t.Fatalf("valid redirect error = %v", err)
+	}
+	invalid := httptest.NewRequest(http.MethodGet, "https://user:password@example.com/next", nil)
+	if err := publicRedirectPolicy(true)(invalid, nil); err == nil || !strings.Contains(err.Error(), "credentials") {
+		t.Fatalf("credential redirect error = %v", err)
+	}
+	via := make([]*http.Request, 10)
+	if err := publicRedirectPolicy(true)(request, via); err == nil || !strings.Contains(err.Error(), "too many") {
+		t.Fatalf("redirect limit error = %v", err)
+	}
+}
 
 func TestRequestTimeout(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {

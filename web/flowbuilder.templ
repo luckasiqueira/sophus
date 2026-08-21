@@ -20,6 +20,12 @@ templ FlowBuilder() {
   .handle:hover { background: #6123cc; box-shadow: 0 0 0 1px #6123cc; }
   .handle.armed { background: #f59e0b; box-shadow: 0 0 0 3px rgba(245,158,11,.4); animation: pulse 1s infinite; }
   .handle-label { position: absolute; right: 18px; top: 50%; transform: translateY(-50%); white-space: nowrap; pointer-events: none; font-size: 10px; line-height: 1; color: #78716c; }
+	input[type="checkbox"]:not(.hidden) { appearance: none; -webkit-appearance: none; width: 1.1rem; height: 1.1rem; flex: 0 0 auto; display: inline-grid; place-content: center; border: 1.5px solid #c4b5fd; border-radius: .32rem; background: #fff; cursor: pointer; transition: border-color .15s ease, background-color .15s ease, box-shadow .15s ease; }
+	input[type="checkbox"]:not(.hidden)::before { content: ''; width: .58rem; height: .32rem; border-left: 2px solid white; border-bottom: 2px solid white; transform: rotate(-45deg) scale(0); transform-origin: center; transition: transform .12s ease; margin-top: -.08rem; }
+	input[type="checkbox"]:not(.hidden):checked { border-color: #7c3aed; background: linear-gradient(135deg, #7c3aed, #4f46e5); box-shadow: 0 0 0 2px rgba(124,58,237,.12); }
+	input[type="checkbox"]:not(.hidden):checked::before { transform: rotate(-45deg) scale(1); }
+	input[type="checkbox"]:not(.hidden):focus-visible { outline: none; box-shadow: 0 0 0 3px rgba(124,58,237,.22); }
+	input[type="checkbox"]:not(.hidden):disabled { cursor: not-allowed; opacity: .5; }
   @keyframes pulse { 0%,100% { transform: scale(1); } 50% { transform: scale(1.25); } }
   .palette-item { cursor: grab; }
   .palette-item:active { cursor: grabbing; }
@@ -49,9 +55,12 @@ templ FlowBuilder() {
           <h1 class="text-2xl font-bold text-gray-900">Seus fluxos</h1>
           <p class="text-sm text-gray-500 mt-1">Robôs de atendimento automático para o WhatsApp</p>
         </div>
-        <button id="btn-new-flow" class="px-5 py-2.5 rounded-xl font-medium text-white shadow-sm hover:shadow-md transition-all flex items-center gap-2" style="background: linear-gradient(to right, #3b82f6, #6123cc);">
-          <i class="fas fa-plus"></i> Nova automação
-        </button>
+		<div class="flex items-center gap-2">
+		  <button id="btn-templates" class="px-4 py-2.5 rounded-xl font-medium text-purple-700 bg-purple-50 hover:bg-purple-100 transition-all flex items-center gap-2"><i class="fas fa-layer-group"></i> Modelos</button>
+		  <button id="btn-new-flow" class="px-5 py-2.5 rounded-xl font-medium text-white shadow-sm hover:shadow-md transition-all flex items-center gap-2" style="background: linear-gradient(to right, #3b82f6, #6123cc);">
+			<i class="fas fa-plus"></i> Nova automação
+		  </button>
+		</div>
       </div>
       <div id="flows-grid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5"></div>
       <div id="flows-empty" class="hidden text-center py-24 text-gray-400">
@@ -86,6 +95,21 @@ templ FlowBuilder() {
     <div id="inspector" class="w-80 bg-white border-l border-stone-200 overflow-y-auto p-4 hidden"></div>
   </div>
 
+  <div id="templates-modal" class="hidden fixed inset-0 z-50 bg-black bg-opacity-40 p-4 items-center justify-center">
+	<div class="w-full max-w-3xl max-h-[88vh] overflow-hidden rounded-2xl bg-white shadow-2xl flex flex-col">
+	  <div class="p-5 border-b border-stone-200 flex items-center justify-between"><div><h2 class="text-lg font-bold text-gray-900">Modelos de mensagem</h2><p class="text-xs text-gray-500 mt-1">Conteúdo reutilizável capturado no snapshot de cada execução.</p></div><button id="btn-close-templates" class="p-2 rounded-lg hover:bg-stone-100"><i class="fas fa-times"></i></button></div>
+	  <div class="grid md:grid-cols-2 min-h-0 flex-1">
+		<div id="templates-list" class="p-4 border-r border-stone-200 overflow-y-auto space-y-2"></div>
+		<form id="template-form" class="p-4 flex flex-col gap-3 overflow-y-auto">
+		  <input type="hidden" id="template-id"><input type="hidden" id="template-revision">
+		  <div><label class="block text-xs font-medium text-gray-600 mb-1">Nome</label><input id="template-name" maxlength="100" required class="w-full px-3 py-2 rounded-lg border border-stone-200"></div>
+		  <div><label class="block text-xs font-medium text-gray-600 mb-1">Mensagem</label><div class="rounded-lg border border-stone-200 bg-stone-50"><div class="flex items-center gap-1 px-2 py-1.5 border-b border-stone-200 bg-white"><button type="button" data-template-format="*" class="w-8 h-8 rounded-md hover:bg-purple-50"><i class="fas fa-bold"></i></button><button type="button" data-template-format="_" class="w-8 h-8 rounded-md hover:bg-purple-50"><i class="fas fa-italic"></i></button><button type="button" data-template-format="~" class="w-8 h-8 rounded-md hover:bg-purple-50"><i class="fas fa-strikethrough"></i></button><button type="button" data-template-format="```" class="w-8 h-8 rounded-md hover:bg-purple-50"><i class="fas fa-code"></i></button><span class="h-5 w-px bg-stone-200 mx-1"></span><button type="button" id="btn-template-variables" class="h-8 px-2.5 rounded-md text-xs font-medium text-purple-700 hover:bg-purple-50"><i class="fas fa-at mr-1"></i>Variáveis</button></div><div id="template-variables" class="hidden border-b border-stone-200 bg-white max-h-48 overflow-y-auto"></div><textarea id="template-content" maxlength="10000" rows="10" required class="w-full px-3 py-2 bg-stone-50 focus:outline-none focus:ring-2 focus:ring-inset focus:ring-purple-400"></textarea></div><p class="text-[11px] text-gray-400 mt-1">Aceita variáveis do contexto do fluxo.</p></div>
+		  <div class="flex gap-2"><button type="submit" class="flex-1 px-4 py-2 rounded-lg bg-purple-700 text-white font-medium">Salvar modelo</button><button type="button" id="btn-new-template" class="px-4 py-2 rounded-lg bg-stone-100 text-gray-700">Limpar</button></div>
+		</form>
+	  </div>
+	</div>
+  </div>
+
 <script>
 // ---------------------------------------------------------------------
 // Node type metadata - field names/behavior mirror internal/flowengine
@@ -99,6 +123,7 @@ const NODE_TYPES = {
   sendAudio:       { label: 'Enviar Áudio',         icon: 'fa-microphone',      color: '#3b82f6', category: 'Mensagens' },
   sendFile:        { label: 'Enviar Arquivo',       icon: 'fa-paperclip',       color: '#3b82f6', category: 'Mensagens' },
   sendMenu:        { label: 'Enviar Menu',          icon: 'fa-list-ul',         color: '#3b82f6', category: 'Mensagens' },
+  sendTemplate:    { label: 'Enviar Modelo',        icon: 'fa-layer-group',     color: '#3b82f6', category: 'Mensagens' },
   condition:       { label: 'Condição',             icon: 'fa-code-branch',     color: '#f59e0b', category: 'Lógica' },
   switch:          { label: 'Múltipla Escolha',     icon: 'fa-list',            color: '#f59e0b', category: 'Lógica' },
   delay:           { label: 'Aguardar',             icon: 'fa-clock',           color: '#f59e0b', category: 'Lógica' },
@@ -108,6 +133,18 @@ const NODE_TYPES = {
   waitForResponse: { label: 'Esperar Resposta',     icon: 'fa-hourglass-half',  color: '#ec4899', category: 'Interação' },
   input:           { label: 'Capturar Resposta',    icon: 'fa-keyboard',        color: '#ec4899', category: 'Interação' },
   checkResponse:   { label: 'Verificar Resposta',   icon: 'fa-check-double',    color: '#ec4899', category: 'Interação' },
+  setVariable:     { label: 'Definir Variável',      icon: 'fa-code',            color: '#8b5cf6', category: 'Sistema' },
+  tag:             { label: 'Gerenciar Tag',         icon: 'fa-tags',            color: '#8b5cf6', category: 'Sistema' },
+  updateContact:   { label: 'Atualizar Contato',     icon: 'fa-address-card',    color: '#8b5cf6', category: 'Sistema' },
+  businessHours:   { label: 'Horário Comercial',    icon: 'fa-calendar-check',  color: '#f59e0b', category: 'Lógica' },
+  randomSplit:     { label: 'Divisão Aleatória',     icon: 'fa-shuffle',         color: '#f59e0b', category: 'Lógica' },
+  messageType:     { label: 'Tipo de Mensagem',      icon: 'fa-photo-film',      color: '#f59e0b', category: 'Lógica' },
+  smartAssign:     { label: 'Distribuição Inteligente', icon: 'fa-users-gear',   color: '#8b5cf6', category: 'Sistema' },
+  addNote:         { label: 'Registrar Nota',         icon: 'fa-note-sticky',    color: '#8b5cf6', category: 'Sistema' },
+  callback:        { label: 'Callback',               icon: 'fa-satellite-dish', color: '#8b5cf6', category: 'Sistema' },
+  subflow:         { label: 'Executar Subfluxo',      icon: 'fa-diagram-project', color: '#8b5cf6', category: 'Sistema' },
+  ai:              { label: 'Gerar com IA',          icon: 'fa-wand-magic-sparkles', color: '#8b5cf6', category: 'Sistema' },
+  scheduleMessage: { label: 'Agendar Mensagem',      icon: 'fa-calendar-plus',    color: '#8b5cf6', category: 'Sistema' },
   end:             { label: 'Fim',                  icon: 'fa-flag-checkered', color: '#ef4444', category: 'Fluxo' },
 };
 const CATEGORIES = ['Fluxo', 'Mensagens', 'Lógica', 'Sistema', 'Interação'];
@@ -221,12 +258,25 @@ const state = {
   connections: [],
   agents: [],
   departments: [],
+	templates: [],
   currentFlow: null,      // {id, name, description, connectionId, triggerType, triggerValue, isActive}
   flowData: { nodes: [], edges: [] },
   selectedNodeId: null,
   armedHandle: null,      // {nodeId, handle} - connection source selected by click or drag
-  connectionDrag: null,   // {pointerId, startClientX, startClientY, x, y, moved}
+	connectionDrag: null,   // {pointerId, startClientX, startClientY, x, y, moved}
+	savedFingerprint: '',
+	saving: false,
 };
+
+function flowFingerprint() {
+	if (!state.currentFlow) return '';
+	const flow = state.currentFlow;
+	return JSON.stringify({ name: flow.name, description: flow.description, connectionId: flow.connectionId,
+		triggerType: flow.triggerType, triggerValue: flow.triggerValue, isActive: flow.isActive,
+		priority: flow.priority || 0, flowData: state.flowData });
+}
+
+function flowIsDirty() { return !!state.currentFlow && state.savedFingerprint !== flowFingerprint(); }
 
 // ---------------------------------------------------------------------
 // API helpers
@@ -281,7 +331,7 @@ function renderFlowsList() {
       <div class="flex items-center gap-2 flex-wrap mb-3">${triggerBadge(flow)}<\/div>
       <div class="text-xs text-gray-500 mb-4 flex items-center gap-1.5">
         <i class="fab fa-whatsapp ${conn ? 'text-green-600' : 'text-gray-300'}"><\/i>
-        ${conn ? escapeHtml(conn.name) : 'Nenhuma conexão vinculada'}
+		${conn ? escapeHtml(conn.name) : 'Todas as conexões'}
       <\/div>
       <div class="flex gap-2">
         <button data-edit="${flow.id}" class="flex-1 p-2 bg-stone-100 hover:bg-stone-200 rounded-lg transition-colors text-xs font-medium text-gray-700">
@@ -316,7 +366,7 @@ async function openEditor(id) {
     state.currentFlow = flow;
     state.flowData = flow.flowData && flow.flowData.nodes ? flow.flowData : blankFlowData();
   } else {
-    state.currentFlow = { id: null, name: 'Nova automação', description: '', connectionId: null, triggerType: 'keyword', triggerValue: '', isActive: false };
+	state.currentFlow = { id: null, name: 'Nova automação', description: '', connectionId: null, triggerType: 'keyword', triggerValue: '', isActive: false, priority: 0, revision: 0 };
     state.flowData = blankFlowData();
   }
   state.selectedNodeId = null;
@@ -326,10 +376,12 @@ async function openEditor(id) {
   renderTopbarExtra();
   renderPalette();
   renderCanvas();
-  renderInspector();
+	renderInspector();
+	state.savedFingerprint = flowFingerprint();
 }
 
 function closeEditor() {
+	if (flowIsDirty() && !confirm('Existem alterações não salvas. Deseja sair mesmo assim?')) return;
   state.currentFlow = null;
   showView('list');
   renderTopbarExtra();
@@ -342,6 +394,7 @@ function showView(name) {
 }
 
 async function saveFlow() {
+	if (state.saving) return;
   const f = state.currentFlow;
   if (!f.name || !f.name.trim()) { alert('Dá um nome pra essa automação antes de salvar.'); return; }
   const startNodes = state.flowData.nodes.filter(n => n.type === 'start');
@@ -364,23 +417,42 @@ async function saveFlow() {
     connectionId: f.connectionId || null,
     triggerType: f.triggerType || 'keyword',
     triggerValue: f.triggerValue || '',
-    flowData: state.flowData,
-    isActive: !!f.isActive,
+	  flowData: state.flowData,
+	  isActive: !!f.isActive,
+	  priority: Number(f.priority || 0),
+	  revision: Number(f.revision || 0),
   };
-  try {
+	const submittedFingerprint = flowFingerprint();
+	try {
+		state.saving = true;
+		const saveButton = document.getElementById('btn-save');
+		if (saveButton) saveButton.disabled = true;
     let savedFlow;
     if (f.id) {
       savedFlow = await api('PUT', '/flows/api/' + f.id, payload);
     } else {
       savedFlow = await api('POST', '/flows/api/', payload);
     }
-    Object.assign(f, savedFlow);
+		if (flowFingerprint() === submittedFingerprint) {
+		  Object.assign(f, savedFlow);
+		  state.savedFingerprint = flowFingerprint();
+		} else {
+		  f.id = savedFlow.id;
+		  f.revision = savedFlow.revision;
+		  f.createdAt = savedFlow.createdAt;
+		  f.updatedAt = savedFlow.updatedAt;
+		  state.savedFingerprint = submittedFingerprint;
+		}
     flashSaved();
     loadFlowsList().catch(e => console.error('erro ao atualizar lista após salvar', e));
-  } catch (e) {
+	} catch (e) {
     console.error('erro ao salvar fluxo', e);
     alert('Não deu pra salvar: ' + e.message);
-  }
+	} finally {
+		state.saving = false;
+		const saveButton = document.getElementById('btn-save');
+		if (saveButton) saveButton.disabled = false;
+	}
 }
 
 function flashSaved() {
@@ -412,7 +484,7 @@ function renderTopbarExtra() {
   if (!state.currentFlow) { el.innerHTML = ''; return; }
   const f = state.currentFlow;
 
-  const connOptions = [{ value: '', label: 'Sem conexão vinculada' }]
+	const connOptions = [{ value: '', label: 'Todas as conexões' }]
     .concat(state.connections.map(c => ({ value: String(c.id), label: c.name, dot: c.status === 'connected' ? '#22c55e' : '#a8a29e' })));
   const triggerOptions = [
     { value: 'keyword', label: 'Palavra-chave' },
@@ -425,8 +497,9 @@ function renderTopbarExtra() {
       class="px-3 py-2 rounded-xl text-sm bg-white bg-opacity-90 text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-white w-48 shadow-sm">
     ${customSelectHTML('connection', connOptions, f.connectionId || '', 'Selecione a conexão')}
     ${customSelectHTML('trigger-type', triggerOptions, f.triggerType || 'keyword', 'Tipo de gatilho')}
-    <input id="inp-trigger-value" value="${escapeAttr(f.triggerValue||'')}" placeholder="ex: orçamento"
+	<input id="inp-trigger-value" value="${escapeAttr(f.triggerValue||'')}" placeholder="ex: orçamento"
       class="px-3 py-2 rounded-xl text-sm bg-white bg-opacity-90 text-gray-900 placeholder-gray-400 focus:outline-none w-32 shadow-sm ${f.triggerType==='always'?'hidden':''}">
+	<input id="inp-priority" type="number" min="-1000" max="1000" value="${Number(f.priority || 0)}" title="Prioridade do gatilho" class="w-20 px-3 py-2 rounded-xl text-sm bg-white bg-opacity-90 text-gray-900 focus:outline-none shadow-sm">
     <label class="flex items-center gap-1.5 text-white text-sm px-2">
       <input id="chk-active" type="checkbox" ${f.isActive?'checked':''}> Ativo
     <\/label>
@@ -456,7 +529,8 @@ function renderTopbarExtra() {
     });
   });
 
-  document.getElementById('inp-trigger-value').oninput = e => { f.triggerValue = e.target.value; };
+	document.getElementById('inp-trigger-value').oninput = e => { f.triggerValue = e.target.value; };
+	document.getElementById('inp-priority').oninput = e => { f.priority = Number(e.target.value || 0); };
   document.getElementById('chk-active').onchange = e => { f.isActive = e.target.checked; };
   document.getElementById('btn-test').onclick = testFlow;
   document.getElementById('btn-save').onclick = saveFlow;
@@ -517,9 +591,10 @@ function defaultDataFor(type) {
   switch (type) {
     case 'sendMenu': return {
       title: 'Menu', description: '', buttonText: 'Ver Menu', footerText: 'Sophus', useFallback: false,
+	  allowBackPrevious: false, allowBackMain: false,
       sections: [{ title: 'Opções', rows: [{ title: 'Opção 1', description: '', rowId: 'opcao_1', _handleId: uid('mh') }] }],
     };
-    case 'switch': return { cases: [{ label: 'Opção 1', condition: '' }] };
+	case 'switch': return { message: '', cases: [{ label: 'Opção 1', condition: '' }] };
     case 'condition': return { conditionSource: 'contactMessage', conditionOperator: 'equals', conditionValue: '' };
     case 'delay': return { delayType: 'fixed', seconds: 2 };
     case 'sendImage': return { imageUrl: '', imagePath: '', imageMimeType: '', mediaPreviewUrl: '', mediaName: '' };
@@ -527,6 +602,19 @@ function defaultDataFor(type) {
     case 'sendAudio': return { audioUrl: '', audioPath: '', audioMimeType: '', mediaPreviewUrl: '', mediaName: '' };
     case 'sendFile': return { fileUrl: '', filePath: '', fileMimeType: '', mediaPreviewUrl: '', mediaName: '' };
     case 'assign': return { assignType: 'agent' };
+    case 'setVariable': return { variableName: '', value: '' };
+    case 'tag': return { operation: 'add', tag: '' };
+    case 'updateContact': return { field: 'name', value: '' };
+    case 'businessHours': return { timezone: 'America/Sao_Paulo', days: [1,2,3,4,5], startTime: '08:00', endTime: '18:00', lunchEnabled: false, lunchStart: '12:00', lunchEnd: '13:00' };
+    case 'randomSplit': return { percentage: 50 };
+	case 'input': return { variableName: 'userInput', validationType: 'any' };
+	case 'smartAssign': return { strategy: 'leastLoaded' };
+	case 'addNote': return { eventType: 'note', content: '' };
+	case 'callback': return { eventName: 'flow.event', url: '', timeout: 10000, followRedirects: false };
+	case 'subflow': return {};
+	case 'sendTemplate': return {};
+	case 'ai': return { systemPrompt: '', prompt: '', saveResponseTo: 'aiResponse' };
+	case 'scheduleMessage': return { message: '', delayMinutes: 60 };
     case 'httpRequest': return {
       method: 'POST', headerMode: 'none', headerFields: [],
       bodyMode: 'none', bodyFields: [],
@@ -542,20 +630,38 @@ function nodeHeight(node) {
   if (node.type === 'sendMenu') {
     return 103 + outputsFor(node).length * 28;
   }
-  if (node.type === 'switch') {
-    const n = outputsFor(node).length;
-    return Math.max(90, 56 + n * 26);
-  }
-  if (node.type === 'condition') return 130;
-  return 90;
+	const outputCount = outputsFor(node).length;
+	let baseHeight = 90;
+	if (node.type === 'switch') baseHeight = 56 + outputCount * 26;
+	if (node.type === 'condition') baseHeight = 130;
+	if (node.type === 'messageType') baseHeight = 212;
+	if (node.type === 'smartAssign') baseHeight = 112;
+	if (outputCount > 1) baseHeight = Math.max(baseHeight, 70 + (outputCount - 1) * 32);
+	return baseHeight;
 }
 
 // Returns [{handle, label}] for a node's outgoing connection points.
 function outputsFor(node) {
-  if (node.type === 'condition') {
+	if (node.type === 'condition' || node.type === 'checkResponse') {
+		if (node.type === 'checkResponse') return [{ handle: 'true', label: 'Respondeu' }, { handle: 'false', label: 'Não respondeu' }];
     const labels = CONDITION_OUTPUT_LABELS[(node.data || {}).conditionOperator] || ['Verdadeiro', 'Falso'];
     return [{ handle: 'true', label: labels[0] }, { handle: 'false', label: labels[1] }];
   }
+	if (node.type === 'businessHours') return [{ handle: 'true', label: 'Dentro do horário' }, { handle: 'false', label: 'Fora do horário' }];
+	if (node.type === 'randomSplit') return [{ handle: 'a', label: 'Grupo A' }, { handle: 'b', label: 'Grupo B' }];
+	if (node.type === 'waitForResponse') {
+		return [{ handle: 'replied', label: 'Respondeu' }, { handle: 'timeout', label: 'Timeout' }];
+	}
+	if (node.type === 'input') return [{ handle: 'valid', label: 'Válida' }, { handle: 'invalid', label: 'Inválida' }, { handle: 'timeout', label: 'Timeout' }];
+	if (node.type === 'messageType') return [
+	  { handle: 'text', label: 'Texto' }, { handle: 'image', label: 'Imagem' }, { handle: 'video', label: 'Vídeo' },
+	  { handle: 'audio', label: 'Áudio' }, { handle: 'document', label: 'Documento' }, { handle: 'other', label: 'Outro' },
+	];
+	if (node.type === 'smartAssign') return [{ handle: 'assigned', label: 'Atribuído' }, { handle: 'unavailable', label: 'Indisponível' }];
+	if (node.type === 'callback') return [{ handle: 'success', label: 'Sucesso' }, { handle: 'failure', label: 'Falha' }];
+	if (node.type === 'subflow') return [{ handle: 'success', label: 'Concluído' }, { handle: 'failure', label: 'Falha' }];
+	if (node.type === 'ai') return [{ handle: 'success', label: 'Sucesso' }, { handle: 'failure', label: 'Falha' }];
+	if (node.type === 'scheduleMessage') return [{ handle: 'scheduled', label: 'Agendada' }, { handle: 'failure', label: 'Falha' }];
   if (node.type === 'sendMenu') {
     const out = [];
     const fallbackEdges = state.flowData.edges.filter(edge => edge.source === node.id && (edge.sourceHandle === 'fallback' || !edge.sourceHandle));
@@ -591,6 +697,10 @@ function nodeSummary(node) {
     case 'sendAudio': return d.mediaName || (d.audioUrl ? truncate(d.audioUrl, 40) : 'Sem áudio configurado');
     case 'sendFile': return d.mediaName || (d.fileUrl ? truncate(d.fileUrl, 40) : 'Sem arquivo configurado');
     case 'sendMenu': return [d.title, d.description].filter(Boolean).join(' — ') || 'Sem mensagem configurada';
+	case 'sendTemplate': {
+	  const selected = state.templates.find(template => template.id === Number(d.templateId));
+	  return selected ? selected.name : 'Sem modelo selecionado';
+	}
     case 'condition': {
       if (!d.conditionSource || d.conditionSource === 'legacy') return d.condition ? truncate(d.condition, 60) : 'Sem condição configurada';
       const source = CONDITION_SOURCES.find(option => option.value === d.conditionSource)?.label || d.conditionSource;
@@ -610,6 +720,21 @@ function nodeSummary(node) {
     case 'input': return d.variableName ? ('Salva em: ' + d.variableName) : 'Captura resposta livre';
     case 'waitForResponse': return d.timeout ? ('Timeout: ' + d.timeout + 's') : 'Sem timeout';
     case 'checkResponse': return d.saveResponseTo ? ('Salva em: ' + d.saveResponseTo) : '';
+	case 'setVariable': return d.variableName ? (d.variableName + ' = ' + truncate(d.value || '', 35)) : 'Sem variável definida';
+	case 'tag': return (d.operation === 'remove' ? 'Remover: ' : 'Adicionar: ') + (d.tag || 'sem tag');
+	case 'updateContact': return (d.field === 'email' ? 'Email: ' : 'Nome: ') + (d.value || 'sem valor');
+	case 'businessHours': return (d.startTime || '08:00') + ' - ' + (d.endTime || '18:00');
+	case 'randomSplit': return (d.percentage || 50) + '% no grupo A';
+	case 'messageType': return 'Roteia conforme a mídia recebida';
+	case 'smartAssign': return d.strategy === 'random' ? 'Agente aleatório' : 'Agente com menor carga';
+	case 'addNote': return d.content ? truncate(d.content, 55) : 'Sem conteúdo';
+	case 'callback': return d.url ? truncate((d.eventName || 'evento') + ' → ' + d.url, 55) : 'Sem URL configurada';
+	case 'subflow': {
+	  const selected = state.flows.find(flow => flow.id === Number(d.flowId));
+	  return selected ? selected.name : 'Sem subfluxo selecionado';
+	}
+	case 'ai': return d.saveResponseTo ? ('Resposta em: ' + d.saveResponseTo) : 'Sem variável definida';
+	case 'scheduleMessage': return d.delayMinutes ? ('Enviar em ' + d.delayMinutes + ' min') : 'Sem prazo definido';
     case 'start': return d.businessHours && d.businessHours.enabled ? 'Horário de atendimento ativo' : 'Início do fluxo';
     default: return '';
   }
@@ -633,14 +758,19 @@ function nodeBodyHTML(node, outs) {
     return '<div class="px-3 py-2 text-xs text-gray-500 leading-snug line-clamp-3" style="height:89px;padding-right:108px">' + escapeHtml(nodeSummary(node)) + '<\/div>';
   }
   return '<div class="px-3 py-2 text-xs text-gray-500 leading-snug">' + escapeHtml(nodeSummary(node)) + '<\/div>' +
-    (node.type === 'switch' ? '<div class="px-3 text-[10px] text-gray-400 flex flex-col gap-0.5">' + outs.map(o=>'<div class="truncate">↳ ' + escapeHtml(o.label) + '<\/div>').join('') + '<\/div>' : '');
+	    ((node.type === 'switch' || node.type === 'messageType') ? '<div class="px-3 text-[10px] text-gray-400 flex flex-col gap-0.5">' + outs.map(o=>'<div class="truncate">↳ ' + escapeHtml(o.label) + '<\/div>').join('') + '<\/div>' : '');
 }
 
 function outputY(node, index, count) {
   if (node.type === 'sendMenu') return 108 + index * 28;
   const h = nodeHeight(node);
-  if (node.type === 'condition') return h / 2 + (index - (count - 1) / 2) * 34;
-  return count === 1 ? h / 2 : (24 + index * ((h - 40) / Math.max(1, count - 1)));
+	if (count === 1) return h / 2;
+	const topPadding = 48;
+	const bottomPadding = 24;
+	const spacing = Math.min(32, (h - topPadding - bottomPadding) / Math.max(1, count - 1));
+	const groupHeight = spacing * (count - 1);
+	const center = (topPadding + h - bottomPadding) / 2;
+	return center - groupHeight / 2 + index * spacing;
 }
 
 function renderCanvas() {
@@ -684,7 +814,7 @@ function renderCanvas() {
       out.style.right = '-7px';
       out.style.top = (y - (node.type === 'sendMenu' ? 8 : 7)) + 'px';
       out.title = o.label;
-      if (node.type === 'condition') out.innerHTML = '<span class="handle-label">' + escapeHtml(o.label) + '<\/span>';
+	  if (node.type === 'condition' || node.type === 'checkResponse' || node.type === 'waitForResponse' || node.type === 'input' || node.type === 'businessHours' || node.type === 'randomSplit' || node.type === 'messageType' || node.type === 'smartAssign' || node.type === 'callback' || node.type === 'subflow' || node.type === 'ai' || node.type === 'scheduleMessage') out.innerHTML = '<span class="handle-label">' + escapeHtml(o.label) + '<\/span>';
       out.onpointerdown = (e) => startConnectionDrag(e, node.id, o.handle);
       card.appendChild(out);
     });
@@ -925,6 +1055,45 @@ function textInput(val, name) {
 function textArea(val, name, rows) {
   return '<textarea data-field="' + name + '" rows="' + (rows||3) + '" class="w-full px-3 py-2 bg-stone-50 border border-stone-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-purple-400">' + escapeHtml(val||'') + '<\/textarea>';
 }
+
+function availableFlowVariables() {
+	const standard = [
+	  { name: 'conversationId', label: 'ID do atendimento' },
+	  { name: 'executionId', label: 'ID da execução' },
+	  { name: 'flowId', label: 'ID do fluxo' },
+	  { name: 'contactName', label: 'Nome do cliente' },
+	  { name: 'contactNumber', label: 'Número do cliente' },
+	  { name: 'contactEmail', label: 'Email do cliente' },
+	  { name: 'conversationTags', label: 'Tags do atendimento' },
+	  { name: 'department', label: 'Setor atual' },
+	  { name: 'connectionType', label: 'Tipo de conexão' },
+	  { name: 'message', label: 'Mensagem recebida' },
+	  { name: 'response', label: 'Última resposta' },
+	  { name: 'senderName', label: 'Nome informado pelo WhatsApp' },
+	  { name: 'messageType', label: 'Tipo da mensagem recebida' },
+	];
+	const discovered = new Map();
+	(state.flowData?.nodes || []).forEach(node => {
+	  const data = node.data || {};
+	  let name = '';
+	  let source = '';
+	  if (node.type === 'setVariable') { name = data.variableName; source = 'Definir Variável'; }
+	  if (node.type === 'input') { name = data.variableName || 'userInput'; source = 'Capturar Resposta'; }
+	  if (node.type === 'httpRequest') { name = data.saveResponseTo; source = 'HTTP Request'; }
+	  if (node.type === 'checkResponse') { name = data.saveResponseTo; source = 'Verificar Resposta'; }
+	  if (node.type === 'ai') { name = data.saveResponseTo; source = 'Gerar com IA'; }
+	  name = String(name || '').trim();
+	  if (name && !standard.some(variable => variable.name === name)) discovered.set(name, { name, label: source });
+	});
+	[
+	  { name: 'assignedAgentId', label: 'ID do agente distribuído' },
+	  { name: 'assignedAgentName', label: 'Nome do agente distribuído' },
+	  { name: 'callbackResponse', label: 'Resposta do callback' },
+	  { name: 'scheduledMessageAt', label: 'Data do agendamento' },
+	].forEach(variable => discovered.set(variable.name, variable));
+	return { standard, custom: Array.from(discovered.values()) };
+}
+
 function formattedTextArea(val, name, rows) {
   const formats = [
     { token: '*', icon: 'fa-bold', title: 'Negrito' },
@@ -932,15 +1101,57 @@ function formattedTextArea(val, name, rows) {
     { token: '~', icon: 'fa-strikethrough', title: 'Tachado' },
     { token: '```', icon: 'fa-code', title: 'Monoespaçado' },
   ];
-  return '<div class="rounded-lg border border-stone-200 overflow-hidden bg-stone-50">' +
+	const variables = availableFlowVariables();
+	const variableButton = variable => '<button type="button" data-variable-name="' + escapeAttr(variable.name) + '" class="w-full px-3 py-2 text-left hover:bg-purple-50 flex items-center justify-between gap-2"><span><span class="block text-xs font-medium text-gray-700">' + escapeHtml(variable.label) + '<\/span><code class="text-[10px] text-purple-600">{' + '{' + escapeHtml(variable.name) + '}' + '}<\/code><\/span><i class="fas fa-plus text-[10px] text-purple-500"><\/i><\/button>';
+	return '<div data-formatted-editor class="rounded-lg border border-stone-200 bg-stone-50">' +
     '<div class="flex items-center gap-1 px-2 py-1.5 border-b border-stone-200 bg-white">' +
       formats.map(format => '<button type="button" data-format-token="' + format.token + '" title="' + format.title + '" class="w-8 h-8 rounded-md text-gray-600 hover:bg-purple-50 hover:text-purple-700"><i class="fas ' + format.icon + '"><\/i><\/button>').join('') +
+	  '<span class="h-5 w-px bg-stone-200 mx-1"><\/span>' +
+	  '<button type="button" data-variable-toggle title="Inserir variável" class="h-8 px-2.5 rounded-md text-xs font-medium text-purple-700 hover:bg-purple-50 flex items-center gap-1.5"><i class="fas fa-at"><\/i>Variáveis<\/button>' +
     '<\/div>' +
+	'<div data-variable-menu class="hidden border-b border-stone-200 bg-white max-h-56 overflow-y-auto">' +
+	  '<p class="px-3 pt-2 pb-1 text-[10px] font-bold uppercase tracking-wide text-gray-400">Dados do atendimento<\/p>' + standardVariableList(variables.standard, variableButton) +
+	  (variables.custom.length ? '<p class="px-3 pt-3 pb-1 text-[10px] font-bold uppercase tracking-wide text-gray-400">Variáveis do fluxo<\/p>' + standardVariableList(variables.custom, variableButton) : '') +
+	'<\/div>' +
     '<textarea data-field="' + name + '" data-formatted-text rows="' + (rows||4) + '" class="w-full px-3 py-2 bg-stone-50 text-sm focus:outline-none focus:ring-2 focus:ring-inset focus:ring-purple-400">' + escapeHtml(val||'') + '<\/textarea>' +
   '<\/div>';
 }
+
+function standardVariableList(variables, renderer) {
+	return variables.map(renderer).join('');
+}
 function numberInput(val, name) {
   return '<input type="number" data-field="' + name + '" value="' + (val ?? '') + '" class="w-full px-3 py-2 bg-stone-50 border border-stone-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-purple-400">';
+}
+
+function businessHoursFields(bh, prefix, includeOutsideAction) {
+  if (!bh.startTime) bh.startTime = '08:00';
+  if (!bh.endTime) bh.endTime = '18:00';
+  if (!bh.timezone) bh.timezone = 'America/Sao_Paulo';
+  if (!Array.isArray(bh.days)) bh.days = [1,2,3,4,5];
+  const timeInput = (value, path) => '<input type="time" data-field="' + path + '" value="' + escapeAttr(value) + '" class="w-full px-3 py-2 bg-stone-50 border border-stone-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-purple-400">';
+  const dayLabels = ['Dom','Seg','Ter','Qua','Qui','Sex','Sáb'];
+  let html = field('Dias de atendimento', '<div class="grid grid-cols-4 gap-1.5">' + dayLabels.map((label, day) =>
+    '<label class="flex items-center gap-1 text-xs text-gray-600"><input type="checkbox" data-business-days-path="' + prefix + 'days" value="' + day + '" ' + (bh.days.includes(day)?'checked':'') + '> ' + label + '<\/label>'
+  ).join('') + '<\/div>');
+  html += field('Início', timeInput(bh.startTime, prefix + 'startTime'));
+  html += field('Fim', timeInput(bh.endTime, prefix + 'endTime'));
+  html += field('Fuso horário', textInput(bh.timezone, prefix + 'timezone'));
+  html += field('Intervalo', '<label class="flex items-center gap-2 text-sm text-gray-700"><input type="checkbox" data-field="' + prefix + 'lunchEnabled" ' + (bh.lunchEnabled?'checked':'') + '> Considerar intervalo de almoço<\/label>');
+  if (bh.lunchEnabled) {
+    if (!bh.lunchStart) bh.lunchStart = '12:00';
+    if (!bh.lunchEnd) bh.lunchEnd = '13:00';
+    html += field('Início do intervalo', timeInput(bh.lunchStart, prefix + 'lunchStart'));
+    html += field('Fim do intervalo', timeInput(bh.lunchEnd, prefix + 'lunchEnd'));
+  }
+  if (includeOutsideAction) {
+    if (!bh.outsideAction) bh.outsideAction = 'block';
+    html += field('Fora do horário', inspectorSelect(prefix + 'outsideAction', [
+      { value: 'block', label: 'Ignorar mensagem' }, { value: 'message', label: 'Enviar aviso automático' },
+    ], bh.outsideAction, 'Selecione uma ação'));
+	if (bh.outsideAction === 'message') html += field('Mensagem de aviso', formattedTextArea(bh.outsideMessage, prefix + 'outsideMessage', 4));
+  }
+  return html;
 }
 
 function mediaNodeConfig(type) {
@@ -987,32 +1198,28 @@ function renderFieldsFor(node) {
       d.businessHours = d.businessHours || {};
       const bh = d.businessHours;
       html += field('Horário de atendimento', '<label class="flex items-center gap-2 text-sm text-gray-700"><input type="checkbox" data-field="businessHours.enabled" ' + (bh.enabled?'checked':'') + '> Restringir a um horário<\/label>');
-      if (bh.enabled) {
-        html += field('Início', textInput(bh.startTime||'08:00', 'businessHours.startTime'));
-        html += field('Fim', textInput(bh.endTime||'18:00', 'businessHours.endTime'));
-        html += field('Fuso horário', textInput(bh.timezone||'America/Sao_Paulo', 'businessHours.timezone'));
-        html += field('Fora do horário', inspectorSelect('businessHours.outsideAction', [
-          { value: 'block', label: 'Ignorar mensagem' },
-          { value: 'message', label: 'Enviar aviso automático' },
-        ], bh.outsideAction || 'block', 'Selecione uma ação'));
-        if (bh.outsideAction === 'message') {
-          html += field('Mensagem de aviso', textArea(bh.outsideMessage, 'businessHours.outsideMessage'));
-        }
+	  if (bh.enabled) {
+		html += businessHoursFields(bh, 'businessHours.', true);
       }
       break;
     }
     case 'sendText':
       html += field('Mensagem', formattedTextArea(d.message, 'message', 5), 'Selecione um trecho e use a barra de formatação. Variáveis continuam disponíveis com {' + '{variavel}' + '}.');
       break;
+	case 'sendTemplate':
+	  html += field('Modelo', inspectorSelect('templateId', [{ value: '', label: 'Selecione' }].concat(state.templates.map(template => ({ value: String(template.id), label: template.name }))), d.templateId || '', 'Selecione'));
+	  const selectedTemplate = state.templates.find(template => template.id === Number(d.templateId));
+	  if (selectedTemplate) html += '<div class="rounded-lg bg-stone-50 border border-stone-200 p-3 text-xs text-gray-600 whitespace-pre-wrap">' + escapeHtml(selectedTemplate.content) + '<\/div>';
+	  break;
     case 'sendImage':
       html += mediaUploadHTML('image', d, mediaNodeConfig(node.type));
       if (!d.imagePath) html += field('Ou use uma URL externa', textInput(d.imageUrl, 'imageUrl'));
-      html += field('Legenda (opcional)', textArea(d.caption, 'caption', 2));
+	  html += field('Legenda (opcional)', formattedTextArea(d.caption, 'caption', 3));
       break;
     case 'sendVideo':
       html += mediaUploadHTML('video', d, mediaNodeConfig(node.type));
       if (!d.videoPath) html += field('Ou use uma URL externa', textInput(d.videoUrl, 'videoUrl'));
-      html += field('Legenda (opcional)', textArea(d.caption, 'caption', 2));
+	  html += field('Legenda (opcional)', formattedTextArea(d.caption, 'caption', 3));
       break;
     case 'sendAudio':
       html += mediaUploadHTML('audio', d, mediaNodeConfig(node.type));
@@ -1021,15 +1228,19 @@ function renderFieldsFor(node) {
     case 'sendFile':
       html += mediaUploadHTML('document', d, mediaNodeConfig(node.type));
       if (!d.filePath) html += field('Ou use uma URL externa', textInput(d.fileUrl, 'fileUrl'));
-      html += field('Legenda (opcional)', textArea(d.caption, 'caption', 2));
+	  html += field('Legenda (opcional)', formattedTextArea(d.caption, 'caption', 3));
       break;
     case 'sendMenu':
       d.sections = d.sections || [];
       html += field('Título', textInput(d.title || 'Menu', 'title'));
-      html += field('Mensagem', textArea(d.description, 'description', 3), 'Use {' + '{variavel}' + '} para inserir dados capturados no fluxo.');
+	  html += field('Mensagem', formattedTextArea(d.description, 'description', 4));
       html += field('Texto do botão', textInput(d.buttonText || 'Ver Menu', 'buttonText'));
       html += field('Rodapé', textInput(d.footerText || 'Sophus', 'footerText'));
       html += field('Caminho padrão', '<label class="flex items-center gap-2 text-sm text-gray-700"><input type="checkbox" data-field="useFallback" ' + (d.useFallback?'checked':'') + '> Adicionar saída para respostas inválidas<\/label>');
+	  html += field('Navegação entre menus', '<div class="space-y-2 rounded-xl border border-stone-200 bg-stone-50 p-3">' +
+		'<label class="flex items-start gap-2 text-sm text-gray-700"><input type="checkbox" data-field="allowBackPrevious" ' + (d.allowBackPrevious?'checked':'') + '><span><span class="block font-medium">Voltar ao menu anterior<\/span><span class="block text-[11px] text-gray-400">Retoma o menu visitado imediatamente antes deste.<\/span><\/span><\/label>' +
+		'<label class="flex items-start gap-2 text-sm text-gray-700"><input type="checkbox" data-field="allowBackMain" ' + (d.allowBackMain?'checked':'') + '><span><span class="block font-medium">Voltar ao menu principal<\/span><span class="block text-[11px] text-gray-400">Retoma o primeiro menu visitado na execução.<\/span><\/span><\/label>' +
+	  '<\/div>', 'As opções aparecem para o cliente somente quando já existe um menu anterior no histórico.');
       html += '<div class="text-xs font-medium text-gray-600 mt-1">Seções e opções<\/div>';
       html += '<div id="menu-sections" class="flex flex-col gap-3"><\/div>';
       html += '<button id="btn-add-menu-section" class="text-xs text-purple-600 font-medium hover:underline"><i class="fas fa-plus mr-1"><\/i>Adicionar seção<\/button>';
@@ -1070,6 +1281,7 @@ function renderFieldsFor(node) {
     }
     case 'switch':
       d.cases = d.cases || [];
+	  html += field('Mensagem (opcional)', formattedTextArea(d.message, 'message', 4), 'Enviada antes de aguardar a resposta.');
       html += '<div class="text-xs font-medium text-gray-600 mb-1">Opções (avaliadas na ordem)<\/div>';
       html += '<div id="switch-cases" class="flex flex-col gap-2"><\/div>';
       html += '<button id="btn-add-case" class="mt-1 text-xs text-purple-600 font-medium hover:underline"><i class="fas fa-plus mr-1"><\/i>Adicionar opção<\/button>';
@@ -1104,8 +1316,14 @@ function renderFieldsFor(node) {
       const assignmentOptions = d.assignType === 'department' ? state.departments : state.agents;
       html += field(d.assignType === 'department' ? 'Setor' : 'Agente',
           inspectorSelect('assignId', [{ value: '', label: 'Selecione' }].concat(assignmentOptions.map(option => ({ value: String(option.id), label: option.name }))), d.assignId || '', 'Selecione'));
+	  html += field('Mensagem após transferir (opcional)', formattedTextArea(d.message, 'message', 4), 'Enviada ao cliente depois que a transferência for concluída.');
       break;
     case 'httpRequest':
+      html += '<div class="rounded-xl border border-purple-200 bg-purple-50 p-3 flex flex-col gap-2">' +
+        '<div><p class="text-xs font-semibold text-purple-900"><i class="fas fa-terminal mr-1"><\/i>Importar de cURL<\/p><p class="mt-1 text-[11px] leading-relaxed text-purple-700">Cole um comando cURL para preencher URL, método, headers e corpo.<\/p><\/div>' +
+        '<textarea id="http-curl-command" rows="5" spellcheck="false" placeholder="curl https://api.exemplo.com ..." class="w-full resize-y rounded-lg border border-purple-200 bg-white px-3 py-2 font-mono text-xs text-gray-800 outline-none focus:border-purple-400 focus:ring-2 focus:ring-purple-100"><\/textarea>' +
+        '<button type="button" id="btn-import-http-curl" class="w-full rounded-lg bg-purple-700 px-3 py-2 text-xs font-semibold text-white transition hover:bg-purple-800 disabled:cursor-wait disabled:opacity-60"><i class="fas fa-file-import mr-1"><\/i>Importar configurações<\/button>' +
+        '<p id="http-curl-feedback" class="hidden text-[11px] leading-relaxed"><\/p><\/div>';
       html += field('Método', inspectorSelect('method', ['GET','POST','PUT','PATCH','DELETE'].map(method => ({ value: method, label: method })), d.method || 'POST', 'Método HTTP'));
       html += field('URL', textInput(d.url, 'url'));
       if (!d.headerMode) {
@@ -1132,32 +1350,94 @@ function renderFieldsFor(node) {
         html += field('Formato do corpo', inspectorSelect('bodyMode', [
           { value: 'json', label: 'JSON por campos' },
           { value: 'rawJSON', label: 'JSON livre' },
+          { value: 'raw', label: 'Texto livre' },
           { value: 'form', label: 'Formulário (x-www-form-urlencoded)' },
+		  { value: 'multipart', label: 'Form-data (multipart)' },
           { value: 'none', label: 'Sem corpo' },
         ], d.bodyMode, 'Formato do corpo'));
-        if (d.bodyMode === 'json' || d.bodyMode === 'form') {
+		if (d.bodyMode === 'json' || d.bodyMode === 'form' || d.bodyMode === 'multipart') {
           html += '<div class="flex items-center justify-between"><span class="text-xs font-medium text-gray-600">Campos do corpo<\/span>' +
             '<button type="button" id="btn-add-http-field" class="text-xs text-purple-600 font-medium hover:underline"><i class="fas fa-plus mr-1"><\/i>Adicionar campo<\/button><\/div>' +
             '<div id="http-body-fields" class="flex flex-col gap-2"><\/div>' +
-            '<p class="text-[11px] text-gray-400">Valores aceitam {' + '{variavel}' + '}. No modo JSON, números, booleanos, objetos e arrays válidos são tipados automaticamente.<\/p>';
-        } else if (d.bodyMode === 'rawJSON') {
-          html += field('Corpo JSON', textArea(d.body, 'body', 6), 'Use {' + '{variavel}' + '} para inserir dados capturados no fluxo.');
+			'<p class="text-[11px] text-gray-400">' + (d.bodyMode === 'multipart' ? 'Cada campo será enviado como uma parte do form-data. O Content-Type da parte é opcional.' : 'Valores aceitam {' + '{variavel}' + '}. No modo JSON, números, booleanos, objetos e arrays válidos são tipados automaticamente.') + '<\/p>';
+        } else if (d.bodyMode === 'rawJSON' || d.bodyMode === 'raw') {
+          html += field(d.bodyMode === 'rawJSON' ? 'Corpo JSON' : 'Corpo da requisição', textArea(d.body, 'body', 6), 'Use {' + '{variavel}' + '} para inserir dados capturados no fluxo.');
         }
       }
       html += field('Salvar resposta em', textInput(d.saveResponseTo, 'saveResponseTo'), 'Nome da variável, ex: apiResult');
       html += field('Timeout (ms)', numberInput(d.timeout, 'timeout'));
+	  html += field('Timeout de conexão (ms)', numberInput(d.connectTimeout, 'connectTimeout'));
+	  html += field('Redirecionamentos', '<label class="flex items-center gap-2 text-sm text-gray-700"><input type="checkbox" data-field="followRedirects" ' + (d.followRedirects?'checked':'') + '> Seguir respostas 3xx<\/label>', 'Ative para reproduzir cURL com --location. Cada destino continua sujeito à proteção contra endereços privados.');
       break;
     case 'waitForResponse':
       html += field('Timeout (segundos, opcional)', numberInput(d.timeout, 'timeout'));
       break;
     case 'input':
-      html += field('Mensagem (opcional)', textArea(d.message, 'message', 3), 'Enviada antes de aguardar a resposta.');
+	  html += field('Mensagem (opcional)', formattedTextArea(d.message, 'message', 4), 'Enviada antes de aguardar a resposta.');
       html += field('Salvar resposta em', textInput(d.variableName, 'variableName'), 'Nome da variável, ex: nomeCliente');
+	  html += field('Validação', inspectorSelect('validationType', [
+		{ value: 'any', label: 'Qualquer mensagem (texto ou mídia)' }, { value: 'text', label: 'Texto não vazio' }, { value: 'email', label: 'Email' },
+		{ value: 'number', label: 'Número' }, { value: 'regex', label: 'Expressão regular' },
+	  ], d.validationType || 'any', 'Selecione'));
+	  if (d.validationType === 'regex') html += field('Expressão regular', textInput(d.validationPattern, 'validationPattern'), 'Formato RE2 do Go, por exemplo: ^[0-9]{11}$');
       html += field('Timeout (segundos, opcional)', numberInput(d.timeout, 'timeout'));
       break;
     case 'checkResponse':
       html += field('Salvar resultado em (opcional)', textInput(d.saveResponseTo, 'saveResponseTo'));
       break;
+	case 'setVariable':
+	  html += field('Nome da variável', textInput(d.variableName, 'variableName'), 'Use letras, números e sublinhado; comece por uma letra.');
+	  html += field('Valor', textArea(d.value, 'value', 3), 'Aceita variáveis como {' + '{contactName}' + '}.');
+	  break;
+	case 'tag':
+	  html += field('Ação', inspectorSelect('operation', [{ value: 'add', label: 'Adicionar tag' }, { value: 'remove', label: 'Remover tag' }], d.operation || 'add', 'Selecione'));
+	  html += field('Tag', textInput(d.tag, 'tag'), 'Aceita variáveis e ignora diferenças entre maiúsculas e minúsculas ao evitar duplicatas.');
+	  break;
+	case 'updateContact':
+	  html += field('Campo', inspectorSelect('field', [{ value: 'name', label: 'Nome' }, { value: 'email', label: 'Email' }], d.field || 'name', 'Selecione'));
+	  html += field('Novo valor', textInput(d.value, 'value'), 'Aceita variáveis do contexto do fluxo.');
+	  break;
+	case 'businessHours':
+	  html += businessHoursFields(d, '', false);
+	  break;
+	case 'randomSplit':
+	  html += field('Percentual no grupo A', '<input type="number" min="1" max="99" data-field="percentage" value="' + Number(d.percentage || 50) + '" class="w-full px-3 py-2 bg-stone-50 border border-stone-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-purple-400">', 'O restante segue pelo grupo B. Cada passagem faz um novo sorteio.');
+	  break;
+	case 'messageType':
+	  html += '<p class="text-sm text-gray-500">Encaminha o fluxo conforme o tipo da última mensagem recebida pelo contato.<\/p>';
+	  break;
+	case 'smartAssign':
+	  html += field('Estratégia', inspectorSelect('strategy', [
+		{ value: 'leastLoaded', label: 'Menor quantidade de conversas' }, { value: 'random', label: 'Aleatória' },
+	  ], d.strategy || 'leastLoaded', 'Selecione'));
+	  html += field('Restringir ao setor (opcional)', inspectorSelect('departmentId', [{ value: '', label: 'Todos os agentes' }].concat(state.departments.map(department => ({ value: String(department.id), label: department.name }))), d.departmentId || '', 'Todos os agentes'));
+	  break;
+	case 'addNote':
+	  html += field('Tipo', inspectorSelect('eventType', [{ value: 'note', label: 'Nota interna' }, { value: 'history', label: 'Evento de histórico' }], d.eventType || 'note', 'Selecione'));
+	  html += field('Conteúdo', textArea(d.content, 'content', 4), 'Registro interno: não será enviado ao contato. Aceita variáveis.');
+	  break;
+	case 'callback':
+	  html += field('Nome do evento', textInput(d.eventName, 'eventName'));
+	  html += field('URL', textInput(d.url, 'url'), 'Somente destinos públicos são permitidos.');
+	  html += field('Token Bearer (opcional)', '<input type="password" data-field="token" value="' + escapeAttr(d.token || '') + '" class="w-full px-3 py-2 bg-stone-50 border border-stone-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-purple-400">');
+	  html += field('Timeout (ms)', numberInput(d.timeout, 'timeout'));
+	  html += field('Redirecionamentos', '<label class="flex items-center gap-2 text-sm text-gray-700"><input type="checkbox" data-field="followRedirects" ' + (d.followRedirects?'checked':'') + '> Seguir respostas 3xx<\/label>');
+	  break;
+	case 'subflow': {
+	  const availableFlows = state.flows.filter(flow => flow.id !== state.currentFlow.id);
+	  html += field('Fluxo reutilizável', inspectorSelect('flowId', [{ value: '', label: 'Selecione' }].concat(availableFlows.map(flow => ({ value: String(flow.id), label: flow.name }))), d.flowId || '', 'Selecione'));
+	  html += '<p class="text-[11px] text-gray-400">Subfluxos são capturados no início da execução e não podem conter blocos que aguardam resposta.<\/p>';
+	  break;
+	}
+	case 'ai':
+	  html += field('Instrução do sistema (opcional)', textArea(d.systemPrompt, 'systemPrompt', 4));
+	  html += field('Prompt', textArea(d.prompt, 'prompt', 6), 'Aceita variáveis. Credenciais e modelo são configurados no servidor.');
+	  html += field('Salvar resposta em', textInput(d.saveResponseTo, 'saveResponseTo'));
+	  break;
+	case 'scheduleMessage':
+	  html += field('Mensagem', formattedTextArea(d.message, 'message', 5), 'As variáveis são resolvidas no momento do agendamento.');
+	  html += field('Enviar após (minutos)', '<input type="number" min="1" max="43200" data-field="delayMinutes" value="' + Number(d.delayMinutes || 60) + '" class="w-full px-3 py-2 bg-stone-50 border border-stone-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-purple-400">', 'Entre 1 minuto e 30 dias. O envio sobrevive a reinícios do servidor.');
+	  break;
     case 'end':
       html += '<p class="text-sm text-gray-500">Fim do fluxo. Nenhuma configuração necessária.<\/p>';
       break;
@@ -1174,7 +1454,7 @@ function renderFieldsFor(node) {
         : input.value;
       setPath(d, path, val);
       if (node.type === 'httpRequest' && path === 'bodyMode') {
-        if ((val === 'json' || val === 'form') && !d.bodyFields.length) d.bodyFields.push({ key: '', value: '' });
+		if ((val === 'json' || val === 'form' || val === 'multipart') && !d.bodyFields.length) d.bodyFields.push({ key: '', value: '', contentType: '' });
       }
       if (node.type === 'httpRequest' && path === 'headerMode') {
         d.headerFields = d.headerFields || [];
@@ -1202,11 +1482,12 @@ function renderFieldsFor(node) {
   box.querySelectorAll('[data-dd-field]').forEach(wrapper => {
     const path = wrapper.dataset.ddField;
     wrapper.querySelectorAll('input[type=radio]').forEach(radio => radio.addEventListener('change', () => {
-      const val = path === 'assignId' ? (radio.value === '' ? undefined : Number(radio.value)) : radio.value;
+	  const numericSelect = path === 'assignId' || path === 'departmentId' || path === 'flowId' || path === 'templateId';
+      const val = numericSelect ? (radio.value === '' ? undefined : Number(radio.value)) : radio.value;
       setPath(d, path, val);
       if (node.type === 'httpRequest' && path === 'bodyMode') {
         d.bodyFields = d.bodyFields || [];
-        if ((val === 'json' || val === 'form') && !d.bodyFields.length) d.bodyFields.push({ key: '', value: '' });
+		if ((val === 'json' || val === 'form' || val === 'multipart') && !d.bodyFields.length) d.bodyFields.push({ key: '', value: '', contentType: '' });
       }
       if (node.type === 'httpRequest' && path === 'headerMode') {
         d.headerFields = d.headerFields || [];
@@ -1220,27 +1501,88 @@ function renderFieldsFor(node) {
     }));
   });
 
+  box.querySelectorAll('[data-business-days-path]').forEach(input => input.addEventListener('change', () => {
+	const path = input.dataset.businessDaysPath;
+	const days = Array.from(box.querySelectorAll('[data-business-days-path="' + path + '"]:checked')).map(day => Number(day.value));
+	setPath(d, path, days);
+	renderCanvas();
+  }));
+
   box.querySelectorAll('[data-format-token]').forEach(button => button.onclick = () => {
-    const input = box.querySelector('[data-formatted-text]');
-    if (!input) return;
+	const editor = button.closest('[data-formatted-editor]');
+	const input = editor?.querySelector('[data-formatted-text]');
+	if (!input) return;
     const token = button.dataset.formatToken;
     const start = input.selectionStart;
     const end = input.selectionEnd;
     const selected = input.value.slice(start, end) || 'texto';
-    const replacement = token + selected + token;
-    input.setRangeText(replacement, start, end, 'end');
-    node.data.message = input.value;
-    input.focus();
-    renderCanvas();
+	const replacement = token + selected + token;
+	input.setRangeText(replacement, start, end, 'end');
+	input.dispatchEvent(new Event('input', { bubbles: true }));
+	input.focus();
+  });
+
+  box.querySelectorAll('[data-variable-toggle]').forEach(button => button.onclick = () => {
+	const editor = button.closest('[data-formatted-editor]');
+	const menu = editor?.querySelector('[data-variable-menu]');
+	if (menu) menu.classList.toggle('hidden');
+  });
+
+  box.querySelectorAll('[data-variable-name]').forEach(button => button.onclick = () => {
+	const editor = button.closest('[data-formatted-editor]');
+	const input = editor?.querySelector('[data-formatted-text]');
+	if (!input) return;
+	const variable = '{' + '{' + button.dataset.variableName + '}' + '}';
+	input.setRangeText(variable, input.selectionStart, input.selectionEnd, 'end');
+	input.dispatchEvent(new Event('input', { bubbles: true }));
+	editor.querySelector('[data-variable-menu]')?.classList.add('hidden');
+	input.focus();
   });
 
   if (node.type === 'switch') renderSwitchCases(node);
   if (node.type === 'sendMenu') renderMenuSections(node);
   if (node.type === 'httpRequest') {
+	bindHTTPCURLImport(node, box);
     renderHTTPHeaderFields(node);
     renderHTTPBodyFields(node);
   }
   bindMediaUploads(node, box);
+}
+
+function bindHTTPCURLImport(node, box) {
+  const button = box.querySelector('#btn-import-http-curl');
+  const input = box.querySelector('#http-curl-command');
+  const feedback = box.querySelector('#http-curl-feedback');
+  if (!button || !input || !feedback) return;
+  button.onclick = async () => {
+    const command = input.value.trim();
+    if (!command) {
+      feedback.textContent = 'Cole um comando cURL antes de importar.';
+      feedback.className = 'text-[11px] leading-relaxed text-red-600';
+      input.focus();
+      return;
+    }
+    button.disabled = true;
+    feedback.textContent = 'Lendo configurações...';
+    feedback.className = 'text-[11px] leading-relaxed text-purple-700';
+    try {
+      const imported = await api('POST', '/flows/api/parse-curl', { command });
+	  if (state.selectedNodeId !== node.id || !state.flowData.nodes.includes(node)) return;
+	  ['method', 'url', 'headerMode', 'headerFields', 'headersRaw', 'headers', 'bodyMode', 'bodyFields', 'body', 'timeout', 'connectTimeout', 'followRedirects'].forEach(field => delete node.data[field]);
+      Object.assign(node.data, imported);
+      renderCanvas();
+      renderInspector();
+      const success = document.getElementById('http-curl-feedback');
+      if (success) {
+        success.textContent = 'Configurações importadas. Revise os dados antes de salvar.';
+        success.className = 'text-[11px] leading-relaxed text-emerald-700';
+      }
+    } catch (error) {
+      feedback.textContent = error.message;
+      feedback.className = 'text-[11px] leading-relaxed text-red-600';
+      button.disabled = false;
+    }
+  };
 }
 
 function renderHTTPHeaderFields(node) {
@@ -1276,10 +1618,12 @@ function renderHTTPBodyFields(node) {
   const wrap = document.getElementById('http-body-fields');
   if (!wrap) return;
   node.data.bodyFields = node.data.bodyFields || [];
+	const multipart = node.data.bodyMode === 'multipart';
   wrap.innerHTML = node.data.bodyFields.map((field, index) =>
-    '<div class="grid grid-cols-[1fr_1fr_auto] gap-2 items-center">' +
+	'<div class="grid ' + (multipart ? 'grid-cols-[1fr_1fr_1fr_auto]' : 'grid-cols-[1fr_1fr_auto]') + ' gap-2 items-center">' +
       '<input data-http-key="' + index + '" value="' + escapeAttr(field.key||'') + '" placeholder="Chave" class="min-w-0 px-2.5 py-2 bg-stone-50 border border-stone-200 rounded-lg text-xs">' +
       '<input data-http-value="' + index + '" value="' + escapeAttr(field.value||'') + '" placeholder="Valor" class="min-w-0 px-2.5 py-2 bg-stone-50 border border-stone-200 rounded-lg text-xs">' +
+	  (multipart ? '<input data-http-content-type="' + index + '" value="' + escapeAttr(field.contentType||'') + '" placeholder="Content-Type opcional" class="min-w-0 px-2.5 py-2 bg-stone-50 border border-stone-200 rounded-lg text-xs">' : '') +
       '<button type="button" data-http-remove="' + index + '" class="w-8 h-8 text-red-500 hover:bg-red-50 rounded-lg"><i class="fas fa-times"><\/i><\/button>' +
     '<\/div>'
   ).join('');
@@ -1289,13 +1633,16 @@ function renderHTTPBodyFields(node) {
   wrap.querySelectorAll('[data-http-value]').forEach(input => input.oninput = () => {
     node.data.bodyFields[Number(input.dataset.httpValue)].value = input.value;
   });
+	wrap.querySelectorAll('[data-http-content-type]').forEach(input => input.oninput = () => {
+		node.data.bodyFields[Number(input.dataset.httpContentType)].contentType = input.value;
+	});
   wrap.querySelectorAll('[data-http-remove]').forEach(button => button.onclick = () => {
     node.data.bodyFields.splice(Number(button.dataset.httpRemove), 1);
     renderHTTPBodyFields(node);
   });
   const add = document.getElementById('btn-add-http-field');
   if (add) add.onclick = () => {
-    node.data.bodyFields.push({ key: '', value: '' });
+	node.data.bodyFields.push({ key: '', value: '', contentType: '' });
     renderHTTPBodyFields(node);
     wrap.querySelector('[data-http-key="' + (node.data.bodyFields.length - 1) + '"]').focus();
   };
@@ -1520,11 +1867,89 @@ document.addEventListener('click', (e) => {
 function escapeHtml(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, function(c) { return ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'})[c]; }); }
 function escapeAttr(s) { return escapeHtml(s); }
 
+function resetTemplateForm(template) {
+	document.getElementById('template-id').value = template?.id || '';
+	document.getElementById('template-revision').value = template?.revision || '';
+	document.getElementById('template-name').value = template?.name || '';
+	document.getElementById('template-content').value = template?.content || '';
+}
+
+function insertFormattedSelection(input, token) {
+	const start = input.selectionStart;
+	const end = input.selectionEnd;
+	const selected = input.value.slice(start, end) || 'texto';
+	input.setRangeText(token + selected + token, start, end, 'end');
+	input.dispatchEvent(new Event('input', { bubbles: true }));
+	input.focus();
+}
+
+function renderTemplateVariables() {
+	const menu = document.getElementById('template-variables');
+	const variables = availableFlowVariables();
+	const render = variable => '<button type="button" data-template-variable="' + escapeAttr(variable.name) + '" class="w-full px-3 py-2 text-left hover:bg-purple-50"><span class="block text-xs font-medium text-gray-700">' + escapeHtml(variable.label) + '<\/span><code class="text-[10px] text-purple-600">{' + '{' + escapeHtml(variable.name) + '}' + '}<\/code><\/button>';
+	menu.innerHTML = variables.standard.map(render).join('') + variables.custom.map(render).join('');
+	menu.querySelectorAll('[data-template-variable]').forEach(button => button.onclick = () => {
+	  const input = document.getElementById('template-content');
+	  input.setRangeText('{' + '{' + button.dataset.templateVariable + '}' + '}', input.selectionStart, input.selectionEnd, 'end');
+	  menu.classList.add('hidden');
+	  input.focus();
+	});
+}
+
+function renderTemplatesList() {
+	const list = document.getElementById('templates-list');
+	list.innerHTML = state.templates.length ? state.templates.map(template =>
+	  '<div class="rounded-xl border border-stone-200 p-3"><div class="flex items-start justify-between gap-2"><button type="button" data-edit-template="' + template.id + '" class="text-left min-w-0 flex-1"><strong class="text-sm text-gray-800">' + escapeHtml(template.name) + '<\/strong><p class="mt-1 text-xs text-gray-500 line-clamp-2">' + escapeHtml(template.content) + '<\/p><\/button><button type="button" data-delete-template="' + template.id + '" class="p-1 text-red-500 hover:text-red-700"><i class="fas fa-trash"><\/i><\/button><\/div><\/div>'
+	).join('') : '<p class="text-sm text-gray-400 text-center py-10">Nenhum modelo cadastrado.<\/p>';
+	list.querySelectorAll('[data-edit-template]').forEach(button => button.onclick = () => resetTemplateForm(state.templates.find(template => template.id === Number(button.dataset.editTemplate))));
+	list.querySelectorAll('[data-delete-template]').forEach(button => button.onclick = async () => {
+	  if (!confirm('Excluir este modelo? Fluxos já iniciados manterão o snapshot atual.')) return;
+	  try {
+		await api('DELETE', '/flows/api/templates/' + button.dataset.deleteTemplate);
+		state.templates = await api('GET', '/flows/api/templates');
+		resetTemplateForm();
+		renderTemplatesList();
+	  } catch (error) { alert('Não foi possível excluir o modelo: ' + error.message); }
+	});
+}
+
+function openTemplatesModal() {
+	const modal = document.getElementById('templates-modal');
+	modal.classList.remove('hidden');
+	modal.classList.add('flex');
+	resetTemplateForm();
+	renderTemplateVariables();
+	renderTemplatesList();
+}
+
+function closeTemplatesModal() {
+	const modal = document.getElementById('templates-modal');
+	modal.classList.add('hidden');
+	modal.classList.remove('flex');
+}
+
 // ---------------------------------------------------------------------
 // Boot
 // ---------------------------------------------------------------------
 async function boot() {
   document.getElementById('btn-new-flow').onclick = () => openEditor(null);
+	document.getElementById('btn-templates').onclick = openTemplatesModal;
+	document.getElementById('btn-close-templates').onclick = closeTemplatesModal;
+	document.getElementById('btn-new-template').onclick = () => resetTemplateForm();
+	document.querySelectorAll('[data-template-format]').forEach(button => button.onclick = () => insertFormattedSelection(document.getElementById('template-content'), button.dataset.templateFormat));
+	document.getElementById('btn-template-variables').onclick = () => document.getElementById('template-variables').classList.toggle('hidden');
+	document.getElementById('template-form').onsubmit = async event => {
+	  event.preventDefault();
+	  const id = document.getElementById('template-id').value;
+	  const body = { name: document.getElementById('template-name').value, content: document.getElementById('template-content').value };
+	  if (id) body.revision = Number(document.getElementById('template-revision').value);
+	  try {
+		await api(id ? 'PUT' : 'POST', id ? '/flows/api/templates/' + id : '/flows/api/templates', body);
+		state.templates = await api('GET', '/flows/api/templates');
+		resetTemplateForm();
+		renderTemplatesList();
+	  } catch (error) { alert('Não foi possível salvar o modelo: ' + error.message); }
+	};
   try {
     state.connections = await api('GET', '/flows/api/connections');
   } catch (e) { console.error(e); state.connections = []; }
@@ -1533,6 +1958,8 @@ async function boot() {
     state.agents = options.agents || [];
     state.departments = options.departments || [];
   } catch (e) { console.error(e); state.agents = []; state.departments = []; }
+	try { state.templates = await api('GET', '/flows/api/templates'); }
+	catch (e) { console.error(e); state.templates = []; }
   try {
     await loadFlowsList();
   } catch (e) {
@@ -1540,6 +1967,11 @@ async function boot() {
   }
 }
 boot();
+window.addEventListener('beforeunload', event => {
+	if (!flowIsDirty()) return;
+	event.preventDefault();
+	event.returnValue = '';
+});
 </script>
 </body>
 </html>

@@ -1,7 +1,10 @@
 package controllers
 
 import (
+	"bytes"
+	"database/sql"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"sophus/internal/flowengine"
 	"sophus/internal/repo"
@@ -21,16 +24,58 @@ type createFlowRequest struct {
 	TriggerValue string          `json:"triggerValue"`
 	FlowData     json.RawMessage `json:"flowData"`
 	IsActive     bool            `json:"isActive"`
+	Priority     int             `json:"priority"`
 }
 
 type updateFlowRequest struct {
-	Name         *string          `json:"name"`
-	Description  *string          `json:"description"`
-	ConnectionId *int             `json:"connectionId"`
-	TriggerType  *string          `json:"triggerType"`
-	TriggerValue *string          `json:"triggerValue"`
-	FlowData     *json.RawMessage `json:"flowData"`
-	IsActive     *bool            `json:"isActive"`
+	Name         *string                `json:"name"`
+	Description  *string                `json:"description"`
+	ConnectionId nullableFlowConnection `json:"connectionId"`
+	TriggerType  *string                `json:"triggerType"`
+	TriggerValue *string                `json:"triggerValue"`
+	FlowData     *json.RawMessage       `json:"flowData"`
+	IsActive     *bool                  `json:"isActive"`
+	Priority     *int                   `json:"priority"`
+	Revision     *int                   `json:"revision"`
+}
+
+type nullableFlowConnection struct {
+	Set   bool
+	Value *int
+}
+
+func (value *nullableFlowConnection) UnmarshalJSON(data []byte) error {
+	value.Set = true
+	if bytes.Equal(bytes.TrimSpace(data), []byte("null")) {
+		value.Value = nil
+		return nil
+	}
+	var id int
+	if err := json.Unmarshal(data, &id); err != nil {
+		return err
+	}
+	value.Value = &id
+	return nil
+}
+
+func ParseFlowCURL(ctx iris.Context) {
+	if _, ok := requireAdmin(ctx); !ok {
+		return
+	}
+	var body struct {
+		Command string `json:"command"`
+	}
+	ctx.Request().Body = http.MaxBytesReader(ctx.ResponseWriter(), ctx.Request().Body, maxFlowAPIRequestBytes)
+	if err := ctx.ReadJSON(&body); err != nil {
+		ctx.StopWithJSON(iris.StatusBadRequest, iris.Map{"error": "JSON inválido"})
+		return
+	}
+	config, err := flowengine.ParseCURL(body.Command)
+	if err != nil {
+		ctx.StopWithJSON(iris.StatusBadRequest, iris.Map{"error": err.Error()})
+		return
+	}
+	ctx.JSON(iris.Map{"data": config})
 }
 
 func ListFlows(ctx iris.Context) {
@@ -79,14 +124,24 @@ func CreateFlow(ctx iris.Context) {
 		ctx.StopWithJSON(iris.StatusBadRequest, iris.Map{"error": "nome é obrigatório"})
 		return
 	}
+	if req.Priority < -1000 || req.Priority > 1000 {
+		ctx.StopWithJSON(iris.StatusBadRequest, iris.Map{"error": "prioridade deve estar entre -1000 e 1000"})
+		return
+	}
 	if req.TriggerType == "" {
 		req.TriggerType = "keyword"
 	}
+	req.TriggerType = strings.ToLower(strings.TrimSpace(req.TriggerType))
+	req.TriggerValue = strings.TrimSpace(req.TriggerValue)
 	if !flowConnectionBelongsToCompany(req.ConnectionId, agent.CompanyId) {
 		ctx.StopWithJSON(iris.StatusBadRequest, iris.Map{"error": "conexão inválida para esta empresa"})
 		return
 	}
-	if err := flowengine.ValidateFlowData(req.FlowData); err != nil {
+	if err := validateRequestedFlow(req.FlowData, req.IsActive, req.TriggerType, req.TriggerValue); err != nil {
+		ctx.StopWithJSON(iris.StatusBadRequest, iris.Map{"error": err.Error()})
+		return
+	}
+	if err := repo.ValidateFlowDependencies(req.FlowData, agent.CompanyId, 0); err != nil {
 		ctx.StopWithJSON(iris.StatusBadRequest, iris.Map{"error": err.Error()})
 		return
 	}
@@ -100,6 +155,7 @@ func CreateFlow(ctx iris.Context) {
 		TriggerValue: req.TriggerValue,
 		FlowData:     req.FlowData,
 		IsActive:     req.IsActive,
+		Priority:     req.Priority,
 		CreatedBy:    &createdBy,
 	}
 	id, err := repo.CreateChatbotFlow(flow)
@@ -108,6 +164,7 @@ func CreateFlow(ctx iris.Context) {
 		return
 	}
 	flow.Id = id
+	flow.Revision = 1
 	ctx.StatusCode(iris.StatusCreated)
 	ctx.JSON(iris.Map{"data": flow})
 }
@@ -133,18 +190,22 @@ func UpdateFlow(ctx iris.Context) {
 		ctx.StopWithStatus(iris.StatusBadRequest)
 		return
 	}
+	if req.Revision == nil || *req.Revision <= 0 {
+		ctx.StopWithJSON(iris.StatusBadRequest, iris.Map{"error": "revision é obrigatória para atualizar o fluxo"})
+		return
+	}
 	if req.Name != nil {
 		flow.Name = *req.Name
 	}
 	if req.Description != nil {
 		flow.Description = *req.Description
 	}
-	if req.ConnectionId != nil {
-		if !flowConnectionBelongsToCompany(req.ConnectionId, agent.CompanyId) {
+	if req.ConnectionId.Set {
+		if !flowConnectionBelongsToCompany(req.ConnectionId.Value, agent.CompanyId) {
 			ctx.StopWithJSON(iris.StatusBadRequest, iris.Map{"error": "conexão inválida para esta empresa"})
 			return
 		}
-		flow.ConnectionId = req.ConnectionId
+		flow.ConnectionId = req.ConnectionId.Value
 	}
 	if req.TriggerType != nil {
 		flow.TriggerType = *req.TriggerType
@@ -153,16 +214,36 @@ func UpdateFlow(ctx iris.Context) {
 		flow.TriggerValue = *req.TriggerValue
 	}
 	if req.FlowData != nil {
-		if err := flowengine.ValidateFlowData(*req.FlowData); err != nil {
-			ctx.StopWithJSON(iris.StatusBadRequest, iris.Map{"error": err.Error()})
-			return
-		}
 		flow.FlowData = *req.FlowData
 	}
 	if req.IsActive != nil {
 		flow.IsActive = *req.IsActive
 	}
-	if err := repo.UpdateChatbotFlow(flow); err != nil {
+	if req.Priority != nil {
+		flow.Priority = *req.Priority
+	}
+	if req.Revision != nil {
+		flow.Revision = *req.Revision
+	}
+	flow.TriggerType = strings.ToLower(strings.TrimSpace(flow.TriggerType))
+	flow.TriggerValue = strings.TrimSpace(flow.TriggerValue)
+	if flow.Priority < -1000 || flow.Priority > 1000 {
+		ctx.StopWithJSON(iris.StatusBadRequest, iris.Map{"error": "prioridade deve estar entre -1000 e 1000"})
+		return
+	}
+	if err := validateRequestedFlow(flow.FlowData, flow.IsActive, flow.TriggerType, flow.TriggerValue); err != nil {
+		ctx.StopWithJSON(iris.StatusBadRequest, iris.Map{"error": err.Error()})
+		return
+	}
+	if err := repo.ValidateFlowDependencies(flow.FlowData, agent.CompanyId, flow.Id); err != nil {
+		ctx.StopWithJSON(iris.StatusBadRequest, iris.Map{"error": err.Error()})
+		return
+	}
+	if err := repo.UpdateChatbotFlow(&flow); err != nil {
+		if errors.Is(err, repo.ErrFlowRevisionConflict) {
+			ctx.StopWithJSON(iris.StatusConflict, iris.Map{"error": "este fluxo foi alterado em outra sessão; recarregue antes de salvar"})
+			return
+		}
 		ctx.StopWithJSON(iris.StatusInternalServerError, iris.Map{"error": err.Error()})
 		return
 	}
@@ -180,10 +261,40 @@ func DeleteFlow(ctx iris.Context) {
 		return
 	}
 	if err := repo.DeleteChatbotFlow(id, agent.CompanyId); err != nil {
+		if errors.Is(err, repo.ErrFlowHasActiveExecutions) {
+			ctx.StopWithJSON(iris.StatusConflict, iris.Map{"error": "não é possível excluir um fluxo com execuções ativas"})
+			return
+		}
+		if errors.Is(err, repo.ErrFlowHasExecutions) {
+			ctx.StopWithJSON(iris.StatusConflict, iris.Map{"error": "não é possível excluir um fluxo que possui histórico de execuções"})
+			return
+		}
+		if errors.Is(err, repo.ErrFlowReferenced) {
+			ctx.StopWithJSON(iris.StatusConflict, iris.Map{"error": "não é possível excluir um fluxo usado como subfluxo ativo"})
+			return
+		}
+		if errors.Is(err, sql.ErrNoRows) {
+			ctx.StopWithStatus(iris.StatusNotFound)
+			return
+		}
 		ctx.StopWithJSON(iris.StatusInternalServerError, iris.Map{"error": err.Error()})
 		return
 	}
 	ctx.StatusCode(iris.StatusNoContent)
+}
+
+func validateRequestedFlow(data json.RawMessage, active bool, triggerType, triggerValue string) error {
+	triggerType = strings.ToLower(strings.TrimSpace(triggerType))
+	if triggerType != "keyword" && triggerType != "exact" && triggerType != "always" {
+		return errors.New("tipo de gatilho inválido")
+	}
+	if active && triggerType != "always" && strings.TrimSpace(triggerValue) == "" {
+		return errors.New("gatilho ativo exige um valor")
+	}
+	if active {
+		return flowengine.ValidateActiveFlowData(data)
+	}
+	return flowengine.ValidateFlowData(data)
 }
 
 func ExecuteFlowTest(ctx iris.Context) {

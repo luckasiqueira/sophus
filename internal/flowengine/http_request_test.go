@@ -1,6 +1,10 @@
 package flowengine
 
 import (
+	"bytes"
+	"io"
+	"mime"
+	"mime/multipart"
 	"net/url"
 	"strings"
 	"testing"
@@ -51,14 +55,103 @@ func TestHTTPRequestFormFields(t *testing.T) {
 }
 
 func TestHTTPRequestLegacyBodyUsesRawJSON(t *testing.T) {
-	payload, _, contentType, err := httpRequestPayload(map[string]interface{}{
+	payload, body, contentType, err := httpRequestPayload(map[string]interface{}{
 		"body": `{"name":"{{name}}"}`,
 	}, ExecutionContext{"name": "Ana"}, "POST")
 	if err != nil {
 		t.Fatalf("build legacy payload: %v", err)
 	}
-	if payload.(map[string]interface{})["name"] != "Ana" || contentType != "application/json" {
-		t.Fatalf("unexpected legacy payload: %#v, %q", payload, contentType)
+	if payload != nil || string(body) != `{"name":"Ana"}` || contentType != "application/json" {
+		t.Fatalf("unexpected legacy payload: %#v, %q, %q", payload, body, contentType)
+	}
+}
+
+func TestHTTPRequestRawBodyPreservesContent(t *testing.T) {
+	_, body, contentType, err := httpRequestPayload(map[string]interface{}{
+		"bodyMode": "raw",
+		"body":     "customer={{name}}&active=true",
+	}, ExecutionContext{"name": "Ana Maria"}, "POST")
+	if err != nil {
+		t.Fatalf("build raw payload: %v", err)
+	}
+	if string(body) != "customer=Ana Maria&active=true" || contentType != "" {
+		t.Fatalf("unexpected raw payload: %q, %q", body, contentType)
+	}
+}
+
+func TestHTTPRequestRawJSONPreservesExactBytes(t *testing.T) {
+	_, body, contentType, err := httpRequestPayload(map[string]interface{}{
+		"bodyMode": "rawJSON",
+		"body":     "  {\n  \"id\": 9007199254740993, \"id\": 2\n}\n",
+	}, ExecutionContext{}, "POST")
+	if err != nil {
+		t.Fatalf("build raw JSON payload: %v", err)
+	}
+	want := "  {\n  \"id\": 9007199254740993, \"id\": 2\n}\n"
+	if string(body) != want || contentType != "application/json" {
+		t.Fatalf("raw JSON changed: %q, %q", body, contentType)
+	}
+}
+
+func TestHTTPRequestMultipartFields(t *testing.T) {
+	_, body, contentType, err := httpRequestPayload(map[string]interface{}{
+		"bodyMode": "multipart",
+		"bodyFields": []interface{}{
+			map[string]interface{}{"key": "name", "value": "{{name}}"},
+			map[string]interface{}{"key": "metadata", "value": `{"active":true}`, "contentType": "application/json"},
+		},
+	}, ExecutionContext{"name": "Ana"}, "POST")
+	if err != nil {
+		t.Fatalf("build multipart payload: %v", err)
+	}
+	mediaType, parameters, err := mime.ParseMediaType(contentType)
+	if err != nil || mediaType != "multipart/form-data" || parameters["boundary"] == "" {
+		t.Fatalf("invalid multipart content type: %q, %v", contentType, err)
+	}
+	reader := multipart.NewReader(bytes.NewReader(body), parameters["boundary"])
+	parts := map[string]struct {
+		value       string
+		contentType string
+	}{}
+	for {
+		part, nextErr := reader.NextPart()
+		if nextErr == io.EOF {
+			break
+		}
+		if nextErr != nil {
+			t.Fatalf("read multipart part: %v", nextErr)
+		}
+		value, _ := io.ReadAll(part)
+		parts[part.FormName()] = struct {
+			value       string
+			contentType string
+		}{value: string(value), contentType: part.Header.Get("Content-Type")}
+	}
+	if parts["name"].value != "Ana" || parts["metadata"].value != `{"active":true}` || parts["metadata"].contentType != "application/json" {
+		t.Fatalf("unexpected multipart parts: %#v", parts)
+	}
+}
+
+func TestHTTPRequestMultipartLimitsExpandedBody(t *testing.T) {
+	large := strings.Repeat("x", maxHTTPRequestBytes/2+1)
+	_, _, _, err := httpRequestPayload(map[string]interface{}{
+		"bodyMode": "multipart",
+		"bodyFields": []interface{}{
+			map[string]interface{}{"key": "first", "value": "{{large}}"},
+			map[string]interface{}{"key": "second", "value": "{{large}}"},
+		},
+	}, ExecutionContext{"large": large}, "POST")
+	if err == nil || !strings.Contains(err.Error(), "excede o limite") {
+		t.Fatalf("expanded multipart error = %v", err)
+	}
+	_, _, _, err = httpRequestPayload(map[string]interface{}{
+		"bodyMode": "multipart",
+		"bodyFields": []interface{}{
+			map[string]interface{}{"key": "repeated", "value": "{{large}}{{large}}{{large}}"},
+		},
+	}, ExecutionContext{"large": large}, "POST")
+	if err == nil || !strings.Contains(err.Error(), "excede o limite") {
+		t.Fatalf("repeated expansion error = %v", err)
 	}
 }
 

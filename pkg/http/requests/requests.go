@@ -25,6 +25,8 @@ type Request struct {
 	PublicOnly       bool              `json:"-"`
 	MaxRequestBytes  int64             `json:"-"`
 	MaxResponseBytes int64             `json:"-"`
+	FollowRedirects  bool              `json:"-"`
+	ConnectTimeout   time.Duration     `json:"-"`
 	Response
 }
 
@@ -63,10 +65,21 @@ func (r *Request) Do() error {
 	}
 	client := http.Client{Timeout: timeout}
 	if r.PublicOnly {
-		client.Transport = publicHTTPTransport
-		client.CheckRedirect = func(_ *http.Request, _ []*http.Request) error {
-			return http.ErrUseLastResponse
+		transport := publicHTTPTransport
+		if r.ConnectTimeout > 0 {
+			transport = publicHTTPTransport.Clone()
+			transport.DialContext = func(ctx context.Context, network, address string) (net.Conn, error) {
+				connectContext, cancel := context.WithTimeout(ctx, r.ConnectTimeout)
+				defer cancel()
+				return dialPublicAddress(connectContext, network, address)
+			}
 		}
+		client.Transport = transport
+		client.CheckRedirect = publicRedirectPolicy(r.FollowRedirects)
+	} else if r.ConnectTimeout > 0 {
+		transport := http.DefaultTransport.(*http.Transport).Clone()
+		transport.DialContext = (&net.Dialer{Timeout: r.ConnectTimeout}).DialContext
+		client.Transport = transport
 	}
 	resp, err := client.Do(req)
 	if err != nil {
@@ -90,6 +103,18 @@ func (r *Request) Do() error {
 		return fmt.Errorf("request failed with status %d", r.Response.StatusCode)
 	}
 	return nil
+}
+
+func publicRedirectPolicy(follow bool) func(*http.Request, []*http.Request) error {
+	return func(request *http.Request, via []*http.Request) error {
+		if !follow {
+			return http.ErrUseLastResponse
+		}
+		if len(via) >= 10 {
+			return fmt.Errorf("too many redirects")
+		}
+		return validatePublicURL(request.URL)
+	}
 }
 
 var publicHTTPTransport = func() *http.Transport {

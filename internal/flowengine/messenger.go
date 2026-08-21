@@ -1,10 +1,15 @@
 package flowengine
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
+	"io"
 	"log"
+	"mime"
+	"mime/multipart"
 	"net/http"
+	"net/textproto"
 	"net/url"
 	"path"
 	"sophus/internal/repo"
@@ -210,11 +215,21 @@ func (m *Messenger) SendMenu(conversation repo.Conversation, data map[string]int
 			if strings.TrimSpace(row.Title) == "" || strings.TrimSpace(row.RowID) == "" {
 				return fmt.Errorf("menu option %d in section %d requires a title and ID", rowIndex+1, sectionIndex+1)
 			}
+			if strings.EqualFold(row.RowID, menuRowIDPrevious) || strings.EqualFold(row.RowID, menuRowIDMain) {
+				return fmt.Errorf("menu option uses a reserved navigation ID")
+			}
 			if _, exists := rowIDs[row.RowID]; exists {
 				return fmt.Errorf("menu option ID %q is duplicated", row.RowID)
 			}
 			rowIDs[row.RowID] = struct{}{}
 		}
+	}
+	if navigation := menuNavigationOptions(data, ctx); len(navigation) > 0 {
+		rows := make([]menuRow, 0, len(navigation))
+		for _, option := range navigation {
+			rows = append(rows, menuRow{Title: option.Title, RowID: option.RowID})
+		}
+		payload.Sections = append(payload.Sections, menuSection{Title: "Navegação", Rows: rows})
 	}
 
 	startedAt := time.Now()
@@ -297,10 +312,20 @@ func (m *Messenger) ExecuteHTTPRequest(data map[string]interface{}, ctx Executio
 		PublicOnly:       true,
 		MaxRequestBytes:  maxHTTPRequestBytes,
 		MaxResponseBytes: maxHTTPResponseBytes,
+		FollowRedirects:  boolVal(data, "followRedirects"),
 		Response:         requests.Response{},
 	}
-	if _, ok := r.Headers[http.CanonicalHeaderKey("Content-Type")]; !ok && contentType != "" {
-		r.Headers["Content-Type"] = contentType
+	if configuredConnectTimeout := intVal(data, "connectTimeout"); configuredConnectTimeout != 0 {
+		if configuredConnectTimeout < 100 || configuredConnectTimeout > int(maxHTTPRequestTimeout/time.Millisecond) {
+			return httpRequestError("timeout de conexão deve estar entre 100 e 60000 ms")
+		}
+		r.ConnectTimeout = time.Duration(configuredConnectTimeout) * time.Millisecond
+	}
+	if contentType != "" {
+		_, hasContentType := r.Headers[http.CanonicalHeaderKey("Content-Type")]
+		if !hasContentType || strings.TrimSpace(stringVal(data, "bodyMode")) == "multipart" {
+			r.Headers["Content-Type"] = contentType
+		}
 	}
 
 	err = r.Do()
@@ -461,16 +486,67 @@ func httpRequestPayload(data map[string]interface{}, ctx ExecutionContext, metho
 			}
 		}
 		return nil, []byte(values.Encode()), "application/x-www-form-urlencoded", nil
+	case "multipart":
+		var body bytes.Buffer
+		writer := multipart.NewWriter(&body)
+		totalBytes := 0
+		for _, item := range httpFieldItems(data["bodyFields"]) {
+			field, expandErr := httpMultipartFieldFromLimited(item, ctx, maxHTTPRequestBytes-totalBytes)
+			if expandErr != nil {
+				return nil, nil, "", fmt.Errorf("corpo multipart excede o limite de %d bytes", maxHTTPRequestBytes)
+			}
+			if field.Key == "" {
+				continue
+			}
+			totalBytes += len(field.Key) + len(field.Value) + len(field.ContentType)
+			if totalBytes > maxHTTPRequestBytes {
+				return nil, nil, "", fmt.Errorf("corpo multipart excede o limite de %d bytes", maxHTTPRequestBytes)
+			}
+			if strings.ContainsAny(field.Key, "\r\n") {
+				return nil, nil, "", fmt.Errorf("nome de campo multipart inválido: %s", field.Key)
+			}
+			var part io.Writer
+			var err error
+			if field.ContentType == "" {
+				part, err = writer.CreateFormField(field.Key)
+			} else {
+				if _, _, parseErr := mime.ParseMediaType(field.ContentType); parseErr != nil {
+					return nil, nil, "", fmt.Errorf("Content-Type multipart inválido para %s", field.Key)
+				}
+				header := textproto.MIMEHeader{}
+				header.Set("Content-Disposition", `form-data; name="`+escapeMultipartName(field.Key)+`"`)
+				header.Set("Content-Type", field.ContentType)
+				part, err = writer.CreatePart(header)
+			}
+			if err != nil {
+				return nil, nil, "", fmt.Errorf("criar campo multipart %s: %w", field.Key, err)
+			}
+			if _, err := io.WriteString(part, field.Value); err != nil {
+				return nil, nil, "", fmt.Errorf("escrever campo multipart %s: %w", field.Key, err)
+			}
+			if body.Len() > maxHTTPRequestBytes {
+				return nil, nil, "", fmt.Errorf("corpo multipart excede o limite de %d bytes", maxHTTPRequestBytes)
+			}
+		}
+		if err := writer.Close(); err != nil {
+			return nil, nil, "", fmt.Errorf("finalizar corpo multipart: %w", err)
+		}
+		return nil, body.Bytes(), writer.FormDataContentType(), nil
 	case "rawJSON":
-		body := strings.TrimSpace(ReplaceVariables(stringVal(data, "body"), ctx))
+		body := ReplaceVariables(stringVal(data, "body"), ctx)
+		if strings.TrimSpace(body) == "" {
+			return nil, nil, "", nil
+		}
+		if !json.Valid([]byte(body)) {
+			return nil, nil, "", fmt.Errorf("corpo JSON inválido")
+		}
+		return nil, []byte(body), "application/json", nil
+	case "raw":
+		body := ReplaceVariables(stringVal(data, "body"), ctx)
 		if body == "" {
 			return nil, nil, "", nil
 		}
-		var parsed interface{}
-		if err := json.Unmarshal([]byte(body), &parsed); err != nil {
-			return nil, nil, "", fmt.Errorf("corpo JSON inválido: %w", err)
-		}
-		return parsed, nil, "application/json", nil
+		return nil, []byte(body), "", nil
 	default:
 		return nil, nil, "", fmt.Errorf("modo de corpo HTTP inválido: %s", mode)
 	}
@@ -479,6 +555,66 @@ func httpRequestPayload(data map[string]interface{}, ctx ExecutionContext, metho
 type httpKeyValue struct {
 	Key   string
 	Value string
+}
+
+type httpMultipartField struct {
+	Key         string
+	Value       string
+	ContentType string
+}
+
+func httpMultipartFields(raw interface{}, ctx ExecutionContext) []httpMultipartField {
+	items := httpFieldItems(raw)
+	fields := make([]httpMultipartField, 0, len(items))
+	for _, item := range items {
+		fields = append(fields, httpMultipartFieldFrom(item, ctx))
+	}
+	return fields
+}
+
+func httpFieldItems(raw interface{}) []interface{} {
+	items, ok := raw.([]interface{})
+	if !ok {
+		if typed, typedOK := raw.([]map[string]interface{}); typedOK {
+			items = make([]interface{}, len(typed))
+			for index := range typed {
+				items[index] = typed[index]
+			}
+		}
+	}
+	return items
+}
+
+func httpMultipartFieldFrom(item interface{}, ctx ExecutionContext) httpMultipartField {
+	field, _ := item.(map[string]interface{})
+	return httpMultipartField{
+		Key:         strings.TrimSpace(ReplaceVariables(stringVal(field, "key"), ctx)),
+		Value:       ReplaceVariables(stringVal(field, "value"), ctx),
+		ContentType: strings.TrimSpace(ReplaceVariables(stringVal(field, "contentType"), ctx)),
+	}
+}
+
+func httpMultipartFieldFromLimited(item interface{}, ctx ExecutionContext, maxBytes int) (httpMultipartField, error) {
+	field, _ := item.(map[string]interface{})
+	key, err := replaceVariablesLimited(stringVal(field, "key"), ctx, maxBytes)
+	if err != nil {
+		return httpMultipartField{}, err
+	}
+	remaining := maxBytes - len(key)
+	value, err := replaceVariablesLimited(stringVal(field, "value"), ctx, remaining)
+	if err != nil {
+		return httpMultipartField{}, err
+	}
+	remaining -= len(value)
+	contentType, err := replaceVariablesLimited(stringVal(field, "contentType"), ctx, remaining)
+	if err != nil {
+		return httpMultipartField{}, err
+	}
+	return httpMultipartField{Key: strings.TrimSpace(key), Value: value, ContentType: strings.TrimSpace(contentType)}, nil
+}
+
+func escapeMultipartName(value string) string {
+	return strings.NewReplacer("\\", "\\\\", `"`, `\"`).Replace(value)
 }
 
 func keyValueFields(raw interface{}, ctx ExecutionContext) []httpKeyValue {
