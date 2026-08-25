@@ -181,6 +181,11 @@ func GetCompanyBilling(ctx iris.Context) {
 		writeBillingRepositoryError(ctx, err, "não foi possível consultar os planos disponíveis")
 		return
 	}
+	storageUsage, err := repo.GetCompanyStorageUsage(agent.CompanyId)
+	if err != nil {
+		writeBillingRepositoryError(ctx, err, "não foi possível consultar o armazenamento")
+		return
+	}
 	ctx.JSON(iris.Map{"data": iris.Map{
 		"company":         company,
 		"subscription":    subscription,
@@ -188,6 +193,7 @@ func GetCompanyBilling(ctx iris.Context) {
 		"plans":           plans,
 		"payments":        companyPayments,
 		"paymentProvider": paymentProvider,
+		"storageUsage":    storageUsage,
 	}})
 }
 

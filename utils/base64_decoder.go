@@ -10,7 +10,7 @@ func MediaDecoder(base46, path, fileName string) error {
 	if err != nil {
 		return err
 	}
-	err = os.MkdirAll(path, 0644)
+	err = os.MkdirAll(path, 0o755)
 	if err != nil {
 		return err
 	}

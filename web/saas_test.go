@@ -20,6 +20,7 @@ func TestSaaSPagesRender(t *testing.T) {
 		{name: "company settings", content: "Configurações da empresa", page: CompanySettings()},
 		{name: "company overview", content: "Mensagens por período", page: CompanyOverview()},
 		{name: "agents", content: "Agentes da empresa", page: AgentSettings()},
+		{name: "media", content: "Biblioteca de mídia", page: MediaLibrary()},
 		{name: "billing", content: "Planos disponíveis", page: Billing()},
 		{name: "flow builder curl import", content: "Importar de cURL", page: FlowBuilder()},
 	}

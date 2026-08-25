@@ -45,3 +45,21 @@ func TestEffectivePaymentProvider(t *testing.T) {
 		})
 	}
 }
+
+func TestValidMediaRetention(t *testing.T) {
+	if !IsValidMediaRetention(nil) {
+		t.Fatal("disabled retention must be valid")
+	}
+	for _, days := range []int{30, 90, 120} {
+		value := days
+		if !IsValidMediaRetention(&value) {
+			t.Fatalf("retention %d rejected", days)
+		}
+	}
+	for _, days := range []int{0, 31, 365} {
+		value := days
+		if IsValidMediaRetention(&value) {
+			t.Fatalf("retention %d accepted", days)
+		}
+	}
+}

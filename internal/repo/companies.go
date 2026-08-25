@@ -63,7 +63,7 @@ func CreateCompanyWithAdmin(input CreateCompanyWithAdminInput) (Company, error) 
 	defer tx.Rollback()
 
 	plan, err := scanPlan(tx.QueryRow(`SELECT id, name, description, "monthlyPriceCents", "annualPriceCents", "agentLimit",
-		"connectionLimit", "trialDays", "isActive", "createdAt", "updatedAt"
+		"connectionLimit", "trialDays", "storageLimitGB", "isActive", "createdAt", "updatedAt"
 		FROM plans WHERE id = $1 AND "isActive" = true FOR SHARE`, input.PlanId))
 	if err != nil {
 		return Company{}, err
@@ -153,12 +153,15 @@ func CompanyHasAccess(id int) (bool, error) {
 		SELECT 1
 		FROM companies c
 		JOIN subscriptions s ON s."companyId" = c.id
+		JOIN plans p ON p.id = s."planId"
+		LEFT JOIN company_storage_usage su ON su."companyId" = c.id
 		CROSS JOIN platform_settings ps
 		WHERE c.id = $1
 			AND ps.id = 1
 			AND c."isActive" = true
 			AND s.status IN ('trialing', 'active', 'past_due')
 			AND (s."priceCents" = 0 OR s."currentPeriodEnd" + (ps."subscriptionGraceDays" * interval '1 day') >= now())
+			AND COALESCE(su."usedBytes", 0) < p."storageLimitGB"::bigint * 1073741824
 	)`, id).Scan(&allowed)
 	return allowed, err
 }

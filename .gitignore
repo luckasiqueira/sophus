@@ -36,5 +36,7 @@ builds/
 !web/company_templ.go
 !web/admin_controls.templ
 !web/admin_controls_templ.go
+!web/media.templ
+!web/media_templ.go
 !web/components/message.templ
 !web/components/message_templ.go

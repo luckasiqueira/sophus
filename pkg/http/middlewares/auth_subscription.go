@@ -19,6 +19,15 @@ func AuthSubscription(ctx iris.Context) {
 		return
 	}
 	if !allowed {
+		usage, usageErr := repo.GetCompanyStorageUsage(agent.CompanyId)
+		if usageErr == nil && usage.Exceeded {
+			if ctx.Method() == "GET" && !strings.Contains(ctx.GetHeader("Accept"), "application/json") {
+				ctx.Redirect("/billing?reason=storage_quota", iris.StatusFound)
+				return
+			}
+			ctx.StopWithJSON(iris.StatusInsufficientStorage, iris.Map{"error": "limite de armazenamento atingido", "code": "storage_quota_exceeded", "usedBytes": usage.UsedBytes, "quotaBytes": usage.StorageLimitBytes, "upgradeURL": "/billing"})
+			return
+		}
 		if ctx.Method() == "GET" && !strings.Contains(ctx.GetHeader("Accept"), "application/json") {
 			ctx.Redirect("/billing", iris.StatusFound)
 			return

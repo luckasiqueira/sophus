@@ -4,7 +4,7 @@ import "database/sql"
 
 func ListPlans(includeInactive bool) ([]Plan, error) {
 	rows, err := db.Query(`SELECT id, name, description, "monthlyPriceCents", "annualPriceCents", "agentLimit", "connectionLimit",
-		"trialDays", "isActive", "createdAt", "updatedAt"
+		"trialDays", "storageLimitGB", "isActive", "createdAt", "updatedAt"
 		FROM plans WHERE $1 OR "isActive" = true ORDER BY "monthlyPriceCents", name`, includeInactive)
 	if err != nil {
 		return nil, err
@@ -24,17 +24,17 @@ func ListPlans(includeInactive bool) ([]Plan, error) {
 
 func GetPlanById(id int) (Plan, error) {
 	return scanPlan(db.QueryRow(`SELECT id, name, description, "monthlyPriceCents", "annualPriceCents", "agentLimit", "connectionLimit",
-		"trialDays", "isActive", "createdAt", "updatedAt" FROM plans WHERE id = $1`, id))
+		"trialDays", "storageLimitGB", "isActive", "createdAt", "updatedAt" FROM plans WHERE id = $1`, id))
 }
 
 func CreatePlan(input CreatePlanInput) (Plan, error) {
 	return scanPlan(db.QueryRow(`INSERT INTO plans
 		(name, description, "monthlyPriceCents", "annualPriceCents", "priceCents", "durationDays",
-			"agentLimit", "connectionLimit", "trialDays", "isActive")
-		VALUES ($1, $2, $3, $4, $3, 30, $5, $6, $7, $8)
+			"agentLimit", "connectionLimit", "trialDays", "storageLimitGB", "isActive")
+		VALUES ($1, $2, $3, $4, $3, 30, $5, $6, $7, $8, $9)
 		RETURNING id, name, description, "monthlyPriceCents", "annualPriceCents", "agentLimit", "connectionLimit",
-			"trialDays", "isActive", "createdAt", "updatedAt"`, input.Name, input.Description, input.MonthlyPriceCents,
-		input.AnnualPriceCents, input.AgentLimit, input.ConnectionLimit, input.TrialDays, input.IsActive))
+			"trialDays", "storageLimitGB", "isActive", "createdAt", "updatedAt"`, input.Name, input.Description, input.MonthlyPriceCents,
+		input.AnnualPriceCents, input.AgentLimit, input.ConnectionLimit, input.TrialDays, input.StorageLimitGB, input.IsActive))
 }
 
 func UpdatePlan(id int, input UpdatePlanInput) (bool, error) {
@@ -78,8 +78,9 @@ func UpdatePlan(id int, input UpdatePlanInput) (bool, error) {
 		SELECT 1 FROM subscriptions s
 		WHERE s."planId" = $1 AND s.status IN ('trialing', 'active', 'past_due')
 			AND ((SELECT COUNT(*) FROM agents a WHERE a."companyId" = s."companyId") > $2
-				OR (SELECT COUNT(*) FROM connections c WHERE c."companyId" = s."companyId") > $3)
-	)`, id, input.AgentLimit, input.ConnectionLimit).Scan(&exceedsLimits); err != nil {
+				OR (SELECT COUNT(*) FROM connections c WHERE c."companyId" = s."companyId") > $3
+				OR COALESCE((SELECT su."usedBytes" + su."reservedBytes" FROM company_storage_usage su WHERE su."companyId" = s."companyId"), 0) >= $4::bigint * 1073741824)
+	)`, id, input.AgentLimit, input.ConnectionLimit, input.StorageLimitGB).Scan(&exceedsLimits); err != nil {
 		return false, err
 	}
 	if exceedsLimits {
@@ -87,9 +88,9 @@ func UpdatePlan(id int, input UpdatePlanInput) (bool, error) {
 	}
 	result, err := tx.Exec(`UPDATE plans SET name = $1, description = $2, "monthlyPriceCents" = $3,
 		"annualPriceCents" = $4, "priceCents" = $3, "durationDays" = 30,
-		"agentLimit" = $5, "connectionLimit" = $6, "trialDays" = $7, "isActive" = $8, "updatedAt" = now()
-		WHERE id = $9`, input.Name, input.Description, input.MonthlyPriceCents, input.AnnualPriceCents,
-		input.AgentLimit, input.ConnectionLimit, input.TrialDays, input.IsActive, id)
+		"agentLimit" = $5, "connectionLimit" = $6, "trialDays" = $7, "storageLimitGB" = $8, "isActive" = $9, "updatedAt" = now()
+		WHERE id = $10`, input.Name, input.Description, input.MonthlyPriceCents, input.AnnualPriceCents,
+		input.AgentLimit, input.ConnectionLimit, input.TrialDays, input.StorageLimitGB, input.IsActive, id)
 	if err != nil {
 		return false, err
 	}
@@ -106,7 +107,7 @@ func UpdatePlan(id int, input UpdatePlanInput) (bool, error) {
 func scanPlan(scanner rowScanner) (Plan, error) {
 	var plan Plan
 	err := scanner.Scan(&plan.Id, &plan.Name, &plan.Description, &plan.MonthlyPriceCents, &plan.AnnualPriceCents,
-		&plan.AgentLimit, &plan.ConnectionLimit, &plan.TrialDays, &plan.IsActive, &plan.CreatedAt, &plan.UpdatedAt)
+		&plan.AgentLimit, &plan.ConnectionLimit, &plan.TrialDays, &plan.StorageLimitGB, &plan.IsActive, &plan.CreatedAt, &plan.UpdatedAt)
 	return plan, err
 }
 

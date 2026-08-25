@@ -40,12 +40,13 @@ templ base(activeMenus ...string) {
                     <i class="fas fa-circle-notch text-white"></i>
                     <span class="absolute top-2 right-2 w-2 h-2 bg-blue-400 rounded-full border-2" style="border-color: #6123cc;"></span>
                 </a>
-                <a href="/billing" title="Plano e pagamentos" class={ "p-3 rounded-2xl transition-all hover:bg-white hover:bg-opacity-20", templ.KV("shadow-md bg-white bg-opacity-20 hover:bg-opacity-30", menuIsActive(activeMenus, "billing")) }>
+				<a href="/billing" title="Plano e pagamentos" class={ "p-3 rounded-2xl transition-all hover:bg-white hover:bg-opacity-20", templ.KV("shadow-md bg-white bg-opacity-20 hover:bg-opacity-30", menuIsActive(activeMenus, "billing")) }>
                     <i class="fas fa-credit-card text-white"></i>
                 </a>
 				<a href="/settings" title="Configurações da empresa" class={ "p-3 rounded-2xl transition-all hover:bg-white hover:bg-opacity-20", templ.KV("shadow-md bg-white bg-opacity-20 hover:bg-opacity-30", menuIsActive(activeMenus, "settings")) }>
 					<i class="fas fa-gear text-white"></i>
 				</a>
+				<a href="/media" title="Biblioteca de mídia" class={ "p-3 rounded-2xl transition-all hover:bg-white hover:bg-opacity-20", templ.KV("shadow-md bg-white bg-opacity-20 hover:bg-opacity-30", menuIsActive(activeMenus, "media")) }><i class="fas fa-photo-film text-white"></i></a>
             </div>
 
             <!-- Spacer -->

@@ -165,7 +165,29 @@ func base(activeMenus ...string) templ.Component {
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 13, "\"><i class=\"fas fa-gear text-white\"></i></a></div><!-- Spacer --><div class=\"flex-1\"></div><!-- Bottom Icons --><div class=\"flex flex-col gap-3 items-center\"><button class=\"p-3 hover:bg-white hover:bg-opacity-20 rounded-2xl transition-colors\"><i class=\"fas fa-moon text-white\"></i></button> <img src=\"https://i.pravatar.cc/40?img=5\" alt=\"User\" class=\"w-10 h-10 rounded-full border-2 border-white shadow-sm\"></div></div>")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 13, "\"><i class=\"fas fa-gear text-white\"></i></a> ")
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		var templ_7745c5c3_Var14 = []any{"p-3 rounded-2xl transition-all hover:bg-white hover:bg-opacity-20", templ.KV("shadow-md bg-white bg-opacity-20 hover:bg-opacity-30", menuIsActive(activeMenus, "media"))}
+		templ_7745c5c3_Err = templ.RenderCSSItems(ctx, templ_7745c5c3_Buffer, templ_7745c5c3_Var14...)
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 14, "<a href=\"/media\" title=\"Biblioteca de mídia\" class=\"")
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		var templ_7745c5c3_Var15 string
+		templ_7745c5c3_Var15, templ_7745c5c3_Err = templ.ResolveAttributeValue(templ.CSSClasses(templ_7745c5c3_Var14).String())
+		if templ_7745c5c3_Err != nil {
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/base.templ`, Line: 1, Col: 0}
+		}
+		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var15)
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 15, "\"><i class=\"fas fa-photo-film text-white\"></i></a></div><!-- Spacer --><div class=\"flex-1\"></div><!-- Bottom Icons --><div class=\"flex flex-col gap-3 items-center\"><button class=\"p-3 hover:bg-white hover:bg-opacity-20 rounded-2xl transition-colors\"><i class=\"fas fa-moon text-white\"></i></button> <img src=\"https://i.pravatar.cc/40?img=5\" alt=\"User\" class=\"w-10 h-10 rounded-full border-2 border-white shadow-sm\"></div></div>")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -173,7 +195,7 @@ func base(activeMenus ...string) templ.Component {
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 14, "</div></body></html>")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 16, "</div></body></html>")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}

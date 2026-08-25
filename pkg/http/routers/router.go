@@ -50,6 +50,9 @@ func Router(r *iris.Application) {
 		managementAPI.Post("/billing/checkout", controllers.CreateCompanyCheckout)
 		managementAPI.Put("/billing/cycle", controllers.UpdateCompanyBillingCycle)
 		managementAPI.Put("/billing/plan", controllers.UpdateCompanyBillingPlan)
+		managementAPI.Get("/media", controllers.ListCompanyMedia)
+		managementAPI.Get("/media/{scope:string}/{file:string}/download", controllers.DownloadCompanyMedia)
+		managementAPI.Delete("/media/{scope:string}/{file:string}", controllers.DeleteCompanyMedia)
 	}
 
 	api := r.Party("/api")
@@ -84,6 +87,7 @@ func Router(r *iris.Application) {
 
 	web.Get("/departments", controllers.DepartmentSettingsPage)
 	web.Get("/agents", controllers.AgentSettingsPage)
+	web.Get("/media", controllers.MediaLibraryPage)
 
 	flows := web.Party("/flows")
 	flows.Use(middlewares.AuthSubscription)

@@ -41,7 +41,7 @@ func ChangeCompanyPlan(companyID, planID int, billingCycle string) (Subscription
 		return Subscription{}, err
 	}
 	plan, err := scanPlan(tx.QueryRow(`SELECT id, name, description, "monthlyPriceCents", "annualPriceCents", "agentLimit",
-		"connectionLimit", "trialDays", "isActive", "createdAt", "updatedAt"
+		"connectionLimit", "trialDays", "storageLimitGB", "isActive", "createdAt", "updatedAt"
 		FROM plans WHERE id = $1 AND "isActive" = true FOR SHARE`, planID))
 	if err != nil {
 		return Subscription{}, err
@@ -65,12 +65,14 @@ func ChangeCompanyPlan(companyID, planID int, billingCycle string) (Subscription
 		return current, nil
 	}
 	var agentCount, connectionCount int
+	var storageUsedBytes int64
 	if err := tx.QueryRow(`SELECT
 		(SELECT COUNT(*) FROM agents WHERE "companyId" = $1),
-		(SELECT COUNT(*) FROM connections WHERE "companyId" = $1)`, companyID).Scan(&agentCount, &connectionCount); err != nil {
+		(SELECT COUNT(*) FROM connections WHERE "companyId" = $1),
+		COALESCE((SELECT "usedBytes" + "reservedBytes" FROM company_storage_usage WHERE "companyId" = $1), 0)`, companyID).Scan(&agentCount, &connectionCount, &storageUsedBytes); err != nil {
 		return Subscription{}, err
 	}
-	if agentCount > plan.AgentLimit || connectionCount > plan.ConnectionLimit {
+	if agentCount > plan.AgentLimit || connectionCount > plan.ConnectionLimit || storageUsedBytes >= int64(plan.StorageLimitGB)*(1<<30) {
 		return Subscription{}, ErrPlanLimitBelowUsage
 	}
 	if errors.Is(err, sql.ErrNoRows) {

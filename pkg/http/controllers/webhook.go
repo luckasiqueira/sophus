@@ -6,7 +6,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
-	"os"
 	"sophus/internal/flowengine"
 	"sophus/internal/repo"
 	"sophus/pkg/http/middlewares"
@@ -31,7 +30,6 @@ func Webhook(ctx iris.Context) {
 		return
 	}
 	var err error
-	saveBody(body)
 	eventType := strings.NewReplacer("_", "", "-", "").Replace(strings.ToLower(event.EventType))
 	log.Printf("Evolution GO webhook received: connection=%d event=%s", connection.Id, eventType)
 	switch eventType {
@@ -294,9 +292,3 @@ func renderComponent(c templ.Component) (string, error) {
 }
 
 // adjust to save json onto a separate table messages_body
-func saveBody(body []byte) {
-	file := fmt.Sprintf("%s.txt", time.Now().Format("20060102150405"))
-	if err := os.WriteFile(file, body, os.ModePerm); err != nil {
-		fmt.Println(err)
-	}
-}

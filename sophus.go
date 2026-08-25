@@ -8,6 +8,7 @@ import (
 	"sophus/internal/flowengine"
 	"sophus/internal/instancesync"
 	"sophus/internal/repo"
+	"sophus/internal/storageworker"
 	"sophus/pkg/http/routers"
 	"sophus/utils/env"
 	"syscall"
@@ -27,6 +28,7 @@ func main() {
 	defer stopBackground()
 	instancesync.Start(backgroundCtx)
 	flowengine.StartScheduler(backgroundCtx)
+	storageworker.Start(backgroundCtx)
 	err = srv.Listen(":" + env.Backend["SERVER_PORT"])
 	if err != nil {
 		panic(err)

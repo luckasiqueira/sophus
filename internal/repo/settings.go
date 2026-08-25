@@ -76,7 +76,7 @@ func lockPlatformAdminEmail(tx *sql.Tx, email string, excludeAdminID int) error 
 
 func GetCompanySettings(companyID int) (CompanySettings, error) {
 	return scanCompanySettings(db.QueryRow(`SELECT c.id, c.name, c.email, c."isActive", c.timezone,
-		c."paymentProviderOverride", ps."paymentProvider", ps."allowCompanyPaymentOverride",
+		c."paymentProviderOverride", c."mediaRetentionDays", ps."paymentProvider", ps."allowCompanyPaymentOverride",
 		ps."defaultTimezone", ps."subscriptionGraceDays", c."createdAt", c."updatedAt"
 		FROM companies c
 		CROSS JOIN platform_settings ps
@@ -86,6 +86,9 @@ func GetCompanySettings(companyID int) (CompanySettings, error) {
 func UpdateCompanySettings(companyID int, input UpdateCompanySettingsInput) (CompanySettings, error) {
 	if input.PaymentProviderOverride != nil && !IsValidPaymentProvider(*input.PaymentProviderOverride) {
 		return CompanySettings{}, ErrInvalidPaymentProvider
+	}
+	if !IsValidMediaRetention(input.MediaRetentionDays) {
+		return CompanySettings{}, ErrInvalidMediaRetention
 	}
 	tx, err := db.Begin()
 	if err != nil {
@@ -105,21 +108,27 @@ func UpdateCompanySettings(companyID int, input UpdateCompanySettingsInput) (Com
 
 	var settings CompanySettings
 	var override sql.NullString
+	var retention sql.NullInt64
 	err = tx.QueryRow(`UPDATE companies SET
 		name = $1,
 		email = $2,
 		timezone = COALESCE(NULLIF($3, ''), timezone),
 		"paymentProviderOverride" = $4,
+		"mediaRetentionDays" = $5,
 		"updatedAt" = now()
-		WHERE id = $5
-		RETURNING id, name, email, "isActive", timezone, "paymentProviderOverride", "createdAt", "updatedAt"`,
-		input.Name, input.Email, input.Timezone, input.PaymentProviderOverride, companyID).Scan(
+		WHERE id = $6
+		RETURNING id, name, email, "isActive", timezone, "paymentProviderOverride", "mediaRetentionDays", "createdAt", "updatedAt"`,
+		input.Name, input.Email, input.Timezone, input.PaymentProviderOverride, input.MediaRetentionDays, companyID).Scan(
 		&settings.Id, &settings.Name, &settings.Email, &settings.IsActive, &settings.Timezone,
-		&override, &settings.CreatedAt, &settings.UpdatedAt)
+		&override, &retention, &settings.CreatedAt, &settings.UpdatedAt)
 	if err != nil {
 		return CompanySettings{}, err
 	}
 	settings.PaymentProviderOverride = nullStringPointer(override)
+	if retention.Valid {
+		value := int(retention.Int64)
+		settings.MediaRetentionDays = &value
+	}
 	applyPlatformSettings(&settings, platform)
 
 	if err := tx.Commit(); err != nil {
@@ -170,13 +179,18 @@ func scanPlatformSettings(scanner rowScanner) (PlatformSettings, error) {
 func scanCompanySettings(scanner rowScanner) (CompanySettings, error) {
 	var settings CompanySettings
 	var override sql.NullString
+	var retention sql.NullInt64
 	err := scanner.Scan(&settings.Id, &settings.Name, &settings.Email, &settings.IsActive, &settings.Timezone,
-		&override, &settings.PaymentProvider, &settings.AllowCompanyPaymentOverride, &settings.DefaultTimezone,
+		&override, &retention, &settings.PaymentProvider, &settings.AllowCompanyPaymentOverride, &settings.DefaultTimezone,
 		&settings.SubscriptionGraceDays, &settings.CreatedAt, &settings.UpdatedAt)
 	if err != nil {
 		return CompanySettings{}, err
 	}
 	settings.PaymentProviderOverride = nullStringPointer(override)
+	if retention.Valid {
+		value := int(retention.Int64)
+		settings.MediaRetentionDays = &value
+	}
 	settings.EffectivePaymentProvider = effectivePaymentProvider(settings.PaymentProvider,
 		settings.AllowCompanyPaymentOverride, settings.PaymentProviderOverride)
 	return settings, nil

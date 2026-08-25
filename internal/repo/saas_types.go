@@ -40,6 +40,10 @@ func IsValidPaymentProvider(provider string) bool {
 	return provider == PaymentProviderMercadoPago || provider == PaymentProviderAbacatePay
 }
 
+func IsValidMediaRetention(days *int) bool {
+	return days == nil || *days == 30 || *days == 90 || *days == 120
+}
+
 var (
 	ErrConnectionLimitReached           = errors.New("plan connection limit reached")
 	ErrPlanLimitBelowUsage              = errors.New("plan limit is below current usage")
@@ -49,6 +53,9 @@ var (
 	ErrInvalidBillingCycle              = errors.New("invalid billing cycle")
 	ErrInvalidSubscriptionDueDate       = errors.New("invalid subscription due date")
 	ErrInvalidTrialDays                 = errors.New("trial days must be between 0 and 90")
+	ErrStorageLimitReached              = errors.New("storage limit reached")
+	ErrInvalidStorageLimit              = errors.New("storage limit must be between 1 and 100000 GB")
+	ErrInvalidMediaRetention            = errors.New("media retention must be 30, 90, 120 days or disabled")
 )
 
 type PlatformAdmin struct {
@@ -100,6 +107,7 @@ type Plan struct {
 	AgentLimit        int       `json:"agentLimit"`
 	ConnectionLimit   int       `json:"connectionLimit"`
 	TrialDays         int       `json:"trialDays"`
+	StorageLimitGB    int       `json:"storageLimitGB"`
 	IsActive          bool      `json:"isActive"`
 	CreatedAt         time.Time `json:"createdAt"`
 	UpdatedAt         time.Time `json:"updatedAt"`
@@ -113,6 +121,7 @@ type PlanInput struct {
 	AgentLimit        int    `json:"agentLimit"`
 	ConnectionLimit   int    `json:"connectionLimit"`
 	TrialDays         int    `json:"trialDays"`
+	StorageLimitGB    int    `json:"storageLimitGB"`
 	IsActive          bool   `json:"isActive"`
 }
 
@@ -178,6 +187,7 @@ type CompanySettings struct {
 	DefaultTimezone             string    `json:"defaultTimezone"`
 	SubscriptionGraceDays       int       `json:"subscriptionGraceDays"`
 	EffectivePaymentProvider    string    `json:"effectivePaymentProvider"`
+	MediaRetentionDays          *int      `json:"mediaRetentionDays"`
 	CreatedAt                   time.Time `json:"createdAt"`
 	UpdatedAt                   time.Time `json:"updatedAt"`
 }
@@ -187,6 +197,24 @@ type UpdateCompanySettingsInput struct {
 	Email                   string  `json:"email"`
 	Timezone                string  `json:"timezone"`
 	PaymentProviderOverride *string `json:"paymentProviderOverride"`
+	MediaRetentionDays      *int    `json:"mediaRetentionDays"`
+}
+
+type StorageUsage struct {
+	CompanyId         int        `json:"companyId"`
+	UsedBytes         int64      `json:"usedBytes"`
+	ReservedBytes     int64      `json:"reservedBytes"`
+	FileCount         int        `json:"fileCount"`
+	StorageLimitGB    int        `json:"storageLimitGB"`
+	StorageLimitBytes int64      `json:"storageLimitBytes"`
+	PercentUsed       float64    `json:"percentUsed"`
+	Exceeded          bool       `json:"exceeded"`
+	ScannedAt         *time.Time `json:"scannedAt"`
+}
+
+type CompanyStoragePolicy struct {
+	CompanyId          int
+	MediaRetentionDays *int
 }
 
 type PlanProviderProduct struct {

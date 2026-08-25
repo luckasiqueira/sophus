@@ -106,6 +106,24 @@ func TestOperationalRoutesRequireActiveSubscription(t *testing.T) {
 	}
 }
 
+func TestMediaCleanupRoutesRemainAvailableOutsideOperationalAccess(t *testing.T) {
+	app := iris.New()
+	Router(app)
+	if err := app.Build(); err != nil {
+		t.Fatalf("build routes: %v", err)
+	}
+	for _, route := range app.GetRoutes() {
+		if route.Path != "/media" && !strings.HasPrefix(route.Path, "/management/api/media") {
+			continue
+		}
+		for _, handler := range route.Handlers {
+			if strings.HasSuffix(context.HandlerName(handler), ".AuthSubscription") {
+				t.Errorf("%s %s must remain available for storage cleanup", route.Method, route.Path)
+			}
+		}
+	}
+}
+
 func TestRouterDoesNotExposeSaaSPrefixedRoutes(t *testing.T) {
 	app := iris.New()
 	Router(app)

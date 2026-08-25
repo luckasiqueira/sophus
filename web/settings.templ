@@ -170,6 +170,7 @@ templ CompanySettings() {
 								<div><label for="company-settings-name" class="mb-2 block text-sm font-semibold text-gray-700">Nome da empresa</label><input id="company-settings-name" required maxlength="160" class="w-full rounded-xl border border-stone-200 px-4 py-3 outline-none focus:border-purple-400 focus:ring-2 focus:ring-purple-100"/></div>
 								<div><label for="company-settings-email" class="mb-2 block text-sm font-semibold text-gray-700">Email financeiro</label><input id="company-settings-email" type="email" required maxlength="180" class="w-full rounded-xl border border-stone-200 px-4 py-3 outline-none focus:border-purple-400 focus:ring-2 focus:ring-purple-100"/></div>
 								<div><label for="company-settings-timezone" class="mb-2 block text-sm font-semibold text-gray-700">Fuso horário</label><select id="company-settings-timezone" required class="w-full rounded-xl border border-stone-200 bg-white px-4 py-3 outline-none focus:border-purple-400 focus:ring-2 focus:ring-purple-100"><option value="America/Sao_Paulo">Brasília (GMT-3)</option><option value="America/Manaus">Manaus (GMT-4)</option><option value="America/Rio_Branco">Rio Branco (GMT-5)</option><option value="America/Noronha">Fernando de Noronha (GMT-2)</option><option value="UTC">UTC</option></select></div>
+								<div><label for="company-media-retention" class="mb-2 block text-sm font-semibold text-gray-700">Exclusão automática de mídias</label><select id="company-media-retention" class="w-full rounded-xl border border-stone-200 bg-white px-4 py-3 outline-none focus:border-purple-400 focus:ring-2 focus:ring-purple-100"><option value="">Não excluir automaticamente</option><option value="30">Após 30 dias</option><option value="90">Após 90 dias</option><option value="120">Após 120 dias</option></select><p class="mt-2 text-xs text-gray-500">Aplica-se às mídias recebidas nas conversas. Arquivos usados em automações são preservados.</p></div>
 							</div>
 						</section>
 						<aside class="border-t border-stone-200 bg-stone-950 p-6 text-white lg:border-l lg:border-t-0 sm:p-8" style="background: radial-gradient(circle at 90% 10%, rgba(59,130,246,.38), transparent 32%), radial-gradient(circle at 10% 100%, rgba(97,35,204,.45), transparent 38%), #17141f;">
@@ -212,7 +213,8 @@ function renderCompanySettings() {
     document.getElementById('company-settings-name').value = settings.name || '';
     document.getElementById('company-settings-email').value = settings.email || '';
 	setCompanySettingsTimezone(settings.timezone || settings.defaultTimezone || 'America/Sao_Paulo');
-    document.getElementById('company-provider-override').value = settings.paymentProviderOverride || '';
+	document.getElementById('company-provider-override').value = settings.paymentProviderOverride || '';
+	document.getElementById('company-media-retention').value = settings.mediaRetentionDays ? String(settings.mediaRetentionDays) : '';
     document.getElementById('company-provider-override').disabled = !settings.allowCompanyPaymentOverride;
     document.getElementById('company-effective-provider').textContent = companyProviderLabel(settings.effectivePaymentProvider);
     document.getElementById('company-provider-policy').textContent = settings.allowCompanyPaymentOverride ? 'A plataforma permite uma preferência própria.' : 'Definido pela plataforma; escolha própria desabilitada.';
@@ -245,7 +247,8 @@ document.getElementById('company-settings-form').addEventListener('submit', asyn
             name: document.getElementById('company-settings-name').value.trim(),
             email: document.getElementById('company-settings-email').value.trim(),
             timezone: document.getElementById('company-settings-timezone').value,
-            paymentProviderOverride: !providerSelect.disabled && providerSelect.value ? providerSelect.value : null
+			paymentProviderOverride: !providerSelect.disabled && providerSelect.value ? providerSelect.value : null,
+			mediaRetentionDays: document.getElementById('company-media-retention').value ? Number(document.getElementById('company-media-retention').value) : null
         });
         companySettingsState = response.data; renderCompanySettings();
         const toast = document.getElementById('company-settings-toast'); toast.classList.remove('hidden'); toast.classList.add('flex');

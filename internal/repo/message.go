@@ -1,8 +1,12 @@
 package repo
 
 import (
+	"encoding/base64"
 	"encoding/json"
+	"errors"
 	"fmt"
+	"os"
+	"path/filepath"
 	"sophus/pkg/http/requests"
 	"sophus/utils"
 	"sophus/utils/env"
@@ -272,20 +276,52 @@ func rawJSONString(values map[string]json.RawMessage, key string) string {
 }
 
 func saveMessageMedia(msg EventMessageEVO, companyId int, messageType string) (string, error) {
-	var format string
+	var mimeType string
 	switch messageType {
 	case "image":
-		format = strings.Split(msg.Data.Message.IMG.MimeType, "/")[1]
+		mimeType = msg.Data.Message.IMG.MimeType
 	case "video":
-		format = strings.Split(msg.Data.Message.VID.MimeType, "/")[1]
+		mimeType = msg.Data.Message.VID.MimeType
 	case "audio":
-		format = strings.Split(msg.Data.Message.AUD.MimeType, "/")[1]
-		format = strings.Split(format, ";")[0]
+		mimeType = msg.Data.Message.AUD.MimeType
+	default:
+		return "", fmt.Errorf("tipo de mídia inválido: %s", messageType)
 	}
-
+	mimeType = strings.SplitN(mimeType, ";", 2)[0]
+	parts := strings.SplitN(mimeType, "/", 2)
+	if len(parts) != 2 || strings.TrimSpace(parts[1]) == "" {
+		return "", fmt.Errorf("formato de mídia inválido: %s", mimeType)
+	}
+	format := strings.ToLower(strings.TrimSpace(parts[1]))
+	reserved := int64(base64.StdEncoding.DecodedLen(len(msg.Data.Message.Base64)))
+	if reserved <= 0 {
+		return "", errors.New("mídia vazia")
+	}
+	if err := ReserveCompanyStorage(companyId, reserved); err != nil {
+		return "", err
+	}
+	completed := false
+	defer func() {
+		if !completed {
+			_ = ReleaseCompanyStorageReservation(companyId, reserved)
+		}
+	}()
 	path := fmt.Sprintf("%s/%d/", env.Backend["MEDIA_DIRECTORY"], companyId)
 	fileName := fmt.Sprintf("%s.%s", uuid.NewString(), format)
-	return fileName, utils.MediaDecoder(msg.Data.Message.Base64, path, fileName)
+	if err := utils.MediaDecoder(msg.Data.Message.Base64, path, fileName); err != nil {
+		return "", err
+	}
+	filePath := filepath.Join(path, fileName)
+	info, err := os.Stat(filePath)
+	if err != nil {
+		return "", err
+	}
+	if err := CompleteCompanyStorageReservation(companyId, reserved, info.Size()); err != nil {
+		_ = os.Remove(filePath)
+		return "", err
+	}
+	completed = true
+	return fileName, nil
 }
 
 func GetMessagesByConversationURL(url uuid.UUID) ([]MessageData, error) {

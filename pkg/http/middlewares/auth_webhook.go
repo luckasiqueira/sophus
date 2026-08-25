@@ -5,6 +5,7 @@ import (
 	"errors"
 	"io"
 	"log"
+	"net/http"
 	repo2 "sophus/internal/repo"
 
 	"github.com/google/uuid"
@@ -49,6 +50,7 @@ func validateWebhook(ctx iris.Context) (repo2.ConnectionEVO, repo2.EventEVO, []b
 		ctx.StopWithStatus(iris.StatusUnauthorized)
 		return repo2.ConnectionEVO{}, repo2.EventEVO{}, nil, err
 	}
+	ctx.Request().Body = http.MaxBytesReader(ctx.ResponseWriter(), ctx.Request().Body, 72<<20)
 	body, err := io.ReadAll(ctx.Request().Body)
 	if err != nil {
 		log.Printf("Evolution GO webhook rejected: could not read body for webhook %s: %v", webhookId, err)

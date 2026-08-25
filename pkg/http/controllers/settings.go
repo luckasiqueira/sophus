@@ -213,6 +213,10 @@ func UpdateCompanySettings(ctx iris.Context) {
 		writeJSONError(ctx, iris.StatusBadRequest, "provedor de pagamento inválido")
 		return
 	}
+	if !repo.IsValidMediaRetention(input.MediaRetentionDays) {
+		writeJSONError(ctx, iris.StatusBadRequest, "retenção de mídia inválida")
+		return
+	}
 	settings, err := repo.UpdateCompanySettings(agent.CompanyId, input)
 	if err != nil {
 		switch {
@@ -220,6 +224,8 @@ func UpdateCompanySettings(ctx iris.Context) {
 			writeJSONError(ctx, iris.StatusConflict, "a plataforma não permite escolher um provedor diferente")
 		case errors.Is(err, repo.ErrInvalidPaymentProvider):
 			writeJSONError(ctx, iris.StatusBadRequest, "provedor de pagamento inválido")
+		case errors.Is(err, repo.ErrInvalidMediaRetention):
+			writeJSONError(ctx, iris.StatusBadRequest, "retenção de mídia inválida")
 		case errors.Is(err, sql.ErrNoRows):
 			writeJSONError(ctx, iris.StatusNotFound, "empresa não encontrada")
 		case isUniqueViolation(err):

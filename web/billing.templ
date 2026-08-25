@@ -110,6 +110,7 @@ templ Billing() {
 									<span><i class="fas fa-headset mr-2 text-purple-300"></i><strong id="billing-agent-limit" class="text-white">-</strong> agentes</span>
 									<span><i class="fas fa-link mr-2 text-blue-300"></i><strong id="billing-connection-limit" class="text-white">-</strong> conexões</span>
 									<span><i class="fas fa-calendar-days mr-2 text-emerald-300"></i><strong id="billing-duration" class="text-white">-</strong> dias por ciclo</span>
+									<span><i class="fas fa-hard-drive mr-2 text-amber-300"></i><strong id="billing-storage-limit" class="text-white">-</strong> GB de mídias</span>
 								</div>
 							</div>
 							<div class="lg:text-right">
@@ -144,6 +145,7 @@ templ Billing() {
 							<div class="flex items-start justify-between gap-3"><div><p class="text-xs font-semibold uppercase tracking-wider text-gray-500">Próximo vencimento</p><p id="billing-next-due" class="mt-3 font-black text-gray-950">-</p><p id="billing-next-due-status" class="mt-1 text-xs text-gray-500">-</p></div><span class="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-amber-100 text-amber-700"><i class="fas fa-clock"></i></span></div>
 						</article>
 					</section>
+					<section id="billing-storage-card" class="rounded-2xl border border-stone-200 bg-white p-5 shadow-sm sm:p-6"><div class="flex flex-col gap-5 sm:flex-row sm:items-end sm:justify-between"><div><p class="text-xs font-bold uppercase tracking-[.18em] text-purple-600">Uso de mídias</p><h2 class="mt-2 text-xl font-black text-gray-950"><span id="billing-storage-used">-</span> utilizados</h2><p id="billing-storage-copy" class="mt-1 text-sm text-gray-500"></p></div><a href="/media" class="inline-flex items-center justify-center gap-2 rounded-xl border border-stone-200 px-4 py-2.5 text-sm font-bold text-gray-700 hover:bg-stone-50"><i class="fas fa-photo-film"></i> Gerenciar mídias</a></div><div class="mt-5 h-2.5 overflow-hidden rounded-full bg-stone-100"><div id="billing-storage-bar" class="h-full rounded-full bg-gradient-to-r from-blue-500 to-purple-600" style="width:0%"></div></div><div id="billing-storage-upgrade" class="mt-4 hidden rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800"><i class="fas fa-arrow-up-right-dots mr-2"></i>Seu espaço está próximo do limite. Selecione abaixo um plano com mais armazenamento.</div></section>
 					<section class="overflow-hidden rounded-2xl border border-stone-200 bg-white shadow-sm">
 						<div class="flex items-center justify-between gap-3 border-b border-stone-200 p-5">
 							<div><h2 class="font-bold text-gray-950">Histórico de pagamentos</h2><p class="mt-1 text-sm text-gray-500">Cobranças emitidas e confirmações recebidas.</p></div>
@@ -166,7 +168,7 @@ templ Billing() {
 		</footer>
 		<div id="billing-toast" class="fixed bottom-5 right-5 z-50 hidden max-w-sm items-center gap-3 rounded-2xl bg-gray-950 px-5 py-4 text-sm font-medium text-white shadow-2xl" role="status"><i class="fas fa-check-circle text-emerald-400"></i><span id="billing-toast-text"></span></div>
 		<script>
-const billingState = { company: null, subscription: null, plan: null, plans: [], payments: [], paymentProvider: null, selectedCycle: null, selectedPlanId: null };
+const billingState = { company: null, subscription: null, plan: null, plans: [], payments: [], paymentProvider: null, storageUsage: null, selectedCycle: null, selectedPlanId: null };
 
 function billingElement(tag, className, text) {
     const node = document.createElement(tag);
@@ -206,6 +208,16 @@ async function billingAPI(method, url, body) {
 function billingMoney(cents) {
     const value = Number(cents);
     return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(Number.isFinite(value) ? value / 100 : 0);
+}
+
+function mediaBillingBytes(value) {
+	const bytes = Number(value || 0);
+	if (bytes < 1024) return bytes + ' B';
+	const units = ['KB', 'MB', 'GB', 'TB'];
+	let size = bytes;
+	let unit = -1;
+	do { size /= 1024; unit++; } while (size >= 1024 && unit < units.length - 1);
+	return size.toLocaleString('pt-BR', { maximumFractionDigits: 2 }) + ' ' + units[unit];
 }
 
 function billingDate(value, includeTime) {
@@ -256,11 +268,13 @@ function showBillingToast(message) {
 }
 
 function configurePaymentReturnBanner() {
-    const result = new URLSearchParams(window.location.search).get('payment');
+	const params = new URLSearchParams(window.location.search);
+	const result = params.get('reason') || params.get('payment');
     const states = {
         success: { classes: 'border-emerald-200 bg-emerald-50 text-emerald-800', icon: 'fa-circle-check text-emerald-600', title: 'Pagamento recebido', message: 'A confirmação foi enviada. O status da assinatura será atualizado após o processamento.' },
         pending: { classes: 'border-amber-200 bg-amber-50 text-amber-900', icon: 'fa-clock text-amber-600', title: 'Pagamento pendente', message: 'A cobrança ainda está sendo processada. Atualize esta página em alguns instantes.' },
-        failure: { classes: 'border-red-200 bg-red-50 text-red-800', icon: 'fa-circle-xmark text-red-600', title: 'Pagamento não concluído', message: 'Não foi possível finalizar a cobrança. Você pode tentar novamente pelo botão de pagamento.' }
+		failure: { classes: 'border-red-200 bg-red-50 text-red-800', icon: 'fa-circle-xmark text-red-600', title: 'Pagamento não concluído', message: 'Não foi possível finalizar a cobrança. Você pode tentar novamente pelo botão de pagamento.' },
+		storage_quota: { classes: 'border-amber-200 bg-amber-50 text-amber-900', icon: 'fa-hard-drive text-amber-600', title: 'Armazenamento preenchido', message: 'A operação foi pausada. Exclua mídias ou escolha um plano com mais espaço para continuar.' }
     };
     const state = states[result];
     if (!state) return;
@@ -284,17 +298,21 @@ function renderBillingPlans() {
 	grid.replaceChildren();
 	billingState.plans.forEach(plan => {
 		const selected = Number(plan.id) === Number(billingState.selectedPlanId);
-		const card = billingElement('button', 'relative overflow-hidden rounded-2xl border p-5 text-left transition ' + (selected ? 'border-purple-500 bg-purple-50 ring-2 ring-purple-100' : 'border-stone-200 bg-white hover:border-purple-300'));
+		const fitsStorage = Number((billingState.storageUsage && (Number(billingState.storageUsage.usedBytes || 0) + Number(billingState.storageUsage.reservedBytes || 0))) || 0) < Number(plan.storageLimitGB || 0) * 1073741824;
+		const card = billingElement('button', 'relative overflow-hidden rounded-2xl border p-5 text-left transition ' + (selected ? 'border-purple-500 bg-purple-50 ring-2 ring-purple-100' : fitsStorage ? 'border-stone-200 bg-white hover:border-purple-300' : 'cursor-not-allowed border-stone-200 bg-stone-50 opacity-60'));
 		card.type = 'button';
+		card.disabled = !fitsStorage;
 		const heading = billingElement('div', 'flex items-start justify-between gap-3');
 		const title = billingElement('div');
 		title.append(billingElement('h3', 'text-lg font-black text-gray-950', plan.name), billingElement('p', 'mt-2 text-sm leading-relaxed text-gray-500', plan.description || 'Plano para sua operação.'));
 		heading.append(title, billingElement('span', 'grid h-7 w-7 shrink-0 place-items-center rounded-full border text-xs ' + (selected ? 'border-purple-600 bg-purple-600 text-white' : 'border-stone-300 text-transparent'), '✓'));
 		const price = billingElement('p', 'mt-5 text-2xl font-black text-gray-950', billingMoney(billingState.selectedCycle === 'annual' ? plan.annualPriceCents : plan.monthlyPriceCents));
 		price.appendChild(billingElement('span', 'ml-1 text-xs font-medium text-gray-500', billingState.selectedCycle === 'annual' ? '/ano' : '/mês'));
-		const limits = billingElement('p', 'mt-3 text-xs font-semibold text-gray-600', plan.agentLimit + ' agentes · ' + plan.connectionLimit + ' conexões');
+		const limits = billingElement('p', 'mt-3 text-xs font-semibold text-gray-600', plan.agentLimit + ' agentes · ' + plan.connectionLimit + ' conexões · ' + plan.storageLimitGB + ' GB');
 		card.append(heading, price, limits);
 		if (Number(plan.trialDays) > 0) card.appendChild(billingElement('p', 'mt-4 rounded-lg bg-emerald-100 px-3 py-2 text-xs font-bold text-emerald-700', plan.trialDays + ' dias grátis para novas contas'));
+		if (!fitsStorage) card.appendChild(billingElement('p', 'mt-3 text-xs font-bold text-red-600', 'Não comporta o armazenamento atual'));
+		else if (Number(plan.storageLimitGB) > Number((billingState.plan && billingState.plan.storageLimitGB) || 0)) card.appendChild(billingElement('p', 'mt-3 text-xs font-bold text-blue-600', 'Upgrade de armazenamento'));
 		card.addEventListener('click', () => {
 			billingState.selectedPlanId = Number(plan.id);
 			renderBillingPlans();
@@ -372,6 +390,7 @@ function renderBilling() {
     document.getElementById('billing-agent-limit').textContent = plan.agentLimit == null ? '-' : String(plan.agentLimit);
     document.getElementById('billing-connection-limit').textContent = plan.connectionLimit == null ? '-' : String(plan.connectionLimit);
 	document.getElementById('billing-duration').textContent = subscription.durationDays == null ? (cycle === 'annual' ? '365' : '30') : String(subscription.durationDays);
+	document.getElementById('billing-storage-limit').textContent = String(plan.storageLimitGB || 0);
 	document.getElementById('billing-amount').textContent = billingMoney(amountCents);
 	document.getElementById('billing-provider').textContent = paymentProvider(billingState.paymentProvider);
 	document.getElementById('billing-monthly-price').textContent = billingMoney(selectedPlan.monthlyPriceCents || 0);
@@ -409,6 +428,12 @@ function renderBilling() {
     document.getElementById('billing-empty-message').textContent = amountCents === 0 ? 'Planos gratuitos não geram cobranças.' : 'As próximas cobranças aparecerão aqui.';
     renderPaymentTable(payments);
 	renderPaymentCards(payments);
+	const storage = billingState.storageUsage || {};
+	const storagePercent = Math.min(100, Number(storage.percentUsed || 0));
+	document.getElementById('billing-storage-used').textContent = mediaBillingBytes(storage.usedBytes || 0);
+	document.getElementById('billing-storage-copy').textContent = 'Limite atual: ' + mediaBillingBytes(storage.storageLimitBytes || 0) + ' · ' + storagePercent.toLocaleString('pt-BR', { maximumFractionDigits: 1 }) + '% ocupado';
+	const storageBar = document.getElementById('billing-storage-bar'); storageBar.style.width = storagePercent + '%'; storageBar.className = 'h-full rounded-full ' + (storagePercent >= 100 ? 'bg-red-500' : storagePercent >= 80 ? 'bg-amber-400' : 'bg-gradient-to-r from-blue-500 to-purple-600');
+	document.getElementById('billing-storage-upgrade').classList.toggle('hidden', storagePercent < 80);
 	renderBillingPlans();
 
     document.getElementById('billing-loading').classList.add('hidden');
@@ -449,6 +474,7 @@ async function loadBilling() {
 	billingState.plans = Array.isArray(data.plans) ? data.plans : [];
 	billingState.payments = Array.isArray(data.payments) ? data.payments : [];
 	billingState.paymentProvider = data.paymentProvider || null;
+	billingState.storageUsage = data.storageUsage || null;
 	billingState.selectedCycle = data.subscription && data.subscription.billingCycle ? data.subscription.billingCycle : 'monthly';
 	billingState.selectedPlanId = data.subscription ? Number(data.subscription.planId) : null;
     renderBilling();
@@ -460,7 +486,7 @@ async function showBillingRegistration() {
 	const select = document.getElementById('register-plan');
 	select.replaceChildren();
 	plans.forEach(plan => {
-		const option = billingElement('option', '', plan.name + ' · ' + billingMoney(plan.monthlyPriceCents) + '/mês' + (Number(plan.trialDays) > 0 ? ' · ' + plan.trialDays + ' dias grátis' : ''));
+		const option = billingElement('option', '', plan.name + ' · ' + plan.storageLimitGB + ' GB · ' + billingMoney(plan.monthlyPriceCents) + '/mês' + (Number(plan.trialDays) > 0 ? ' · ' + plan.trialDays + ' dias grátis' : ''));
 		option.value = String(plan.id);
 		select.appendChild(option);
 	});

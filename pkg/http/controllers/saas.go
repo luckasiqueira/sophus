@@ -526,6 +526,9 @@ func normalizeAndValidatePlan(input *repo.PlanInput) string {
 	if input.TrialDays < 0 || input.TrialDays > 90 {
 		return "o período de avaliação deve ter entre 0 e 90 dias"
 	}
+	if input.StorageLimitGB < 1 || input.StorageLimitGB > 100000 {
+		return "o armazenamento deve ter entre 1 e 100000 GB"
+	}
 	return ""
 }
 
