@@ -78,6 +78,33 @@ func ParseFlowCURL(ctx iris.Context) {
 	ctx.JSON(iris.Map{"data": config})
 }
 
+func TestFlowHTTPRequest(ctx iris.Context) {
+	if _, ok := requireAdmin(ctx); !ok {
+		return
+	}
+	var body struct {
+		Config  map[string]interface{} `json:"config"`
+		Context map[string]interface{} `json:"context"`
+	}
+	ctx.Request().Body = http.MaxBytesReader(ctx.ResponseWriter(), ctx.Request().Body, maxFlowAPIRequestBytes)
+	if err := ctx.ReadJSON(&body); err != nil {
+		ctx.StopWithJSON(iris.StatusBadRequest, iris.Map{"error": "JSON inválido"})
+		return
+	}
+	for key := range body.Context {
+		if strings.HasPrefix(key, "_") {
+			ctx.StopWithJSON(iris.StatusBadRequest, iris.Map{"error": "contexto contém chave reservada"})
+			return
+		}
+	}
+	response, err := flowengine.TestHTTPRequest(body.Config, flowengine.ExecutionContext(body.Context))
+	if err != nil {
+		ctx.StopWithJSON(iris.StatusBadRequest, iris.Map{"error": err.Error()})
+		return
+	}
+	ctx.JSON(iris.Map{"data": response})
+}
+
 func ListFlows(ctx iris.Context) {
 	agent, ok := requireAdmin(ctx)
 	if !ok {

@@ -11,7 +11,9 @@ templ FlowBuilder() {
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
 <style>
   html, body { height: 100%; margin: 0; background: #f5f5f4; }
-  #canvas-wrap { background-image: radial-gradient(#e7e5e4 1.5px, transparent 1.5px); background-size: 22px 22px; }
+  #canvas-wrap { min-width: 0; background-image: radial-gradient(#e7e5e4 1.5px, transparent 1.5px); background-size: 22px 22px; }
+	#canvas-wrap.canvas-panning { cursor: grabbing; user-select: none; }
+	#canvas-wrap.canvas-panning * { cursor: grabbing !important; }
   .node-card { position: absolute; width: 220px; cursor: grab; user-select: none; }
   .node-card.dragging { cursor: grabbing; z-index: 30; }
   .node-card.selected { box-shadow: 0 0 0 2px #6123cc, 0 8px 20px rgba(0,0,0,.12); }
@@ -29,6 +31,8 @@ templ FlowBuilder() {
   @keyframes pulse { 0%,100% { transform: scale(1); } 50% { transform: scale(1.25); } }
   .palette-item { cursor: grab; }
   .palette-item:active { cursor: grabbing; }
+	.variable-accordion > summary { list-style: none; }
+	.variable-accordion > summary::-webkit-details-marker { display: none; }
   ::-webkit-scrollbar { width: 10px; height: 10px; }
   ::-webkit-scrollbar-thumb { background: #d6d3d1; border-radius: 8px; }
 </style>
@@ -71,16 +75,16 @@ templ FlowBuilder() {
   </div>
 
   <!-- EDITOR VIEW -->
-  <div id="view-editor" class="hidden flex-1 flex overflow-hidden">
+  <div id="view-editor" class="hidden flex-1 min-h-0 flex overflow-hidden">
     <!-- Palette -->
     <div class="w-60 bg-white border-r border-stone-200 overflow-y-auto p-3 flex flex-col gap-4">
       <div id="palette"></div>
     </div>
 
     <!-- Canvas -->
-    <div id="canvas-wrap" class="flex-1 relative overflow-auto">
-      <div id="canvas" style="width:3000px;height:2200px;position:relative;">
-        <svg id="edges-svg" width="3000" height="2200" style="position:absolute;top:0;left:0;pointer-events:none;">
+    <div id="canvas-wrap" class="flex-1 min-w-0 relative overflow-auto" title="Segure Ctrl e arraste o fundo para navegar pelo canvas">
+	  <div id="canvas" style="width:1800px;height:1200px;position:relative;">
+		<svg id="edges-svg" width="1800" height="1200" style="position:absolute;top:0;left:0;pointer-events:none;">
           <defs>
             <marker id="arrow" markerWidth="8" markerHeight="8" refX="6" refY="4" orient="auto">
               <path d="M0,0 L8,4 L0,8 Z" fill="#a8a29e"></path>
@@ -92,7 +96,7 @@ templ FlowBuilder() {
     </div>
 
     <!-- Inspector -->
-    <div id="inspector" class="w-80 bg-white border-l border-stone-200 overflow-y-auto p-4 hidden"></div>
+    <div id="inspector" class="w-96 shrink-0 bg-white border-l border-stone-200 overflow-y-auto p-4 hidden"></div>
   </div>
 
   <div id="templates-modal" class="hidden fixed inset-0 z-50 bg-black bg-opacity-40 p-4 items-center justify-center">
@@ -264,6 +268,9 @@ const state = {
   selectedNodeId: null,
   armedHandle: null,      // {nodeId, handle} - connection source selected by click or drag
 	connectionDrag: null,   // {pointerId, startClientX, startClientY, x, y, moved}
+	canvasPan: null,
+	httpTestResponses: {},
+	httpTestContexts: {},
 	savedFingerprint: '',
 	saving: false,
 };
@@ -617,7 +624,7 @@ function defaultDataFor(type) {
 	case 'scheduleMessage': return { message: '', delayMinutes: 60 };
     case 'httpRequest': return {
       method: 'POST', headerMode: 'none', headerFields: [],
-      bodyMode: 'none', bodyFields: [],
+	  bodyMode: 'none', bodyFields: [], responseMappings: [], timeout: 60000, connectTimeout: 10000,
     };
     default: return {};
   }
@@ -757,7 +764,9 @@ function nodeBodyHTML(node, outs) {
   if (node.type === 'condition') {
     return '<div class="px-3 py-2 text-xs text-gray-500 leading-snug line-clamp-3" style="height:89px;padding-right:108px">' + escapeHtml(nodeSummary(node)) + '<\/div>';
   }
-  return '<div class="px-3 py-2 text-xs text-gray-500 leading-snug">' + escapeHtml(nodeSummary(node)) + '<\/div>' +
+	const outputListHeight = (node.type === 'switch' || node.type === 'messageType') ? outs.length * 14 + 8 : 0;
+	const bodyHeight = Math.max(36, nodeHeight(node) - 43 - outputListHeight);
+	return '<div class="px-3 py-2 text-xs text-gray-500 leading-snug overflow-hidden break-words" style="height:' + bodyHeight + 'px;overflow-wrap:anywhere;display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:3">' + escapeHtml(nodeSummary(node)) + '<\/div>' +
 	    ((node.type === 'switch' || node.type === 'messageType') ? '<div class="px-3 text-[10px] text-gray-400 flex flex-col gap-0.5">' + outs.map(o=>'<div class="truncate">↳ ' + escapeHtml(o.label) + '<\/div>').join('') + '<\/div>' : '');
 }
 
@@ -774,6 +783,7 @@ function outputY(node, index, count) {
 }
 
 function renderCanvas() {
+	resizeCanvasToContent();
   const layer = document.getElementById('nodes-layer');
   layer.innerHTML = '';
   for (const node of state.flowData.nodes) {
@@ -836,7 +846,7 @@ function selectNode(id) {
 }
 
 function startDrag(e, node) {
-  if (e.target.classList.contains('handle')) return;
+	if (e.ctrlKey || e.target.classList.contains('handle')) return;
   const wrap = document.getElementById('canvas-wrap');
   const startX = e.clientX + wrap.scrollLeft;
   const startY = e.clientY + wrap.scrollTop;
@@ -860,6 +870,52 @@ function startDrag(e, node) {
   }
   document.addEventListener('mousemove', onMove);
   document.addEventListener('mouseup', onUp);
+}
+
+function resizeCanvasToContent() {
+	const canvas = document.getElementById('canvas');
+	const wrap = document.getElementById('canvas-wrap');
+	const svg = document.getElementById('edges-svg');
+	if (!canvas || !wrap || !svg) return;
+	let maxX = 0, maxY = 0;
+	state.flowData.nodes.forEach(node => {
+	  maxX = Math.max(maxX, Number(node.position?.x || 0) + NODE_W);
+	  maxY = Math.max(maxY, Number(node.position?.y || 0) + nodeHeight(node));
+	});
+	const width = Math.ceil(Math.max(1800, wrap.clientWidth + 180, maxX + 260));
+	const height = Math.ceil(Math.max(1200, wrap.clientHeight + 180, maxY + 220));
+	canvas.style.width = width + 'px';
+	canvas.style.height = height + 'px';
+	svg.setAttribute('width', width);
+	svg.setAttribute('height', height);
+}
+
+function initCanvasNavigation() {
+	const wrap = document.getElementById('canvas-wrap');
+	if (!wrap) return;
+	wrap.addEventListener('pointerdown', event => {
+	  if (!event.ctrlKey || event.button !== 0) return;
+	  event.preventDefault();
+	  state.armedHandle = null;
+	  state.connectionDrag = null;
+	  state.canvasPan = { pointerId: event.pointerId, clientX: event.clientX, clientY: event.clientY, left: wrap.scrollLeft, top: wrap.scrollTop };
+	  wrap.classList.add('canvas-panning');
+	  wrap.setPointerCapture?.(event.pointerId);
+	});
+	wrap.addEventListener('pointermove', event => {
+	  const pan = state.canvasPan;
+	  if (!pan || pan.pointerId !== event.pointerId) return;
+	  wrap.scrollLeft = pan.left - (event.clientX - pan.clientX);
+	  wrap.scrollTop = pan.top - (event.clientY - pan.clientY);
+	});
+	function finishPan(event) {
+	  if (!state.canvasPan || state.canvasPan.pointerId !== event.pointerId) return;
+	  state.canvasPan = null;
+	  wrap.classList.remove('canvas-panning');
+	}
+	wrap.addEventListener('pointerup', finishPan);
+	wrap.addEventListener('pointercancel', finishPan);
+	window.addEventListener('resize', resizeCanvasToContent);
 }
 
 function startConnectionDrag(e, nodeId, handle) {
@@ -1057,41 +1113,56 @@ function textArea(val, name, rows) {
 }
 
 function availableFlowVariables() {
-	const standard = [
-	  { name: 'conversationId', label: 'ID do atendimento' },
-	  { name: 'executionId', label: 'ID da execução' },
-	  { name: 'flowId', label: 'ID do fluxo' },
-	  { name: 'contactName', label: 'Nome do cliente' },
-	  { name: 'contactNumber', label: 'Número do cliente' },
-	  { name: 'contactEmail', label: 'Email do cliente' },
-	  { name: 'conversationTags', label: 'Tags do atendimento' },
-	  { name: 'department', label: 'Setor atual' },
-	  { name: 'connectionType', label: 'Tipo de conexão' },
-	  { name: 'message', label: 'Mensagem recebida' },
-	  { name: 'response', label: 'Última resposta' },
-	  { name: 'senderName', label: 'Nome informado pelo WhatsApp' },
-	  { name: 'messageType', label: 'Tipo da mensagem recebida' },
+	const categories = [
+	  { id: 'execution', label: 'Execução', icon: 'fa-diagram-project', variables: [
+		{ name: 'conversationId', label: 'ID do atendimento' }, { name: 'executionId', label: 'ID da execução' }, { name: 'flowId', label: 'ID do fluxo' },
+	  ] },
+	  { id: 'customer', label: 'Cliente', icon: 'fa-address-card', variables: [
+		{ name: 'contactName', label: 'Nome do cliente' }, { name: 'contactNumber', label: 'Número do cliente' }, { name: 'contactEmail', label: 'Email do cliente' },
+	  ] },
+	  { id: 'channel', label: 'Mensagem e canal', icon: 'fa-comments', variables: [
+		{ name: 'message', label: 'Mensagem recebida' }, { name: 'response', label: 'Última resposta' }, { name: 'senderName', label: 'Nome informado pelo WhatsApp' },
+		{ name: 'messageType', label: 'Tipo da mensagem recebida' }, { name: 'conversationTags', label: 'Tags do atendimento' },
+		{ name: 'department', label: 'Setor atual' }, { name: 'connectionType', label: 'Tipo de conexão' },
+	  ] },
 	];
-	const discovered = new Map();
-	(state.flowData?.nodes || []).forEach(node => {
-	  const data = node.data || {};
-	  let name = '';
-	  let source = '';
-	  if (node.type === 'setVariable') { name = data.variableName; source = 'Definir Variável'; }
-	  if (node.type === 'input') { name = data.variableName || 'userInput'; source = 'Capturar Resposta'; }
-	  if (node.type === 'httpRequest') { name = data.saveResponseTo; source = 'HTTP Request'; }
-	  if (node.type === 'checkResponse') { name = data.saveResponseTo; source = 'Verificar Resposta'; }
-	  if (node.type === 'ai') { name = data.saveResponseTo; source = 'Gerar com IA'; }
+	const dynamic = new Map();
+	const used = new Set(categories.flatMap(category => category.variables.map(variable => variable.name)));
+	function add(categoryID, categoryLabel, icon, name, label) {
 	  name = String(name || '').trim();
-	  if (name && !standard.some(variable => variable.name === name)) discovered.set(name, { name, label: source });
+	  if (!name || used.has(name)) return;
+	  if (!dynamic.has(categoryID)) dynamic.set(categoryID, { id: categoryID, label: categoryLabel, icon, variables: [] });
+	  dynamic.get(categoryID).variables.push({ name, label });
+	  used.add(name);
+	}
+	const nodes = state.currentFlow ? (state.flowData?.nodes || []) : [];
+	nodes.forEach(node => {
+	  const data = node.data || {};
+	  if (node.type === 'setVariable') add('defined', 'Variáveis definidas', 'fa-code', data.variableName, 'Definida no fluxo');
+	  if (node.type === 'input') add('captured', 'Respostas capturadas', 'fa-keyboard', data.variableName || 'userInput', 'Resposta do cliente');
+	  if (node.type === 'checkResponse') add('logic', 'Resultados de lógica', 'fa-code-branch', data.saveResponseTo, 'Resultado da verificação');
+	  if (node.type === 'httpRequest') {
+		add('http', 'HTTP Request', 'fa-globe', data.saveResponseTo, 'Resposta HTTP completa');
+		(data.responseMappings || []).forEach(mapping => add('http', 'HTTP Request', 'fa-globe', mapping.variableName, mapping.path || 'Campo mapeado'));
+	  }
+	  if (node.type === 'ai') add('ai', 'Inteligência artificial', 'fa-wand-magic-sparkles', data.saveResponseTo, 'Resposta gerada pela IA');
+	  if (node.type === 'smartAssign') {
+		add('assignment', 'Distribuição', 'fa-users-gear', 'assignedAgentId', 'ID do agente distribuído');
+		add('assignment', 'Distribuição', 'fa-users-gear', 'assignedAgentName', 'Nome do agente distribuído');
+	  }
+	  if (node.type === 'callback') add('callback', 'Callback', 'fa-satellite-dish', 'callbackResponse', 'Resposta do callback');
+	  if (node.type === 'scheduleMessage') add('schedule', 'Agendamento', 'fa-calendar-plus', 'scheduledMessageAt', 'Data do agendamento');
 	});
-	[
-	  { name: 'assignedAgentId', label: 'ID do agente distribuído' },
-	  { name: 'assignedAgentName', label: 'Nome do agente distribuído' },
-	  { name: 'callbackResponse', label: 'Resposta do callback' },
-	  { name: 'scheduledMessageAt', label: 'Data do agendamento' },
-	].forEach(variable => discovered.set(variable.name, variable));
-	return { standard, custom: Array.from(discovered.values()) };
+	return { categories: categories.concat(Array.from(dynamic.values()).filter(category => category.variables.length)) };
+}
+
+function variableAccordions(catalog, renderer) {
+	return catalog.categories.map(category =>
+	  '<details class="variable-accordion group border-b border-stone-100">' +
+		'<summary class="cursor-pointer px-3 py-2.5 flex items-center gap-2 bg-stone-50 hover:bg-purple-50"><i class="fas ' + category.icon + ' w-4 text-center text-purple-500"><\/i><span class="flex-1 text-[11px] font-semibold text-gray-700">' + escapeHtml(category.label) + '<\/span><span class="rounded-full bg-white px-1.5 py-0.5 text-[9px] text-gray-400">' + category.variables.length + '<\/span><i class="fas fa-chevron-down text-[9px] text-gray-400 transition-transform group-open:rotate-180"><\/i><\/summary>' +
+		'<div class="divide-y divide-stone-50">' + category.variables.map(renderer).join('') + '<\/div>' +
+	  '<\/details>'
+	).join('');
 }
 
 function formattedTextArea(val, name, rows) {
@@ -1110,16 +1181,12 @@ function formattedTextArea(val, name, rows) {
 	  '<button type="button" data-variable-toggle title="Inserir variável" class="h-8 px-2.5 rounded-md text-xs font-medium text-purple-700 hover:bg-purple-50 flex items-center gap-1.5"><i class="fas fa-at"><\/i>Variáveis<\/button>' +
     '<\/div>' +
 	'<div data-variable-menu class="hidden border-b border-stone-200 bg-white max-h-56 overflow-y-auto">' +
-	  '<p class="px-3 pt-2 pb-1 text-[10px] font-bold uppercase tracking-wide text-gray-400">Dados do atendimento<\/p>' + standardVariableList(variables.standard, variableButton) +
-	  (variables.custom.length ? '<p class="px-3 pt-3 pb-1 text-[10px] font-bold uppercase tracking-wide text-gray-400">Variáveis do fluxo<\/p>' + standardVariableList(variables.custom, variableButton) : '') +
+	  variableAccordions(variables, variableButton) +
 	'<\/div>' +
     '<textarea data-field="' + name + '" data-formatted-text rows="' + (rows||4) + '" class="w-full px-3 py-2 bg-stone-50 text-sm focus:outline-none focus:ring-2 focus:ring-inset focus:ring-purple-400">' + escapeHtml(val||'') + '<\/textarea>' +
   '<\/div>';
 }
 
-function standardVariableList(variables, renderer) {
-	return variables.map(renderer).join('');
-}
 function numberInput(val, name) {
   return '<input type="number" data-field="' + name + '" value="' + (val ?? '') + '" class="w-full px-3 py-2 bg-stone-50 border border-stone-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-purple-400">';
 }
@@ -1365,9 +1432,16 @@ function renderFieldsFor(node) {
         }
       }
       html += field('Salvar resposta em', textInput(d.saveResponseTo, 'saveResponseTo'), 'Nome da variável, ex: apiResult');
-      html += field('Timeout (ms)', numberInput(d.timeout, 'timeout'));
-	  html += field('Timeout de conexão (ms)', numberInput(d.connectTimeout, 'connectTimeout'));
+	  html += field('Timeout total (ms)', numberInput(d.timeout, 'timeout'), 'Padrão: 60000. Para APIs lentas, use até 240000 (4 minutos).');
+	  html += field('Timeout de conexão (ms)', numberInput(d.connectTimeout, 'connectTimeout'), 'Tempo máximo apenas para estabelecer a conexão. Limite: 60000.');
 	  html += field('Redirecionamentos', '<label class="flex items-center gap-2 text-sm text-gray-700"><input type="checkbox" data-field="followRedirects" ' + (d.followRedirects?'checked':'') + '> Seguir respostas 3xx<\/label>', 'Ative para reproduzir cURL com --location. Cada destino continua sujeito à proteção contra endereços privados.');
+	  d.responseMappings = d.responseMappings || [];
+	  html += '<div class="mt-2 rounded-xl border border-blue-200 bg-blue-50 p-3 space-y-2">' +
+		'<div><p class="text-xs font-semibold text-blue-900"><i class="fas fa-play mr-1"><\/i>Testar e mapear resposta<\/p><p class="mt-1 text-[11px] text-blue-700">Execute a requisição para navegar pelos campos retornados.<\/p><\/div>' +
+		'<details><summary class="cursor-pointer text-[11px] font-medium text-blue-700">Contexto de teste para variáveis<\/summary><textarea id="http-test-context" rows="3" placeholder="{&quot;document&quot;:&quot;12345678900&quot;}" class="mt-2 w-full rounded-lg border border-blue-200 bg-white px-2.5 py-2 font-mono text-xs"><\/textarea><\/details>' +
+		'<button type="button" id="btn-test-http" class="w-full rounded-lg bg-blue-700 px-3 py-2 text-xs font-semibold text-white hover:bg-blue-800 disabled:cursor-wait disabled:opacity-60">Testar requisição<\/button>' +
+		'<p id="http-test-feedback" class="hidden text-[11px]"><\/p><div id="http-test-response"><\/div><\/div>';
+	  html += '<div class="mt-2 flex items-center justify-between"><div><p class="text-xs font-semibold text-gray-700">Variáveis da resposta<\/p><p class="text-[11px] text-gray-400">Caminho JSON → variável do fluxo<\/p><\/div><button type="button" id="btn-add-response-mapping" class="text-xs font-medium text-purple-600 hover:underline"><i class="fas fa-plus mr-1"><\/i>Adicionar<\/button><\/div><div id="http-response-mappings" class="space-y-2"><\/div>';
       break;
     case 'waitForResponse':
       html += field('Timeout (segundos, opcional)', numberInput(d.timeout, 'timeout'));
@@ -1545,6 +1619,9 @@ function renderFieldsFor(node) {
 	bindHTTPCURLImport(node, box);
     renderHTTPHeaderFields(node);
     renderHTTPBodyFields(node);
+	bindHTTPTest(node, box);
+	renderHTTPResponseMappings(node);
+	renderHTTPTestResponse(node);
   }
   bindMediaUploads(node, box);
 }
@@ -1583,6 +1660,143 @@ function bindHTTPCURLImport(node, box) {
       button.disabled = false;
     }
   };
+}
+
+function bindHTTPTest(node, box) {
+	const button = box.querySelector('#btn-test-http');
+	const contextInput = box.querySelector('#http-test-context');
+	const feedback = box.querySelector('#http-test-feedback');
+	if (!button || !contextInput || !feedback) return;
+	contextInput.value = state.httpTestContexts[node.id] || '{}';
+	contextInput.oninput = () => { state.httpTestContexts[node.id] = contextInput.value; };
+	button.onclick = async () => {
+	  let testContext;
+	  try {
+		testContext = JSON.parse(contextInput.value || '{}');
+		if (!testContext || Array.isArray(testContext) || typeof testContext !== 'object') throw new Error('use um objeto JSON');
+	  } catch (error) {
+		feedback.textContent = 'Contexto de teste inválido: ' + error.message;
+		feedback.className = 'text-[11px] text-red-600';
+		return;
+	  }
+	  button.disabled = true;
+	  feedback.textContent = 'Executando requisição...';
+	  feedback.className = 'text-[11px] text-blue-700';
+	  try {
+		const config = JSON.parse(JSON.stringify(node.data));
+		const response = await api('POST', '/flows/api/test-http', { config, context: testContext });
+		if (state.selectedNodeId !== node.id || !state.flowData.nodes.includes(node)) return;
+		state.httpTestResponses[node.id] = response;
+		feedback.textContent = response.errorType === 'timeout'
+		  ? ('Tempo limite de ' + Math.round(Number(response.timeoutMs || 0) / 1000) + 's atingido sem resposta. Aumente o Timeout total, se a API normalmente demora mais.')
+		  : response.error ? ('Falha: ' + (response.message || 'erro na requisição')) : ('Resposta recebida · HTTP ' + (response.status || 0));
+		feedback.className = 'text-[11px] ' + (response.error ? 'text-red-600' : 'text-emerald-700');
+		renderHTTPTestResponse(node);
+	  } catch (error) {
+		feedback.textContent = error.message;
+		feedback.className = 'text-[11px] text-red-600';
+	  } finally {
+		button.disabled = false;
+	  }
+	};
+}
+
+function renderHTTPTestResponse(node) {
+	const container = document.getElementById('http-test-response');
+	if (!container) return;
+	const response = state.httpTestResponses[node.id];
+	if (!response) { container.innerHTML = ''; return; }
+	const fields = [];
+	collectJSONFields(response.data, '', fields, 0);
+	if (!fields.length) {
+	  container.innerHTML = '<div class="rounded-lg border border-blue-100 bg-white p-2.5"><p class="text-[11px] text-gray-500">A resposta não possui campos JSON mapeáveis.<\/p><pre class="mt-2 max-h-32 overflow-auto whitespace-pre-wrap break-all text-[10px] text-gray-600">' + escapeHtml(JSON.stringify(response.data, null, 2) || String(response.data || '')) + '<\/pre><\/div>';
+	  return;
+	}
+	container.innerHTML = '<div class="rounded-lg border border-blue-100 bg-white overflow-hidden"><div class="px-3 py-2 border-b border-blue-100 flex items-center justify-between"><span class="text-[11px] font-semibold text-gray-700">Campos retornados<\/span><span class="text-[10px] text-gray-400">' + fields.length + ' caminhos<\/span><\/div><div class="max-h-72 overflow-y-auto divide-y divide-stone-100">' + fields.map(field =>
+	  '<div class="px-3 py-2 flex items-center gap-2"><div class="min-w-0 flex-1"><code class="block truncate text-[11px] font-semibold text-purple-700" title="' + escapeAttr(field.path) + '">' + escapeHtml(field.path) + '<\/code><p class="truncate text-[10px] text-gray-400">' + escapeHtml(field.type + ' · ' + field.preview) + '<\/p><\/div><button type="button" data-map-response-path="' + escapeAttr(field.path) + '" class="shrink-0 rounded-md bg-purple-50 px-2 py-1 text-[10px] font-semibold text-purple-700 hover:bg-purple-100">Mapear<\/button><\/div>'
+	).join('') + '<\/div><\/div>';
+	container.querySelectorAll('[data-map-response-path]').forEach(button => button.onclick = () => {
+	  addHTTPResponseMapping(node, button.dataset.mapResponsePath);
+	});
+}
+
+function collectJSONFields(value, path, output, depth) {
+	if (output.length >= 300 || depth > 12) return;
+	if (path) output.push({ path, type: jsonValueType(value), preview: jsonValuePreview(value, path) });
+	if (Array.isArray(value)) {
+	  value.forEach((item, index) => collectJSONFields(item, path + '[' + index + ']', output, depth + 1));
+	  return;
+	}
+	if (value && typeof value === 'object') {
+	  Object.entries(value).forEach(([key, item]) => collectJSONFields(item, appendJSONPath(path, key), output, depth + 1));
+	}
+}
+
+function appendJSONPath(path, key) {
+	if (/^[A-Za-z_][A-Za-z0-9_-]*$/.test(key)) return path ? path + '.' + key : key;
+	return (path || '$') + '[' + JSON.stringify(key) + ']';
+}
+
+function jsonValueType(value) {
+	if (value === null) return 'null';
+	if (Array.isArray(value)) return 'array';
+	return typeof value;
+}
+
+function jsonValuePreview(value, path) {
+	if (value === null) return 'null';
+	if (isSensitiveJSONPath(path)) return '••••••';
+	if (Array.isArray(value)) return '[' + value.length + ' itens]';
+	if (value && typeof value === 'object') return '{' + Object.keys(value).length + ' campos}';
+	const encoded = typeof value === 'string' ? value : JSON.stringify(value);
+	return truncate(encoded == null ? '' : encoded, 90);
+}
+
+function isSensitiveJSONPath(path) {
+	return /cpf|cnpj|document|telefone|email|contato|password|senha|secret|token|authorization|cookie|api.?key|link_quitacao/i.test(path);
+}
+
+function responseVariableName(path, mappings) {
+	let base = path.replace(/\[(\d+)\]/g, '_$1').split('.').pop() || 'responseValue';
+	base = base.replace(/^\[|\]$/g, '').replace(/^"|"$/g, '').replace(/[^A-Za-z0-9_]/g, '_');
+	if (!/^[A-Za-z]/.test(base)) base = 'value_' + base;
+	base = base.slice(0, 110) || 'responseValue';
+	const used = new Set(mappings.map(mapping => String(mapping.variableName || '')));
+	let candidate = base, suffix = 2;
+	while (used.has(candidate)) candidate = (base.slice(0, 110) + suffix++).slice(0, 120);
+	return candidate;
+}
+
+function addHTTPResponseMapping(node, path) {
+	node.data.responseMappings = node.data.responseMappings || [];
+	const existingIndex = node.data.responseMappings.findIndex(mapping => mapping.path === path);
+	if (existingIndex >= 0) {
+	  document.querySelector('[data-mapping-path="' + existingIndex + '"]')?.focus();
+	  return;
+	}
+	node.data.responseMappings.push({ path, variableName: responseVariableName(path, node.data.responseMappings) });
+	renderHTTPResponseMappings(node);
+}
+
+function renderHTTPResponseMappings(node) {
+	const container = document.getElementById('http-response-mappings');
+	const addButton = document.getElementById('btn-add-response-mapping');
+	if (!container || !addButton) return;
+	node.data.responseMappings = node.data.responseMappings || [];
+	container.innerHTML = node.data.responseMappings.length ? node.data.responseMappings.map((mapping, index) =>
+	  '<div class="rounded-xl border border-stone-200 bg-stone-50 p-2.5"><div class="grid grid-cols-[1fr_auto] gap-2"><input data-response-mapping-path="' + escapeAttr(mapping.path || '') + '" data-mapping-path="' + index + '" value="' + escapeAttr(mapping.path || '') + '" placeholder="evaluation.result" class="min-w-0 rounded-lg border border-stone-200 bg-white px-2.5 py-2 font-mono text-xs"><button type="button" data-delete-response-mapping="' + index + '" class="px-2 text-red-500 hover:text-red-700"><i class="fas fa-trash"><\/i><\/button><\/div><div class="mt-2 flex items-center gap-2"><i class="fas fa-arrow-right text-[10px] text-gray-400"><\/i><input data-mapping-variable="' + index + '" value="' + escapeAttr(mapping.variableName || '') + '" placeholder="nomeDaVariavel" class="min-w-0 flex-1 rounded-lg border border-stone-200 bg-white px-2.5 py-2 text-xs"><\/div><\/div>'
+	).join('') : '<p class="rounded-lg border border-dashed border-stone-200 p-3 text-center text-[11px] text-gray-400">Nenhum campo mapeado.<\/p>';
+	container.querySelectorAll('[data-mapping-path]').forEach(input => input.oninput = () => { node.data.responseMappings[Number(input.dataset.mappingPath)].path = input.value; });
+	container.querySelectorAll('[data-mapping-variable]').forEach(input => input.oninput = () => { node.data.responseMappings[Number(input.dataset.mappingVariable)].variableName = input.value; });
+	container.querySelectorAll('[data-delete-response-mapping]').forEach(button => button.onclick = () => {
+	  node.data.responseMappings.splice(Number(button.dataset.deleteResponseMapping), 1);
+	  renderHTTPResponseMappings(node);
+	});
+	addButton.onclick = () => {
+	  node.data.responseMappings.push({ path: '', variableName: '' });
+	  renderHTTPResponseMappings(node);
+	  container.querySelector('[data-mapping-path="' + (node.data.responseMappings.length - 1) + '"]')?.focus();
+	};
 }
 
 function renderHTTPHeaderFields(node) {
@@ -1887,7 +2101,7 @@ function renderTemplateVariables() {
 	const menu = document.getElementById('template-variables');
 	const variables = availableFlowVariables();
 	const render = variable => '<button type="button" data-template-variable="' + escapeAttr(variable.name) + '" class="w-full px-3 py-2 text-left hover:bg-purple-50"><span class="block text-xs font-medium text-gray-700">' + escapeHtml(variable.label) + '<\/span><code class="text-[10px] text-purple-600">{' + '{' + escapeHtml(variable.name) + '}' + '}<\/code><\/button>';
-	menu.innerHTML = variables.standard.map(render).join('') + variables.custom.map(render).join('');
+	menu.innerHTML = variableAccordions(variables, render);
 	menu.querySelectorAll('[data-template-variable]').forEach(button => button.onclick = () => {
 	  const input = document.getElementById('template-content');
 	  input.setRangeText('{' + '{' + button.dataset.templateVariable + '}' + '}', input.selectionStart, input.selectionEnd, 'end');
@@ -1932,6 +2146,7 @@ function closeTemplatesModal() {
 // Boot
 // ---------------------------------------------------------------------
 async function boot() {
+	initCanvasNavigation();
   document.getElementById('btn-new-flow').onclick = () => openEditor(null);
 	document.getElementById('btn-templates').onclick = openTemplatesModal;
 	document.getElementById('btn-close-templates').onclick = closeTemplatesModal;

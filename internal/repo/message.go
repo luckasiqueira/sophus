@@ -130,6 +130,9 @@ func CheckMessageText(msg EventMessageEVO) string {
 	if msg.Data.Message.VID.Caption != "" {
 		text = msg.Data.Message.VID.Caption
 	}
+	if strings.TrimSpace(text) == "" {
+		text, _ = rawFlowMessageData(msg.FullJSON)
+	}
 	return text
 }
 
@@ -148,11 +151,124 @@ func CheckMessageType(msg EventMessageEVO) string {
 
 func CheckFlowMessageType(msg EventMessageEVO) string {
 	mediaType := strings.ToLower(strings.TrimSpace(msg.Data.Info.Mediatype))
-	switch mediaType {
-	case "image", "video", "audio", "document":
-		return mediaType
+	for _, kind := range []string{"image", "video", "audio", "document"} {
+		if strings.Contains(mediaType, kind) {
+			return kind
+		}
 	}
-	return CheckMessageType(msg)
+	if messageType := CheckMessageType(msg); messageType != "text" {
+		return messageType
+	}
+	_, messageType := rawFlowMessageData(msg.FullJSON)
+	if messageType != "" {
+		return messageType
+	}
+	return "text"
+}
+
+type FlowInboundMessage struct {
+	Text string
+	Type string
+}
+
+func NormalizeFlowInboundMessage(msg EventMessageEVO) FlowInboundMessage {
+	return FlowInboundMessage{
+		Text: CheckMessageText(msg),
+		Type: CheckFlowMessageType(msg),
+	}
+}
+
+func rawFlowMessageData(payload []byte) (string, string) {
+	if len(payload) == 0 {
+		return "", ""
+	}
+	var root map[string]json.RawMessage
+	if json.Unmarshal(payload, &root) != nil {
+		return "", ""
+	}
+	data, ok := rawJSONObject(root, "data")
+	if !ok {
+		return "", ""
+	}
+	message, ok := rawJSONObject(data, "message")
+	if !ok {
+		return "", ""
+	}
+	for _, key := range []string{"text", "conversation"} {
+		if value := rawJSONString(message, key); value != "" {
+			return value, "text"
+		}
+	}
+	for _, item := range []struct {
+		key  string
+		kind string
+	}{
+		{"extendedTextMessage", "text"},
+		{"imageMessage", "image"},
+		{"videoMessage", "video"},
+		{"audioMessage", "audio"},
+		{"documentMessage", "document"},
+	} {
+		if nested, exists := rawJSONObject(message, item.key); exists {
+			for _, textKey := range []string{"text", "caption"} {
+				if value := rawJSONString(nested, textKey); value != "" {
+					return value, item.kind
+				}
+			}
+			return "", item.kind
+		}
+	}
+	for _, key := range []string{"buttonsResponseMessage", "listResponseMessage", "templateButtonReplyMessage", "interactiveResponseMessage"} {
+		if nested, exists := rawJSONObject(message, key); exists {
+			if value := rawInteractiveResponse(nested); value != "" {
+				return value, "interactive"
+			}
+			return "", "interactive"
+		}
+	}
+	return "", ""
+}
+
+func rawInteractiveResponse(value map[string]json.RawMessage) string {
+	for _, key := range []string{"selectedButtonId", "selectedRowId", "selectedId", "id"} {
+		if text := rawJSONString(value, key); text != "" {
+			return text
+		}
+	}
+	for _, key := range []string{"singleSelectReply", "buttonReply", "nativeFlowResponseMessage"} {
+		if nested, exists := rawJSONObject(value, key); exists {
+			if text := rawInteractiveResponse(nested); text != "" {
+				return text
+			}
+		}
+	}
+	return ""
+}
+
+func rawJSONObject(values map[string]json.RawMessage, key string) (map[string]json.RawMessage, bool) {
+	for actual, raw := range values {
+		if !strings.EqualFold(actual, key) {
+			continue
+		}
+		var object map[string]json.RawMessage
+		if json.Unmarshal(raw, &object) == nil {
+			return object, true
+		}
+	}
+	return nil, false
+}
+
+func rawJSONString(values map[string]json.RawMessage, key string) string {
+	for actual, raw := range values {
+		if !strings.EqualFold(actual, key) {
+			continue
+		}
+		var value string
+		if json.Unmarshal(raw, &value) == nil {
+			return strings.TrimSpace(value)
+		}
+	}
+	return ""
 }
 
 func saveMessageMedia(msg EventMessageEVO, companyId int, messageType string) (string, error) {

@@ -97,6 +97,7 @@ func Router(r *iris.Application) {
 			flowsAPI.Get("/connections", controllers.ListConnectionsForFlows)
 			flowsAPI.Get("/assignment-options", controllers.ListAssignmentOptions)
 			flowsAPI.Post("/parse-curl", controllers.ParseFlowCURL)
+			flowsAPI.Post("/test-http", controllers.TestFlowHTTPRequest)
 			flowsAPI.Post("/media", controllers.UploadFlowMedia)
 			flowsAPI.Get("/templates", controllers.ListFlowTemplates)
 			flowsAPI.Post("/templates", controllers.CreateFlowTemplate)

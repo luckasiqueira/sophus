@@ -258,6 +258,9 @@ func (e *Engine) ExecuteFlow(flowID, conversationID, companyID int, initialConte
 		nextNodeID, _ := e.getNextNode(currentNodeID, string(currentNode.Type), flowData.Edges,
 			result.ConditionResult, result.SwitchCaseIndex, result.OutputHandle, result.ScheduleAppointmentHandle)
 		if nextNodeID == "" {
+			if result.OutputHandle != "" {
+				log.Printf("flow route missing: execution=%d node=%s type=%s output=%s", execution.Id, currentNodeID, currentNode.Type, result.OutputHandle)
+			}
 			return e.completeExecution(execution.Id, currentNodeID, context)
 		}
 		currentNodeID = nextNodeID
@@ -386,10 +389,21 @@ func (e *Engine) processNode(executionID int, node FlowNode, ctx ExecutionContex
 		return ProcessResult{}, nil
 	case NodeHTTPRequest:
 		resp := e.messenger.ExecuteHTTPRequest(node.Data, ctx)
+		resultContext := ExecutionContext{}
 		if saveTo := stringVal(node.Data, "saveResponseTo"); saveTo != "" {
-			return ProcessResult{Context: ExecutionContext{saveTo: resp}}, nil
+			resultContext[saveTo] = resp
 		}
-		return ProcessResult{}, nil
+		mapped, mappingErrors := applyHTTPResponseMappings(resp, node.Data)
+		for key, value := range mapped {
+			resultContext[key] = value
+		}
+		if len(mappingErrors) > 0 {
+			resultContext["_httpMappingErrors"] = mappingErrors
+			log.Printf("HTTP response mapping warnings: execution=%d node=%s errors=%s", executionID, node.ID, strings.Join(mappingErrors, "; "))
+		} else {
+			resultContext["_httpMappingErrors"] = nil
+		}
+		return ProcessResult{Context: resultContext}, nil
 	case NodeWaitForResponse:
 		return ProcessResult{WaitForResponse: true, Context: ExecutionContext{
 			"response": nil, "userReplied": nil, "_timedOut": nil,
@@ -421,7 +435,9 @@ func (e *Engine) processNode(executionID int, node FlowNode, ctx ExecutionContex
 		}
 		response := strings.TrimSpace(fmt.Sprint(ctx["response"]))
 		messageType, _ := ctx["messageType"].(string)
-		if !validInputResponse(response, messageType, stringVal(node.Data, "validationType"), stringVal(node.Data, "validationPattern")) {
+		valid := validInputResponse(response, messageType, ctx["userReplied"] == true, stringVal(node.Data, "validationType"), stringVal(node.Data, "validationPattern"))
+		log.Printf("input response evaluated: execution=%d node=%s validation=%s message_type=%q text_length=%d valid=%t", executionID, node.ID, stringVal(node.Data, "validationType"), messageType, len(response), valid)
+		if !valid {
 			return ProcessResult{Context: ExecutionContext{
 				"_waitingForInputNodeId": nil, "_timedOut": nil,
 			}, OutputHandle: "invalid"}, nil
@@ -916,10 +932,10 @@ func randomSplitHandle(percentage, roll int) string {
 	return "b"
 }
 
-func validInputResponse(response, messageType, validationType, pattern string) bool {
+func validInputResponse(response, messageType string, received bool, validationType, pattern string) bool {
 	switch strings.TrimSpace(validationType) {
 	case "", "any":
-		return response != "" || strings.TrimSpace(messageType) != ""
+		return received || response != "" || strings.TrimSpace(messageType) != ""
 	case "text":
 		return response != ""
 	case "email":

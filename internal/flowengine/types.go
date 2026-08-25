@@ -429,8 +429,10 @@ func validateNodeConfiguration(node FlowNode) error {
 			return fmt.Errorf("nome de variável inválido")
 		}
 	}
-	if timeout := intVal(node.Data, "timeout"); timeout < 0 || timeout > 86400 {
-		return fmt.Errorf("timeout deve estar entre 0 e 86400 segundos")
+	if node.Type != NodeHTTPRequest && node.Type != NodeCallback {
+		if timeout := intVal(node.Data, "timeout"); timeout < 0 || timeout > 86400 {
+			return fmt.Errorf("timeout deve estar entre 0 e 86400 segundos")
+		}
 	}
 	return nil
 }
@@ -592,9 +594,9 @@ func validateHTTPRequestNode(data map[string]interface{}) error {
 		return fmt.Errorf("URL excede o limite de 4096 caracteres")
 	}
 	if timeout := intVal(data, "timeout"); timeout != 0 && (timeout < 100 || timeout > int(maxHTTPRequestTimeout/time.Millisecond)) {
-		return fmt.Errorf("timeout deve estar entre 100 e 60000 ms")
+		return fmt.Errorf("timeout deve estar entre 100 e 240000 ms")
 	}
-	if timeout := intVal(data, "connectTimeout"); timeout != 0 && (timeout < 100 || timeout > int(maxHTTPRequestTimeout/time.Millisecond)) {
+	if timeout := intVal(data, "connectTimeout"); timeout != 0 && (timeout < 100 || timeout > int(maxHTTPConnectTimeout/time.Millisecond)) {
 		return fmt.Errorf("timeout de conexão deve estar entre 100 e 60000 ms")
 	}
 	if _, err := httpRequestHeaders(data, ExecutionContext{}); err != nil {
@@ -618,6 +620,31 @@ func validateHTTPRequestNode(data map[string]interface{}) error {
 	}
 	if len(keyValueFields(data["bodyFields"], ExecutionContext{})) > 500 {
 		return fmt.Errorf("o limite é de 500 campos no corpo")
+	}
+	mappings := httpResponseMappings(data)
+	if len(mappings) > 100 {
+		return fmt.Errorf("o limite é de 100 mapeamentos de resposta")
+	}
+	variables := map[string]bool{}
+	if saveTo := strings.TrimSpace(stringVal(data, "saveResponseTo")); saveTo != "" {
+		variables[saveTo] = true
+	}
+	for index, mapping := range mappings {
+		path := strings.TrimSpace(mapping.Path)
+		variableName := strings.TrimSpace(mapping.VariableName)
+		if len(path) > 500 {
+			return fmt.Errorf("caminho do mapeamento %d excede 500 caracteres", index+1)
+		}
+		if _, err := parseJSONPath(path); err != nil {
+			return fmt.Errorf("caminho do mapeamento %d é inválido", index+1)
+		}
+		if !flowVariablePattern.MatchString(variableName) {
+			return fmt.Errorf("variável do mapeamento %d é inválida", index+1)
+		}
+		if variables[variableName] {
+			return fmt.Errorf("variável %s está duplicada no HTTP Request", variableName)
+		}
+		variables[variableName] = true
 	}
 	if bodyMode == "multipart" {
 		for _, field := range httpMultipartFields(data["bodyFields"], ExecutionContext{}) {

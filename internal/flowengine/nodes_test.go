@@ -79,18 +79,20 @@ func TestRandomSplitHandleBoundaries(t *testing.T) {
 func TestValidInputResponse(t *testing.T) {
 	tests := []struct {
 		response, messageType, validationType, pattern string
+		received                                       bool
 		valid                                          bool
 	}{
 		{response: "cliente@example.com", validationType: "email", valid: true},
 		{response: "cliente", validationType: "email", valid: false},
 		{response: "10,5", validationType: "number", valid: true},
 		{response: "ABC-123", validationType: "regex", pattern: `^[A-Z]{3}-\d{3}$`, valid: true},
-		{response: "", messageType: "image", validationType: "any", valid: true},
+		{response: "", messageType: "image", validationType: "any", received: true, valid: true},
 		{response: "", messageType: "image", validationType: "text", valid: false},
+		{response: "", validationType: "any", received: true, valid: true},
 		{response: "", validationType: "any", valid: false},
 	}
 	for _, test := range tests {
-		if got := validInputResponse(test.response, test.messageType, test.validationType, test.pattern); got != test.valid {
+		if got := validInputResponse(test.response, test.messageType, test.received, test.validationType, test.pattern); got != test.valid {
 			t.Fatalf("validInputResponse(%q, %q, %q) = %v, want %v", test.response, test.messageType, test.validationType, got, test.valid)
 		}
 	}

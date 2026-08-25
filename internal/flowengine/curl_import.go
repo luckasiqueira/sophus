@@ -278,9 +278,9 @@ func ParseCURL(command string) (CURLImportConfig, error) {
 		config.HeaderMode = "fields"
 	}
 	if config.Timeout != 0 && (config.Timeout < 100 || config.Timeout > int(maxHTTPRequestTimeout/time.Millisecond)) {
-		return CURLImportConfig{}, fmt.Errorf("timeout deve estar entre 0.1 e 60 segundos")
+		return CURLImportConfig{}, fmt.Errorf("timeout deve estar entre 0.1 e 240 segundos")
 	}
-	if config.ConnectTimeout != 0 && (config.ConnectTimeout < 100 || config.ConnectTimeout > int(maxHTTPRequestTimeout/time.Millisecond)) {
+	if config.ConnectTimeout != 0 && (config.ConnectTimeout < 100 || config.ConnectTimeout > int(maxHTTPConnectTimeout/time.Millisecond)) {
 		return CURLImportConfig{}, fmt.Errorf("timeout de conexão deve estar entre 0.1 e 60 segundos")
 	}
 	if err := validateHTTPRequestNode(config.nodeData()); err != nil {

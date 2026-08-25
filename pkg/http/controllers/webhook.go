@@ -140,9 +140,9 @@ func Webhook(ctx iris.Context) {
 		if !msg.Data.Info.IsFromMe && !msg.Data.Info.IsGroup {
 			conversation, convErr := repo.GetConversationByMessage(msg.Data.Info.ID)
 			if convErr == nil {
-				messageText := repo.CheckMessageText(msg)
-				log.Printf("dispatching inbound message to flows: connection=%d conversation=%d status=%s text_length=%d", connection.Id, conversation.Id, conversation.Status, len(strings.TrimSpace(messageText)))
-				flowengine.HandleIncomingMessage(conversation, connection, messageText, msg.Data.Info.PushName, repo.CheckFlowMessageType(msg))
+				inbound := repo.NormalizeFlowInboundMessage(msg)
+				log.Printf("dispatching inbound message to flows: connection=%d conversation=%d status=%s type=%s info_type=%q media_type=%q text_length=%d", connection.Id, conversation.Id, conversation.Status, inbound.Type, msg.Data.Info.Type, msg.Data.Info.Mediatype, len(strings.TrimSpace(inbound.Text)))
+				flowengine.HandleIncomingMessage(conversation, connection, inbound.Text, msg.Data.Info.PushName, inbound.Type)
 			} else {
 				log.Printf("failed to find conversation for flow dispatch: connection=%d message=%s error=%v", connection.Id, msg.Data.Info.ID, convErr)
 			}

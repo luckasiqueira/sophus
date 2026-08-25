@@ -33,7 +33,7 @@ func TestValidateFlowDataRejectsUnsafeHTTPConfiguration(t *testing.T) {
 	}{
 		{name: "arbitrary method", data: `{"method":"CONNECT","url":"https://example.com"}`},
 		{name: "unsafe header", data: `{"method":"GET","url":"https://example.com","headerMode":"fields","headerFields":[{"key":"X-Forwarded-For","value":"127.0.0.1"}]}`},
-		{name: "unbounded timeout", data: `{"method":"GET","url":"https://example.com","timeout":60001}`},
+		{name: "unbounded timeout", data: `{"method":"GET","url":"https://example.com","timeout":240001}`},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {

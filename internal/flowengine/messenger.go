@@ -3,11 +3,13 @@ package flowengine
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"log"
 	"mime"
 	"mime/multipart"
+	"net"
 	"net/http"
 	"net/textproto"
 	"net/url"
@@ -19,8 +21,9 @@ import (
 )
 
 const (
-	defaultHTTPRequestTimeout = 10 * time.Second
-	maxHTTPRequestTimeout     = 60 * time.Second
+	defaultHTTPRequestTimeout = 60 * time.Second
+	maxHTTPRequestTimeout     = 4 * time.Minute
+	maxHTTPConnectTimeout     = 60 * time.Second
 	maxHTTPRequestBytes       = 1 << 20
 	maxHTTPResponseBytes      = 2 << 20
 	maxHTTPHeaders            = 50
@@ -292,7 +295,7 @@ func (m *Messenger) ExecuteHTTPRequest(data map[string]interface{}, ctx Executio
 	timeout := defaultHTTPRequestTimeout
 	if configuredTimeout := intVal(data, "timeout"); configuredTimeout != 0 {
 		if configuredTimeout < 100 || configuredTimeout > int(maxHTTPRequestTimeout/time.Millisecond) {
-			return httpRequestError("timeout deve estar entre 100 e 60000 ms")
+			return httpRequestError("timeout deve estar entre 100 e 240000 ms")
 		}
 		timeout = time.Duration(configuredTimeout) * time.Millisecond
 	}
@@ -316,7 +319,7 @@ func (m *Messenger) ExecuteHTTPRequest(data map[string]interface{}, ctx Executio
 		Response:         requests.Response{},
 	}
 	if configuredConnectTimeout := intVal(data, "connectTimeout"); configuredConnectTimeout != 0 {
-		if configuredConnectTimeout < 100 || configuredConnectTimeout > int(maxHTTPRequestTimeout/time.Millisecond) {
+		if configuredConnectTimeout < 100 || configuredConnectTimeout > int(maxHTTPConnectTimeout/time.Millisecond) {
 			return httpRequestError("timeout de conexão deve estar entre 100 e 60000 ms")
 		}
 		r.ConnectTimeout = time.Duration(configuredConnectTimeout) * time.Millisecond
@@ -330,11 +333,17 @@ func (m *Messenger) ExecuteHTTPRequest(data map[string]interface{}, ctx Executio
 
 	err = r.Do()
 	if err != nil {
-		return map[string]interface{}{
+		response := map[string]interface{}{
 			"error":   true,
 			"message": err.Error(),
 			"status":  r.StatusCode,
 		}
+		var networkError net.Error
+		if errors.As(err, &networkError) && networkError.Timeout() {
+			response["errorType"] = "timeout"
+			response["timeoutMs"] = int(timeout / time.Millisecond)
+		}
+		return response
 	}
 	var responseData interface{}
 	if len(r.Response.Body) > 0 {
