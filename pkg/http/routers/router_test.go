@@ -29,6 +29,7 @@ func TestEveryRouteUsesExpectedAuthenticationMiddleware(t *testing.T) {
 
 		switch {
 		case route.Path == "/login" || route.Path == "/dologin" || route.Path == "/setup" || route.Path == "/logout" ||
+			route.Path == "/billing" || strings.HasPrefix(route.Path, "/billing/api/") ||
 			route.Path == "/payments/mercado-pago/webhook" || route.Path == "/payments/abacatepay/webhook":
 			assertNoAuthMiddleware(t, route.Method, route.Path, handlerNames)
 		case strings.HasPrefix(route.Path, "/webhook/"):
@@ -115,6 +116,23 @@ func TestRouterDoesNotExposeSaaSPrefixedRoutes(t *testing.T) {
 		if route.Path == "/saas" || strings.HasPrefix(route.Path, "/saas/") {
 			t.Errorf("unexpected SaaS-prefixed route: %s %s", route.Method, route.Path)
 		}
+	}
+}
+
+func TestBillingPageIsPublic(t *testing.T) {
+	app := iris.New()
+	Router(app)
+	if err := app.Build(); err != nil {
+		t.Fatalf("build routes: %v", err)
+	}
+	request := httptest.NewRequest("GET", "/billing", nil)
+	response := httptest.NewRecorder()
+	app.ServeHTTP(response, request)
+	if response.Code != iris.StatusOK {
+		t.Fatalf("GET /billing status = %d, want %d", response.Code, iris.StatusOK)
+	}
+	if !strings.Contains(response.Body.String(), "Iniciar avaliação gratuita") {
+		t.Fatal("billing page does not include public registration")
 	}
 }
 

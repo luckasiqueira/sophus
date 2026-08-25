@@ -41,7 +41,7 @@ func ChangeCompanyPlan(companyID, planID int, billingCycle string) (Subscription
 		return Subscription{}, err
 	}
 	plan, err := scanPlan(tx.QueryRow(`SELECT id, name, description, "monthlyPriceCents", "annualPriceCents", "agentLimit",
-		"connectionLimit", "isActive", "createdAt", "updatedAt"
+		"connectionLimit", "trialDays", "isActive", "createdAt", "updatedAt"
 		FROM plans WHERE id = $1 AND "isActive" = true FOR SHARE`, planID))
 	if err != nil {
 		return Subscription{}, err
@@ -451,6 +451,12 @@ func applyProviderPayment(tx *sql.Tx, paymentID int, provider, providerPaymentID
 		if err := recomputeSubscriptionPeriod(tx, subscriptionID, basePeriodEnd, currentPeriodEnd, durationDays,
 			periodRevision); err != nil {
 			return Payment{}, false, err
+		}
+		if firstPaidTransition {
+			if _, err := tx.Exec(`UPDATE subscriptions SET status = 'active', "updatedAt" = now()
+				WHERE id = $1 AND status = 'trialing'`, subscriptionID); err != nil {
+				return Payment{}, false, err
+			}
 		}
 	}
 

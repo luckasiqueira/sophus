@@ -252,7 +252,7 @@ func CreateSaaSCompany(ctx iris.Context) {
 		case errors.Is(err, repo.ErrAgentEmailInUse):
 			writeJSONError(ctx, iris.StatusConflict, "o email do administrador já está em uso")
 		case isUniqueViolation(err):
-			writeJSONError(ctx, iris.StatusConflict, "empresa, administrador ou assinatura já cadastrada")
+			writeJSONError(ctx, iris.StatusConflict, "o email da empresa ou do administrador já está cadastrado")
 		default:
 			writeJSONError(ctx, iris.StatusInternalServerError, "não foi possível criar a empresa")
 		}
@@ -293,7 +293,7 @@ func UpdateSaaSCompany(ctx iris.Context) {
 	updated, err := repo.UpdateCompany(id, input)
 	if err != nil {
 		if isUniqueViolation(err) {
-			writeJSONError(ctx, iris.StatusConflict, "já existe uma empresa com estes dados")
+			writeJSONError(ctx, iris.StatusConflict, "este email já está cadastrado por outra empresa")
 			return
 		}
 		writeJSONError(ctx, iris.StatusInternalServerError, "não foi possível atualizar a empresa")
@@ -522,6 +522,9 @@ func normalizeAndValidatePlan(input *repo.PlanInput) string {
 	}
 	if input.AgentLimit <= 0 || input.ConnectionLimit <= 0 {
 		return "os limites devem ser maiores que zero"
+	}
+	if input.TrialDays < 0 || input.TrialDays > 90 {
+		return "o período de avaliação deve ter entre 0 e 90 dias"
 	}
 	return ""
 }

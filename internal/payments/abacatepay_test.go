@@ -133,7 +133,7 @@ func TestAbacatePayCreateCheckout(t *testing.T) {
 		t.Fatalf("item = %#v", item)
 	}
 	methods := payload["methods"].([]interface{})
-	if len(methods) != 2 || methods[0] != "PIX" || methods[1] != "CARD" {
+	if len(methods) != 1 || methods[0] != "PIX" {
 		t.Fatalf("methods = %#v", methods)
 	}
 	if payload["externalId"] != "payment-42" || payload["returnUrl"] != "https://app.example/billing" || payload["completionUrl"] != "https://app.example/billing/complete" {

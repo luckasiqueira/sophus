@@ -158,7 +158,7 @@ func (c *AbacatePayClient) CreateCheckout(ctx context.Context, productID, extern
 		CompletionURL string            `json:"completionUrl"`
 		Metadata      map[string]string `json:"metadata"`
 	}{
-		Methods:       []string{"PIX", "CARD"},
+		Methods:       []string{"PIX"},
 		ExternalID:    externalID,
 		ReturnURL:     returnURL,
 		CompletionURL: completionURL,

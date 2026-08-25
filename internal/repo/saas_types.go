@@ -48,6 +48,7 @@ var (
 	ErrInvalidSubscriptionGraceDays     = errors.New("subscription grace days must be between 0 and 90")
 	ErrInvalidBillingCycle              = errors.New("invalid billing cycle")
 	ErrInvalidSubscriptionDueDate       = errors.New("invalid subscription due date")
+	ErrInvalidTrialDays                 = errors.New("trial days must be between 0 and 90")
 )
 
 type PlatformAdmin struct {
@@ -98,6 +99,7 @@ type Plan struct {
 	AnnualPriceCents  int64     `json:"annualPriceCents"`
 	AgentLimit        int       `json:"agentLimit"`
 	ConnectionLimit   int       `json:"connectionLimit"`
+	TrialDays         int       `json:"trialDays"`
 	IsActive          bool      `json:"isActive"`
 	CreatedAt         time.Time `json:"createdAt"`
 	UpdatedAt         time.Time `json:"updatedAt"`
@@ -110,6 +112,7 @@ type PlanInput struct {
 	AnnualPriceCents  int64  `json:"annualPriceCents"`
 	AgentLimit        int    `json:"agentLimit"`
 	ConnectionLimit   int    `json:"connectionLimit"`
+	TrialDays         int    `json:"trialDays"`
 	IsActive          bool   `json:"isActive"`
 }
 

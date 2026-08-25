@@ -75,26 +75,28 @@ func DoLogin(ctx iris.Context) {
 		ctx.StopWithStatus(status)
 		return
 	}
-	type AgentJWT struct {
-		Id      int `json:"id"`
-		Version int `json:"version"`
+	if err := setAgentSession(ctx, agent); err != nil {
+		ctx.StopWithStatus(iris.StatusInternalServerError)
+		return
 	}
+	ctx.RemoveCookie(platformCookieName, iris.CookiePath("/"))
+	ctx.Header("HX-Redirect", "/")
+}
+
+func setAgentSession(ctx iris.Context, agent repo.Agent) error {
 	secret := strings.TrimSpace(env.Backend["SALT_JWT"])
 	if secret == "" {
-		ctx.StopWithStatus(iris.StatusInternalServerError)
-		return
+		return errors.New("agent JWT secret is empty")
 	}
-	signer := jwt.NewSigner(jwt.HS256, []byte(secret), (7*24)*time.Hour)
-	token, err := signer.Sign(AgentJWT{
-		Id:      agent.Id,
-		Version: agent.SessionVersion,
-	})
-	if err != nil {
-		ctx.StopWithStatus(iris.StatusInternalServerError)
-		return
-	}
-
 	const lifetime = 7 * 24 * time.Hour
+	signer := jwt.NewSigner(jwt.HS256, []byte(secret), lifetime)
+	token, err := signer.Sign(struct {
+		Id      int `json:"id"`
+		Version int `json:"version"`
+	}{Id: agent.Id, Version: agent.SessionVersion})
+	if err != nil {
+		return err
+	}
 	ctx.SetCookie(&http.Cookie{
 		Name:     "token",
 		Value:    string(token),
@@ -105,8 +107,7 @@ func DoLogin(ctx iris.Context) {
 		Secure:   securePlatformCookie(ctx),
 		SameSite: http.SameSiteLaxMode,
 	})
-	ctx.RemoveCookie(platformCookieName, iris.CookiePath("/"))
-	ctx.Header("HX-Redirect", "/")
+	return nil
 }
 
 func Logout(ctx iris.Context) {

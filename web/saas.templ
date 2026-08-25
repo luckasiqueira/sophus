@@ -252,6 +252,7 @@ templ SaaSDashboard() {
 							<div class="sm:col-span-2"><label for="plan-description" class="mb-2 block text-sm font-semibold text-gray-700">Descrição</label><textarea id="plan-description" name="description" required maxlength="500" rows="3" placeholder="O que este plano oferece?" class="w-full resize-none rounded-xl border border-stone-200 px-4 py-3 outline-none focus:border-purple-400 focus:ring-2 focus:ring-purple-100"></textarea></div>
 							<div><label for="plan-agent-limit" class="mb-2 block text-sm font-semibold text-gray-700">Limite de agentes</label><input id="plan-agent-limit" type="number" name="agentLimit" required min="1" step="1" value="5" class="w-full rounded-xl border border-stone-200 px-4 py-3 outline-none focus:border-purple-400 focus:ring-2 focus:ring-purple-100"/></div>
 							<div><label for="plan-connection-limit" class="mb-2 block text-sm font-semibold text-gray-700">Limite de conexões</label><input id="plan-connection-limit" type="number" name="connectionLimit" required min="1" step="1" value="1" class="w-full rounded-xl border border-stone-200 px-4 py-3 outline-none focus:border-purple-400 focus:ring-2 focus:ring-purple-100"/></div>
+							<div><label for="plan-trial-days" class="mb-2 block text-sm font-semibold text-gray-700">Dias grátis para avaliação</label><input id="plan-trial-days" type="number" name="trialDays" required min="0" max="90" step="1" value="10" class="w-full rounded-xl border border-stone-200 px-4 py-3 outline-none focus:border-purple-400 focus:ring-2 focus:ring-purple-100"/></div>
 							<label class="flex cursor-pointer items-center gap-3 self-end rounded-xl border border-stone-200 bg-stone-50 px-4 py-3"><input id="plan-active" type="checkbox" name="isActive" checked class="peer sr-only"/><span class="grid h-5 w-5 shrink-0 place-items-center rounded-md border border-stone-300 bg-white text-[10px] text-transparent transition peer-checked:border-purple-600 peer-checked:bg-purple-600 peer-checked:text-white peer-focus-visible:ring-2 peer-focus-visible:ring-purple-200 peer-focus-visible:ring-offset-2"><i class="fas fa-check"></i></span><span><span class="block text-sm font-semibold text-gray-700">Plano ativo</span><span class="block text-xs text-gray-500">Disponível para novas empresas</span></span></label>
 						</div>
 						<div class="mt-7 flex flex-col-reverse gap-3 sm:flex-row sm:justify-end"><button type="button" data-close-modal="plan-modal" class="rounded-xl border border-stone-200 px-5 py-3 text-sm font-semibold text-gray-700 hover:bg-stone-50">Cancelar</button><button id="plan-submit" type="submit" class="rounded-xl bg-gray-950 px-5 py-3 text-sm font-semibold text-white shadow-md hover:bg-gray-800 disabled:cursor-wait disabled:opacity-60">Salvar plano</button></div>
@@ -509,7 +510,8 @@ templ SaaSDashboard() {
 		const annual = saasElement('div', 'rounded-xl bg-blue-50 p-3');
 		annual.append(saasElement('p', 'text-[10px] font-bold uppercase tracking-wider text-blue-600', 'Anual'), saasElement('p', 'mt-1 text-lg font-black text-gray-950', formatMoney(plan.annualPriceCents)));
 		price.append(monthly, annual);
-            const description = saasElement('p', 'mt-3 min-h-[40px] text-sm leading-relaxed text-gray-500', plan.description || 'Sem descrição.');
+			const description = saasElement('p', 'mt-3 min-h-[40px] text-sm leading-relaxed text-gray-500', plan.description || 'Sem descrição.');
+			if (Number(plan.trialDays) > 0) description.prepend(saasElement('span', 'mb-2 block font-bold text-emerald-600', plan.trialDays + ' dias grátis para novas contas'));
             const limits = saasElement('div', 'mt-5 grid grid-cols-2 gap-3 border-t border-stone-100 pt-5');
             const agents = saasElement('div', 'rounded-xl bg-stone-50 p-3');
             agents.append(saasElement('p', 'text-xs text-gray-500', 'Agentes'), saasElement('p', 'mt-1 font-bold text-gray-900', String(plan.agentLimit)));
@@ -535,7 +537,7 @@ templ SaaSDashboard() {
             return;
         }
         plans.forEach(plan => {
-			const option = saasElement('option', '', plan.name + ' · ' + formatMoney(plan.monthlyPriceCents) + '/mês · ' + formatMoney(plan.annualPriceCents) + '/ano');
+			const option = saasElement('option', '', plan.name + ' · ' + formatMoney(plan.monthlyPriceCents) + '/mês · ' + formatMoney(plan.annualPriceCents) + '/ano' + (Number(plan.trialDays) > 0 ? ' · ' + plan.trialDays + ' dias grátis' : ''));
             option.value = String(plan.id);
             option.selected = Number(plan.id) === Number(selectedId);
             select.appendChild(option);
@@ -619,13 +621,15 @@ templ SaaSDashboard() {
 			document.getElementById('plan-monthly-price').value = currencyInputValue(plan.monthlyPriceCents);
 			document.getElementById('plan-annual-price').value = currencyInputValue(plan.annualPriceCents);
             document.getElementById('plan-agent-limit').value = String(plan.agentLimit);
-            document.getElementById('plan-connection-limit').value = String(plan.connectionLimit);
+			document.getElementById('plan-connection-limit').value = String(plan.connectionLimit);
+			document.getElementById('plan-trial-days').value = String(plan.trialDays || 0);
             document.getElementById('plan-active').checked = Boolean(plan.isActive);
         } else {
 			document.getElementById('plan-monthly-price').value = currencyInputValue(0);
 			document.getElementById('plan-annual-price').value = currencyInputValue(0);
             document.getElementById('plan-agent-limit').value = '5';
-            document.getElementById('plan-connection-limit').value = '1';
+			document.getElementById('plan-connection-limit').value = '1';
+			document.getElementById('plan-trial-days').value = '10';
             document.getElementById('plan-active').checked = true;
         }
         openModal('plan-modal');
@@ -634,7 +638,7 @@ templ SaaSDashboard() {
     function planPayload(plan, isActive) {
         return {
 			name: plan.name, description: plan.description, monthlyPriceCents: Number(plan.monthlyPriceCents), annualPriceCents: Number(plan.annualPriceCents),
-            agentLimit: Number(plan.agentLimit), connectionLimit: Number(plan.connectionLimit), isActive: isActive
+			agentLimit: Number(plan.agentLimit), connectionLimit: Number(plan.connectionLimit), trialDays: Number(plan.trialDays || 0), isActive: isActive
         };
     }
 
@@ -675,7 +679,7 @@ templ SaaSDashboard() {
             payments.forEach(payment => {
                 const row = saasElement('div', 'flex flex-col gap-3 rounded-2xl border border-stone-200 p-4 sm:flex-row sm:items-center sm:justify-between');
                 const info = saasElement('div');
-				const providerName = payment.provider === 'abacate_pay' ? 'AbacatePay' : payment.provider === 'mercado_pago' ? 'Mercado Pago' : 'Provedor não informado';
+				const providerName = payment.provider === 'abacate_pay' ? 'PIX' : payment.provider === 'mercado_pago' ? 'PIX/Cartão de crédito' : 'Forma de pagamento não informada';
 				info.append(saasElement('p', 'font-bold text-gray-900', formatMoney(payment.amountCents)), saasElement('p', 'mt-1 text-xs text-gray-500', 'Vencimento: ' + formatDate(payment.dueDate, false, company.timezone) + (payment.paidAt ? ' · Pago em ' + formatDate(payment.paidAt, true, company.timezone) : '')), saasElement('p', 'mt-1 text-[11px] font-semibold text-purple-600', providerName));
                 const right = saasElement('div', 'flex items-center gap-2');
                 right.append(statusBadge(payment.status));
@@ -822,8 +826,9 @@ templ SaaSDashboard() {
         const payload = {
             name: document.getElementById('plan-name').value.trim(), description: document.getElementById('plan-description').value.trim(),
 			monthlyPriceCents: currencyInputToCents(document.getElementById('plan-monthly-price').value), annualPriceCents: currencyInputToCents(document.getElementById('plan-annual-price').value),
-            agentLimit: Number(document.getElementById('plan-agent-limit').value), connectionLimit: Number(document.getElementById('plan-connection-limit').value),
-            isActive: document.getElementById('plan-active').checked
+			agentLimit: Number(document.getElementById('plan-agent-limit').value), connectionLimit: Number(document.getElementById('plan-connection-limit').value),
+			trialDays: Number(document.getElementById('plan-trial-days').value),
+			isActive: document.getElementById('plan-active').checked
         };
         try {
             await saasAPI(planId ? 'PUT' : 'POST', planId ? '/management/api/plans/' + planId : '/management/api/plans', payload);

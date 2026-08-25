@@ -22,6 +22,7 @@ import (
 	"sophus/web"
 
 	"github.com/kataras/iris/v12"
+	"golang.org/x/crypto/bcrypt"
 )
 
 const paymentProviderRequestTimeout = 15 * time.Second
@@ -37,10 +38,95 @@ func (e *checkoutHTTPError) Error() string {
 }
 
 func BillingPage(ctx iris.Context) {
-	if _, ok := requireAdmin(ctx); !ok {
+	ctx.RenderComponent(web.Billing())
+}
+
+func PublicBillingCatalog(ctx iris.Context) {
+	plans, err := repo.ListPlans(false)
+	if err != nil {
+		writeJSONError(ctx, iris.StatusInternalServerError, "não foi possível consultar os planos")
 		return
 	}
-	ctx.RenderComponent(web.Billing())
+	ctx.JSON(iris.Map{"data": iris.Map{"plans": plans}})
+}
+
+func RegisterCompanyTrial(ctx iris.Context) {
+	if !sameOriginRequest(ctx) {
+		ctx.StopWithStatus(iris.StatusForbidden)
+		return
+	}
+	var body struct {
+		CompanyName   string `json:"companyName"`
+		CompanyEmail  string `json:"companyEmail"`
+		AdminName     string `json:"adminName"`
+		AdminEmail    string `json:"adminEmail"`
+		AdminPassword string `json:"adminPassword"`
+		PlanId        int    `json:"planId"`
+		BillingCycle  string `json:"billingCycle"`
+		Timezone      string `json:"timezone"`
+	}
+	if err := ctx.ReadJSON(&body); err != nil {
+		writeJSONError(ctx, iris.StatusBadRequest, "JSON inválido")
+		return
+	}
+	body.CompanyName = strings.TrimSpace(body.CompanyName)
+	body.CompanyEmail = normalizeEmail(body.CompanyEmail)
+	body.AdminName = strings.TrimSpace(body.AdminName)
+	body.AdminEmail = normalizeEmail(body.AdminEmail)
+	body.Timezone = strings.TrimSpace(body.Timezone)
+	if body.CompanyName == "" || len(body.CompanyName) > 160 || body.AdminName == "" || len(body.AdminName) > 40 {
+		writeJSONError(ctx, iris.StatusBadRequest, "preencha os nomes da empresa e do responsável")
+		return
+	}
+	if !validEmail(body.CompanyEmail) || !validEmail(body.AdminEmail) {
+		writeJSONError(ctx, iris.StatusBadRequest, "email da empresa ou do responsável inválido")
+		return
+	}
+	if len(body.AdminPassword) < 8 {
+		writeJSONError(ctx, iris.StatusBadRequest, "a senha deve ter pelo menos 8 caracteres")
+		return
+	}
+	if body.PlanId <= 0 || !repo.IsValidBillingCycle(body.BillingCycle) {
+		writeJSONError(ctx, iris.StatusBadRequest, "plano ou ciclo de cobrança inválido")
+		return
+	}
+	if body.Timezone != "" && !validTimezone(body.Timezone) {
+		writeJSONError(ctx, iris.StatusBadRequest, "fuso horário inválido")
+		return
+	}
+	passwordHash, err := bcrypt.GenerateFromPassword([]byte(body.AdminPassword), bcrypt.DefaultCost)
+	if err != nil {
+		writeJSONError(ctx, iris.StatusInternalServerError, "não foi possível proteger a senha")
+		return
+	}
+	company, err := repo.CreateCompanyWithAdmin(repo.CreateCompanyWithAdminInput{
+		Name: body.CompanyName, Email: body.CompanyEmail, Timezone: body.Timezone, PlanId: body.PlanId,
+		BillingCycle: body.BillingCycle, AdminName: body.AdminName, AdminEmail: body.AdminEmail,
+		AdminPasswordHash: string(passwordHash),
+	})
+	if err != nil {
+		switch {
+		case errors.Is(err, sql.ErrNoRows):
+			writeJSONError(ctx, iris.StatusNotFound, "plano não encontrado ou indisponível")
+		case errors.Is(err, repo.ErrAgentEmailInUse), isUniqueViolation(err):
+			writeJSONError(ctx, iris.StatusConflict, "o email da empresa ou do responsável já está cadastrado")
+		default:
+			writeJSONError(ctx, iris.StatusInternalServerError, "não foi possível criar a conta")
+		}
+		return
+	}
+	agent, err := repo.GetAgentByEmail(body.AdminEmail)
+	if err != nil || agent.CompanyId != company.Id || !agent.IsAdmin() {
+		writeJSONError(ctx, iris.StatusInternalServerError, "conta criada, mas não foi possível iniciar a sessão")
+		return
+	}
+	if err := setAgentSession(ctx, agent); err != nil {
+		writeJSONError(ctx, iris.StatusInternalServerError, "conta criada, mas não foi possível iniciar a sessão")
+		return
+	}
+	ctx.RemoveCookie(platformCookieName, iris.CookiePath("/"))
+	ctx.StatusCode(iris.StatusCreated)
+	ctx.JSON(iris.Map{"data": iris.Map{"company": company}})
 }
 
 func GetCompanyBilling(ctx iris.Context) {
@@ -90,10 +176,16 @@ func GetCompanyBilling(ctx iris.Context) {
 		writeBillingRepositoryError(ctx, err, "não foi possível consultar o provedor de pagamento")
 		return
 	}
+	plans, err := repo.ListPlans(false)
+	if err != nil {
+		writeBillingRepositoryError(ctx, err, "não foi possível consultar os planos disponíveis")
+		return
+	}
 	ctx.JSON(iris.Map{"data": iris.Map{
 		"company":         company,
 		"subscription":    subscription,
 		"plan":            plan,
+		"plans":           plans,
 		"payments":        companyPayments,
 		"paymentProvider": paymentProvider,
 	}})
@@ -145,6 +237,45 @@ func UpdateCompanyBillingCycle(ctx iris.Context) {
 			return
 		}
 		writeBillingRepositoryError(ctx, err, "não foi possível alterar o ciclo de cobrança")
+		return
+	}
+	ctx.JSON(iris.Map{"data": subscription})
+}
+
+func UpdateCompanyBillingPlan(ctx iris.Context) {
+	agent, ok := requireAdmin(ctx)
+	if !ok {
+		return
+	}
+	var body struct {
+		PlanId       int    `json:"planId"`
+		BillingCycle string `json:"billingCycle"`
+	}
+	if err := ctx.ReadJSON(&body); err != nil || body.PlanId <= 0 || !repo.IsValidBillingCycle(body.BillingCycle) {
+		writeJSONError(ctx, iris.StatusBadRequest, "plano ou ciclo de cobrança inválido")
+		return
+	}
+	companyPayments, err := repo.GetPaymentsByCompany(agent.CompanyId)
+	if err != nil {
+		writeJSONError(ctx, iris.StatusInternalServerError, "não foi possível validar as cobranças")
+		return
+	}
+	if _, err := reconcileOpenAbacatePayPayments(ctx, companyPayments); err != nil {
+		writeCheckoutError(ctx, err)
+		return
+	}
+	subscription, err := repo.ChangeCompanyPlan(agent.CompanyId, body.PlanId, body.BillingCycle)
+	if err != nil {
+		switch {
+		case errors.Is(err, repo.ErrOpenPayments):
+			writeJSONError(ctx, iris.StatusConflict, "conclua ou aguarde a cobrança aberta antes de trocar o plano")
+		case errors.Is(err, repo.ErrPlanLimitBelowUsage):
+			writeJSONError(ctx, iris.StatusConflict, "o plano escolhido não comporta o uso atual da empresa")
+		case errors.Is(err, sql.ErrNoRows):
+			writeJSONError(ctx, iris.StatusNotFound, "plano não encontrado ou indisponível")
+		default:
+			writeBillingRepositoryError(ctx, err, "não foi possível alterar a contratação")
+		}
 		return
 	}
 	ctx.JSON(iris.Map{"data": subscription})
@@ -318,7 +449,7 @@ func createMercadoPagoCheckout(ctx iris.Context, company repo.Company, plan repo
 func createAbacatePayCheckout(ctx iris.Context, company repo.Company, plan repo.Plan, payment repo.Payment, checkoutKey, checkoutLease string, recoverCheckout bool, returnPath string) (repo.Payment, error) {
 	apiKey := strings.TrimSpace(env.Backend["ABACATEPAY_API_KEY"])
 	if apiKey == "" {
-		return repo.Payment{}, &checkoutHTTPError{status: iris.StatusServiceUnavailable, message: "AbacatePay não configurada"}
+		return repo.Payment{}, &checkoutHTTPError{status: iris.StatusServiceUnavailable, message: "PIX não configurado"}
 	}
 	publicURL, err := applicationPublicURL()
 	if err != nil {
@@ -333,7 +464,7 @@ func createAbacatePayCheckout(ctx iris.Context, company repo.Company, plan repo.
 	if recoverCheckout {
 		checkout, found, err := findAbacatePayCheckout(ctx.Request().Context(), client, externalID, checkoutKey, 3)
 		if err != nil {
-			return repo.Payment{}, &checkoutHTTPError{status: iris.StatusBadGateway, message: "não foi possível recuperar o checkout na AbacatePay", checkoutCreationUncertain: true}
+			return repo.Payment{}, &checkoutHTTPError{status: iris.StatusBadGateway, message: "não foi possível recuperar o checkout PIX", checkoutCreationUncertain: true}
 		}
 		if found {
 			if err := validateAbacatePayCheckout(payment, checkout, checkoutKey); err != nil {
@@ -370,7 +501,7 @@ func createAbacatePayCheckout(ctx iris.Context, company repo.Company, plan repo.
 			checkout = recovered
 		} else {
 			return repo.Payment{}, &checkoutHTTPError{
-				status: iris.StatusBadGateway, message: "não foi possível criar o checkout na AbacatePay",
+				status: iris.StatusBadGateway, message: "não foi possível criar o checkout PIX",
 				checkoutCreationUncertain: !payments.IsDefinitiveHTTPFailure(err),
 			}
 		}
@@ -394,7 +525,7 @@ func ensureAbacatePayProduct(ctx iris.Context, client *payments.AbacatePayClient
 	externalID := fmt.Sprintf("sophus-plan-%d-%d", plan.Id, amountCents)
 	product, found, err := client.GetProductByExternalID(ctx.Request().Context(), externalID)
 	if err != nil {
-		return "", &checkoutHTTPError{status: iris.StatusBadGateway, message: "não foi possível consultar o produto na AbacatePay"}
+		return "", &checkoutHTTPError{status: iris.StatusBadGateway, message: "não foi possível consultar o produto PIX"}
 	}
 	if !found {
 		description := strings.TrimSpace(plan.Description)
@@ -406,13 +537,13 @@ func ensureAbacatePayProduct(ctx iris.Context, client *payments.AbacatePayClient
 			// A criação concorrente pode ter concluído antes desta requisição.
 			product, found, err = client.GetProductByExternalID(ctx.Request().Context(), externalID)
 			if err != nil || !found {
-				return "", &checkoutHTTPError{status: iris.StatusBadGateway, message: "não foi possível criar o produto na AbacatePay"}
+				return "", &checkoutHTTPError{status: iris.StatusBadGateway, message: "não foi possível criar o produto PIX"}
 			}
 		}
 	}
 	if strings.TrimSpace(product.ID) == "" || product.ExternalID != externalID || product.Price != amountCents ||
 		!strings.EqualFold(product.Currency, "BRL") || !strings.EqualFold(product.Status, "ACTIVE") || strings.TrimSpace(product.Cycle) != "" {
-		return "", &checkoutHTTPError{status: iris.StatusUnprocessableEntity, message: "produto da AbacatePay não confere com o plano"}
+		return "", &checkoutHTTPError{status: iris.StatusUnprocessableEntity, message: "produto PIX não confere com o plano"}
 	}
 	mapping, err := repo.UpsertPlanProviderProduct(repo.UpsertPlanProviderProductInput{
 		PlanId:            plan.Id,
@@ -428,13 +559,13 @@ func ensureAbacatePayProduct(ctx iris.Context, client *payments.AbacatePayClient
 
 func validateAbacatePayCheckout(payment repo.Payment, checkout payments.AbacateCheckout, checkoutKey string) error {
 	if strings.TrimSpace(checkout.ID) == "" || strings.TrimSpace(checkout.URL) == "" {
-		return &checkoutHTTPError{status: iris.StatusBadGateway, message: "AbacatePay retornou um checkout inválido"}
+		return &checkoutHTTPError{status: iris.StatusBadGateway, message: "o gateway PIX retornou um checkout inválido"}
 	}
 	if checkout.ExternalID != strconv.Itoa(payment.Id) || checkout.Amount != payment.AmountCents {
-		return &checkoutHTTPError{status: iris.StatusUnprocessableEntity, message: "checkout da AbacatePay não confere com a cobrança"}
+		return &checkoutHTTPError{status: iris.StatusUnprocessableEntity, message: "checkout PIX não confere com a cobrança"}
 	}
 	if subtle.ConstantTimeCompare([]byte(checkout.Metadata["checkout_key"]), []byte(checkoutKey)) != 1 {
-		return &checkoutHTTPError{status: iris.StatusUnprocessableEntity, message: "checkout da AbacatePay não pertence a esta cobrança"}
+		return &checkoutHTTPError{status: iris.StatusUnprocessableEntity, message: "checkout PIX não pertence a esta cobrança"}
 	}
 	return nil
 }
@@ -450,7 +581,7 @@ func validateCheckoutProviderConfiguration(provider string) error {
 		}
 	case repo.PaymentProviderAbacatePay:
 		if strings.TrimSpace(env.Backend["ABACATEPAY_API_KEY"]) == "" {
-			return &checkoutHTTPError{status: iris.StatusServiceUnavailable, message: "AbacatePay não configurada"}
+			return &checkoutHTTPError{status: iris.StatusServiceUnavailable, message: "PIX não configurado"}
 		}
 	default:
 		return &checkoutHTTPError{status: iris.StatusUnprocessableEntity, message: "provedor de pagamento inválido"}
@@ -467,7 +598,7 @@ func reconcileAbacatePayPayment(ctx iris.Context, payment repo.Payment) (repo.Pa
 		checkoutID = strings.TrimSpace(*payment.ProviderPaymentId)
 	}
 	if checkoutID == "" || payment.CheckoutKey == nil {
-		return repo.Payment{}, false, &checkoutHTTPError{status: iris.StatusUnprocessableEntity, message: "identificação do checkout da AbacatePay incompleta"}
+		return repo.Payment{}, false, &checkoutHTTPError{status: iris.StatusUnprocessableEntity, message: "identificação do checkout PIX incompleta"}
 	}
 	client := payments.NewAbacatePayClient(
 		&http.Client{Timeout: paymentProviderRequestTimeout},
@@ -476,14 +607,14 @@ func reconcileAbacatePayPayment(ctx iris.Context, payment repo.Payment) (repo.Pa
 	)
 	checkout, err := client.GetCheckout(ctx.Request().Context(), checkoutID)
 	if err != nil {
-		return repo.Payment{}, false, &checkoutHTTPError{status: iris.StatusBadGateway, message: "não foi possível atualizar o checkout na AbacatePay"}
+		return repo.Payment{}, false, &checkoutHTTPError{status: iris.StatusBadGateway, message: "não foi possível atualizar o checkout PIX"}
 	}
 	if err := validateAbacatePayCheckout(payment, checkout, *payment.CheckoutKey); err != nil {
 		return repo.Payment{}, false, err
 	}
 	mappedStatus, err := repo.MapAbacatePayPaymentStatus(checkout.Status)
 	if err != nil {
-		return repo.Payment{}, false, &checkoutHTTPError{status: iris.StatusBadGateway, message: "AbacatePay retornou um status de checkout desconhecido"}
+		return repo.Payment{}, false, &checkoutHTTPError{status: iris.StatusBadGateway, message: "o gateway PIX retornou um status desconhecido"}
 	}
 	if mappedStatus == repo.PaymentStatusPending {
 		return payment, true, nil
@@ -519,7 +650,7 @@ func reconcileOpenAbacatePayPayments(ctx iris.Context, companyPayments []repo.Pa
 			continue
 		}
 		if strings.TrimSpace(env.Backend["ABACATEPAY_API_KEY"]) == "" {
-			return false, &checkoutHTTPError{status: iris.StatusServiceUnavailable, message: "AbacatePay não configurada"}
+			return false, &checkoutHTTPError{status: iris.StatusServiceUnavailable, message: "PIX não configurado"}
 		}
 		updated, _, err := reconcileAbacatePayPayment(ctx, payment)
 		if err != nil {
@@ -694,7 +825,7 @@ func AbacatePayWebhook(ctx iris.Context) {
 	apiKey := strings.TrimSpace(env.Backend["ABACATEPAY_API_KEY"])
 	webhookSecret := strings.TrimSpace(env.Backend["ABACATEPAY_WEBHOOK_SECRET"])
 	if apiKey == "" || webhookSecret == "" {
-		writeJSONError(ctx, iris.StatusServiceUnavailable, "webhook da AbacatePay não configurado")
+		writeJSONError(ctx, iris.StatusServiceUnavailable, "webhook PIX não configurado")
 		return
 	}
 	if subtle.ConstantTimeCompare([]byte(ctx.URLParam("webhookSecret")), []byte(webhookSecret)) != 1 {
@@ -739,7 +870,7 @@ func AbacatePayWebhook(ctx iris.Context) {
 	)
 	checkout, err := client.GetCheckout(ctx.Request().Context(), checkoutID)
 	if err != nil {
-		writeJSONError(ctx, iris.StatusBadGateway, "não foi possível consultar o checkout na AbacatePay")
+		writeJSONError(ctx, iris.StatusBadGateway, "não foi possível consultar o checkout PIX")
 		return
 	}
 	providerMappedStatus, err := repo.MapAbacatePayPaymentStatus(checkout.Status)

@@ -13,6 +13,9 @@ func Router(r *iris.Application) {
 	r.Post("/dologin", controllers.DoLogin)
 	r.Get("/setup", controllers.SaaSSetupPage)
 	r.Post("/setup", controllers.CreateSaaSSetup)
+	r.Get("/billing", controllers.BillingPage)
+	r.Get("/billing/api/catalog", controllers.PublicBillingCatalog)
+	r.Post("/billing/api/register", controllers.RegisterCompanyTrial)
 	r.Post("/logout", controllers.Logout)
 
 	r.Post("/webhook/{webhookId:uuid}", middlewares.AuthWebhook, controllers.Webhook)
@@ -46,6 +49,7 @@ func Router(r *iris.Application) {
 		managementAPI.Get("/billing", controllers.GetCompanyBilling)
 		managementAPI.Post("/billing/checkout", controllers.CreateCompanyCheckout)
 		managementAPI.Put("/billing/cycle", controllers.UpdateCompanyBillingCycle)
+		managementAPI.Put("/billing/plan", controllers.UpdateCompanyBillingPlan)
 	}
 
 	api := r.Party("/api")
@@ -80,7 +84,6 @@ func Router(r *iris.Application) {
 
 	web.Get("/departments", controllers.DepartmentSettingsPage)
 	web.Get("/agents", controllers.AgentSettingsPage)
-	web.Get("/billing", controllers.BillingPage)
 
 	flows := web.Party("/flows")
 	flows.Use(middlewares.AuthSubscription)

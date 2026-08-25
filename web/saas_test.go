@@ -20,7 +20,7 @@ func TestSaaSPagesRender(t *testing.T) {
 		{name: "company settings", content: "Configurações da empresa", page: CompanySettings()},
 		{name: "company overview", content: "Mensagens por período", page: CompanyOverview()},
 		{name: "agents", content: "Agentes da empresa", page: AgentSettings()},
-		{name: "billing", content: "Histórico de pagamentos", page: Billing()},
+		{name: "billing", content: "Planos disponíveis", page: Billing()},
 		{name: "flow builder curl import", content: "Importar de cURL", page: FlowBuilder()},
 	}
 
@@ -34,5 +34,21 @@ func TestSaaSPagesRender(t *testing.T) {
 				t.Fatalf("rendered page does not contain %q", test.content)
 			}
 		})
+	}
+}
+
+func TestBillingUsesStandaloneLandingLayout(t *testing.T) {
+	var output strings.Builder
+	if err := Billing().Render(context.Background(), &output); err != nil {
+		t.Fatalf("render billing page: %v", err)
+	}
+	html := output.String()
+	for _, expected := range []string{"Planos e contratação | Sophus", "Workspace de atendimento", "billing-mobile-menu"} {
+		if !strings.Contains(html, expected) {
+			t.Fatalf("standalone billing page does not contain %q", expected)
+		}
+	}
+	if strings.Contains(html, `href="/messages"`) {
+		t.Fatal("billing page unexpectedly uses the application navigation")
 	}
 }

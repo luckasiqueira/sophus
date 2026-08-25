@@ -63,7 +63,7 @@ func CreateCompanyWithAdmin(input CreateCompanyWithAdminInput) (Company, error) 
 	defer tx.Rollback()
 
 	plan, err := scanPlan(tx.QueryRow(`SELECT id, name, description, "monthlyPriceCents", "annualPriceCents", "agentLimit",
-		"connectionLimit", "isActive", "createdAt", "updatedAt"
+		"connectionLimit", "trialDays", "isActive", "createdAt", "updatedAt"
 		FROM plans WHERE id = $1 AND "isActive" = true FOR SHARE`, input.PlanId))
 	if err != nil {
 		return Company{}, err
@@ -93,18 +93,12 @@ func CreateCompanyWithAdmin(input CreateCompanyWithAdminInput) (Company, error) 
 		return Company{}, err
 	}
 
-	status := SubscriptionStatusActive
-	periodEndExpression := "now() + ($5 * interval '1 day')"
-	baseEndExpression := periodEndExpression
-	if priceCents > 0 {
-		status = SubscriptionStatusPastDue
-		periodEndExpression = "now() + interval '1 microsecond'"
-		baseEndExpression = periodEndExpression
-	}
+	now := time.Now().UTC()
+	status, periodEnd := initialSubscriptionTerms(priceCents, durationDays, plan.TrialDays, now)
 	if _, err := tx.Exec(`INSERT INTO subscriptions
 		("companyId", "planId", status, "priceCents", "durationDays", "billingCycle", "startsAt", "currentPeriodStart", "currentPeriodEnd", "basePeriodEnd")
-		VALUES ($1, $2, $3, $4, $5, $6, now(), now(), `+periodEndExpression+`, `+baseEndExpression+`)`,
-		company.Id, plan.Id, status, priceCents, durationDays, input.BillingCycle); err != nil {
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $7, $8, $8)`,
+		company.Id, plan.Id, status, priceCents, durationDays, input.BillingCycle, now, periodEnd); err != nil {
 		return Company{}, err
 	}
 
@@ -112,6 +106,16 @@ func CreateCompanyWithAdmin(input CreateCompanyWithAdminInput) (Company, error) 
 		return Company{}, err
 	}
 	return company, nil
+}
+
+func initialSubscriptionTerms(priceCents int64, durationDays, trialDays int, now time.Time) (string, time.Time) {
+	if priceCents == 0 {
+		return SubscriptionStatusActive, now.AddDate(0, 0, durationDays)
+	}
+	if trialDays > 0 {
+		return SubscriptionStatusTrialing, now.AddDate(0, 0, trialDays)
+	}
+	return SubscriptionStatusPastDue, now.Add(time.Microsecond)
 }
 
 func UpdateCompany(id int, input UpdateCompanyInput) (bool, error) {

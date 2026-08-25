@@ -223,7 +223,7 @@ func UpdateCompanySettings(ctx iris.Context) {
 		case errors.Is(err, sql.ErrNoRows):
 			writeJSONError(ctx, iris.StatusNotFound, "empresa não encontrada")
 		case isUniqueViolation(err):
-			writeJSONError(ctx, iris.StatusConflict, "já existe uma empresa com estes dados")
+			writeJSONError(ctx, iris.StatusConflict, "este email já está cadastrado por outra empresa")
 		default:
 			writeJSONError(ctx, iris.StatusInternalServerError, "não foi possível atualizar as configurações da empresa")
 		}
