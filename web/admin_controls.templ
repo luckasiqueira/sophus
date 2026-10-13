@@ -2,12 +2,14 @@ package web
 
 templ AdminControls() {
 	<script>
+(function () {
+if (window.refreshAdminSelects) return;
 function enhanceAdminSelect(select) {
     if (select.dataset.adminEnhanced === 'true') return;
     select.dataset.adminEnhanced = 'true';
     const dark = select.dataset.adminTheme === 'dark';
     const wrapper = document.createElement('div');
-    wrapper.className = 'relative w-full';
+    wrapper.className = select.dataset.adminWrapper || 'relative w-full';
     const trigger = document.createElement('button');
     trigger.type = 'button';
 	trigger.setAttribute('aria-haspopup', 'listbox');
@@ -18,6 +20,7 @@ function enhanceAdminSelect(select) {
     trigger.className = dark
         ? 'flex w-full items-center justify-between gap-3 rounded-xl border border-white/10 bg-stone-900 px-4 py-3 text-left text-sm text-white shadow-sm transition hover:border-purple-400 focus:outline-none focus:ring-2 focus:ring-purple-500/30'
         : 'flex w-full items-center justify-between gap-3 rounded-xl border border-stone-200 bg-white px-4 py-3 text-left text-sm text-gray-800 shadow-sm transition hover:border-purple-300 focus:outline-none focus:ring-2 focus:ring-purple-200';
+	if (select.dataset.adminSize === 'compact') trigger.className = 'flex h-9 w-full items-center justify-between gap-2 rounded-lg border border-stone-200 bg-stone-50 px-2.5 text-left text-xs font-bold text-gray-700 transition hover:border-purple-300 focus:outline-none focus:ring-2 focus:ring-purple-200';
     const value = document.createElement('span');
 	value.id = controlId + '-value';
     value.className = 'min-w-0 truncate';
@@ -37,7 +40,10 @@ function enhanceAdminSelect(select) {
     menu.className = dark
         ? 'absolute left-0 right-0 top-full z-[80] mt-1 hidden max-h-64 overflow-y-auto rounded-xl border border-white/10 bg-stone-900 py-1.5 shadow-2xl'
         : 'absolute left-0 right-0 top-full z-[80] mt-1 hidden max-h-64 overflow-y-auto rounded-xl border border-stone-200 bg-white py-1.5 shadow-xl';
-    wrapper.append(trigger, menu);
+    const portal = select.dataset.adminPortal === 'true';
+	if (portal) { menu.className = 'fixed z-[220] hidden max-h-64 overflow-y-auto rounded-xl border border-purple-100 bg-white p-1.5 shadow-2xl ring-1 ring-black/5'; document.body.append(menu); wrapper.append(trigger); }
+	else wrapper.append(trigger, menu);
+	menu._adminWrapper = wrapper;
     select.insertAdjacentElement('afterend', wrapper);
     select.classList.add('sr-only');
     select.tabIndex = -1;
@@ -59,12 +65,23 @@ function enhanceAdminSelect(select) {
         chevron.classList.remove('rotate-180');
     }
 	menu._closeAdminSelect = close;
+	function positionMenu() {
+		if (!portal || menu.classList.contains('hidden')) return;
+		const rect = trigger.getBoundingClientRect();
+		menu.style.width = Math.max(rect.width, Math.min(160, window.innerWidth - 16)) + 'px';
+		menu.style.maxHeight = Math.min(256, window.innerHeight - 24) + 'px';
+		menu.style.left = Math.max(8, Math.min(rect.left, window.innerWidth - menu.offsetWidth - 8)) + 'px';
+		menu.style.top = Math.max(8, rect.bottom + menu.offsetHeight + 6 < window.innerHeight ? rect.bottom + 6 : rect.top - menu.offsetHeight - 6) + 'px';
+	}
+	if (portal) { window.addEventListener('resize', positionMenu); document.addEventListener('scroll', positionMenu, true); }
 	function open(focusSelected) {
 		if (select.disabled) return;
 		document.querySelectorAll('[data-admin-select-menu]').forEach(other => {
 			if (other !== menu && other._closeAdminSelect) other._closeAdminSelect();
 		});
 		menu.classList.remove('hidden');
+		positionMenu();
+		menu.querySelector('[aria-selected="true"]')?.scrollIntoView?.({ block: 'nearest' });
 		trigger.setAttribute('aria-expanded', 'true');
 		chevron.classList.add('rotate-180');
 		if (focusSelected) (menu.querySelector('[aria-selected="true"]') || menu.querySelector('button:not(:disabled)'))?.focus();
@@ -136,6 +153,7 @@ function enhanceAdminSelect(select) {
     select.addEventListener('change', render);
     new MutationObserver(render).observe(select, { childList: true, subtree: true, attributes: true });
 	select._refreshAdminSelect = render;
+	select._adminTrigger = trigger;
 	if (required && select.form) select.form.addEventListener('submit', event => {
 		if (select.value) return;
 		event.preventDefault();
@@ -147,9 +165,11 @@ function enhanceAdminSelect(select) {
 	}, true);
     render();
 }
+window.enhanceAdminSelect = enhanceAdminSelect;
 
 window.refreshAdminSelects = function(root) {
     (root || document).querySelectorAll('select:not([data-native])').forEach(select => {
+        if (select.multiple || select.closest('[data-report-select]')) return;
         enhanceAdminSelect(select);
         if (select._refreshAdminSelect) select._refreshAdminSelect();
     });
@@ -157,8 +177,9 @@ window.refreshAdminSelects = function(root) {
 
 document.addEventListener('click', event => {
     document.querySelectorAll('[data-admin-select-menu]').forEach(menu => {
-		if (!menu.parentElement.contains(event.target) && menu._closeAdminSelect) menu._closeAdminSelect();
+		if (!menu.contains(event.target) && !menu._adminWrapper.contains(event.target) && menu._closeAdminSelect) menu._closeAdminSelect();
     });
 });
+})();
 	</script>
 }

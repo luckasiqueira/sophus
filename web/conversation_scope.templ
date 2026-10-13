@@ -1,0 +1,27 @@
+package web
+
+templ ConversationScope() {
+	<script>
+		(function () {
+			if (window.conversationAbort) window.conversationAbort.abort();
+			const controller = new AbortController(); window.conversationAbort = controller;
+			window.ensureConversationMessage = null;
+			// Scope document-level handlers to the current conversation without
+			// modifying native listeners belonging to the app shell.
+			function scope(target) {
+				return new Proxy(target, { get(object, key) {
+					if (key === 'addEventListener') return (type, listener, options) => object.addEventListener(type, listener, { ...(typeof options === 'boolean' ? { capture: options } : options), signal: controller.signal });
+					if (key === 'body') return scope(object.body);
+					const value = Reflect.get(object, key, object); return typeof value === 'function' ? value.bind(object) : value;
+				} });
+			}
+			window.conversationDocument = scope(document);
+			controller.signal.addEventListener('abort', () => {
+				if(window.conversationHistoryObserver)window.conversationHistoryObserver.disconnect();
+				const preview = document.getElementById('conversation-media-preview'); if (preview) { preview.querySelectorAll('video').forEach(video => video.pause()); preview.remove(); }
+				if (window._audioCurrentlyPlaying && window._audioCurrentlyPlaying.pause) window._audioCurrentlyPlaying.pause();
+				document.body.classList.remove('overflow-hidden');
+			}, { once: true });
+		})();
+	</script>
+}

@@ -1,6 +1,7 @@
 package sse
 
 import (
+	"encoding/json"
 	"testing"
 	"time"
 )
@@ -49,6 +50,29 @@ func TestNotifyConversationsPublishesCompanyRefresh(t *testing.T) {
 		}
 	case <-time.After(time.Second):
 		t.Fatal("conversation refresh event was not published")
+	}
+}
+
+func TestNotifyIncomingMessagePublishesScopedPayload(t *testing.T) {
+	original := Conversations
+	Conversations = NewHub(false)
+	defer func() { Conversations = original }()
+
+	client := Conversations.Register("42")
+	defer Conversations.Unregister(client)
+	NotifyIncomingMessage(42, "conversation-id", "message-id")
+
+	select {
+	case event := <-client.Ch:
+		var payload map[string]string
+		if event.Name != "incoming-message" || json.Unmarshal([]byte(event.Data), &payload) != nil {
+			t.Fatalf("unexpected incoming-message event: %#v", event)
+		}
+		if payload["conversation"] != "conversation-id" || payload["messageId"] != "message-id" {
+			t.Fatalf("unexpected incoming-message payload: %#v", payload)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("incoming-message event was not published")
 	}
 }
 

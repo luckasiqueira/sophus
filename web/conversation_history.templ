@@ -1,0 +1,201 @@
+package web
+
+import "fmt"
+import "time"
+import "sophus/internal/repo"
+import "sophus/web/components"
+
+func historyPageOrDefault(pages []repo.ConversationMessagePage) repo.ConversationMessagePage {
+	if len(pages)>0{return pages[0]};return repo.ConversationMessagePage{}
+}
+
+func timelineConversationID(item conversationMessageItem) int {
+	if item.Note!=nil{return item.Note.ConversationID};return item.Messages[0].ConversationId
+}
+
+func historyConversation(anchor repo.Conversation, pages []repo.ConversationMessagePage, id int) repo.Conversation {
+	if id==anchor.Id||id==0{return anchor}
+	for _,conversation:=range historyPageOrDefault(pages).Conversations{if conversation.Id==id{return conversation}}
+	return repo.Conversation{Id:id,AgentName:"Sem operador",DepartmentName:"Sem departamento"}
+}
+
+func historyActionURL(anchor repo.Conversation, id int) string {
+	if id==0||id==anchor.Id{return anchor.URL.String()};return ""
+}
+
+func historyMode(page repo.ConversationMessagePage) string {
+	if page.HistoryScope=="contact" {return "contact"};return "current"
+}
+
+func timelineHasConversation(messages []repo.MessageData, events []repo.ConversationEvent, id int) bool {
+	for _,message:=range messages{if message.ConversationId==id{return true}}
+	for _,event:=range events{if event.ConversationID==id{return true}}
+	return false
+}
+
+func conversationHistoryDate(value time.Time,timezone string) string {
+	if location,err:=time.LoadLocation(timezone);err==nil{value=value.In(location)};return value.Format("02/01/2006 15:04")
+}
+
+func historyStatusLabel(status string) string {
+	switch status {case "closed","resolved":return "Encerrado";case "open":return "Aberto";case "pending":return "Pendente";case "running":return "Em automação";default:return status}
+}
+
+templ ConversationHistorySwitch(conversation repo.Conversation) {
+	if conversation.ConnectionID>0 {
+		<div id="conversation-history-switch" class="shrink-0 border-b border-stone-200 bg-white px-4 py-2"><div class="flex flex-wrap items-center justify-between gap-2"><nav class="flex gap-1" aria-label="Escopo do histórico">
+			for _, mode:=range []string{"current","contact"} {
+				<a href={fmt.Sprintf("/messages/%s?history=%s",conversation.URL.String(),mode)} hx-get={fmt.Sprintf("/messages/%s/timeline?history=%s",conversation.URL.String(),mode)} hx-target="#chatMessages" hx-swap="innerHTML" hx-sync="#chatMessages:replace" hx-indicator="#conversation-history-loading" data-history-mode={mode} class="rounded-lg px-3 py-2 text-xs font-bold text-gray-500 hover:bg-purple-50">
+					if mode=="current" {
+						Atendimento atual
+					} else {
+						Histórico do contato
+					}
+				</a>
+			}
+		</nav><span id="conversation-history-loading" class="htmx-indicator text-xs text-purple-700" role="status">Carregando histórico…</span></div><p id="conversation-history-scope-label" class="mt-1 text-[11px] text-gray-500"></p><p id="conversation-history-scope-error" role="alert" class="hidden mt-1 text-xs text-red-600">Não foi possível trocar o histórico. Tente novamente.</p></div>
+	}
+}
+
+templ ConversationAppointmentDivider(anchor repo.Conversation, origin repo.Conversation, timezone string) {
+	<div data-history-conversation={fmt.Sprint(origin.Id)} class={"rounded-xl border px-4 py-3 text-xs",templ.KV("border-purple-200 bg-purple-50 text-purple-800",origin.Id==anchor.Id),templ.KV("border-stone-300 bg-white/80 text-gray-600",origin.Id!=anchor.Id)}>
+		<p class="font-bold">
+			if origin.Id==anchor.Id {
+				Atendimento atual
+			} else {
+				Atendimento anterior
+			}
+			if origin.Protocol > 0 {
+				<span> · #{fmt.Sprint(origin.Protocol)}</span>
+			}
+			· {conversationHistoryDate(origin.CreatedAt,timezone)}
+		</p><p class="mt-1">{origin.AgentName} · {origin.DepartmentName} · {historyStatusLabel(origin.Status)}</p>
+	</div>
+}
+
+templ ConversationMessages(conversation repo.Conversation, agent repo.Agent, messages []repo.MessageData, events []repo.ConversationEvent, pages ...repo.ConversationMessagePage) {
+	for _, item := range conversationTimeline(messages, events) {
+		if historyPageOrDefault(pages).HistoryScope=="contact" && item.StartsConversation {
+			@ConversationAppointmentDivider(conversation,historyConversation(conversation,pages,timelineConversationID(item)),messagesTimezone(messages))
+		}
+		if item.Note != nil {
+			@components.InternalNote(*item.Note, messagesTimezone(messages))
+		} else {
+			if item.StartsNewDay {
+				@components.MessageDateDivider(item.Messages[0])
+			}
+			if len(item.Messages) > 1 {
+				@components.MessageReceivedGallery(item.Messages, agent.CompanyId, conversation.Contact.Id, historyActionURL(conversation,item.Messages[0].ConversationId))
+			} else if item.Messages[0].IsFromMe {
+				@components.MessageSent(item.Messages[0], agent.CompanyId, historyActionURL(conversation,item.Messages[0].ConversationId))
+			} else {
+				@components.MessageReceived(item.Messages[0], agent.CompanyId, conversation.Contact.Id, historyActionURL(conversation,item.Messages[0].ConversationId))
+			}
+		}
+	}
+}
+
+templ ConversationHistoryPager(conversationURL string, pages ...repo.ConversationMessagePage) {
+	if len(pages) > 0 && pages[0].HasOlder {
+		<div id="conversation-history-pager" class="text-center"><button id="conversation-history-more" type="button" data-history-url={ fmt.Sprintf("/messages/%s/history", conversationURL) } data-before={ fmt.Sprint(pages[0].BeforeID) } class="rounded-full border border-stone-200 bg-white px-4 py-2 text-xs font-bold text-purple-700 shadow-sm disabled:opacity-50">Carregar mensagens anteriores</button><p id="conversation-history-error" role="alert" class="mt-2 hidden text-xs text-red-600"></p></div>
+		<script>
+			(function () {
+				const button = document.getElementById('conversation-history-more');
+				const chat = document.getElementById('chatMessages');
+				const signal = window.conversationAbort.signal;
+				let pending = null;
+				function loadOlder() {
+					if (pending) return pending;
+					pending = (async () => {
+					button.disabled = true;
+					const error = document.getElementById('conversation-history-error'); error.classList.add('hidden');
+					try {
+						const url=new URL(button.dataset.historyUrl,location.href);url.searchParams.set('before',button.dataset.before);url.searchParams.set('history',chat.dataset.historyScope||'current');
+						const response = await fetch(url, { credentials: 'same-origin', headers: { Accept: 'application/json' }, signal });
+						const payload = await response.json(); if (!response.ok) throw new Error(payload.error || 'Não foi possível carregar o histórico.');
+						if (signal.aborted || !chat.isConnected || !button.isConnected) return;
+						const height = chat.scrollHeight; const top = chat.scrollTop;
+						const template = document.createElement('template'); template.innerHTML = payload.html;
+						document.getElementById('conversation-history-pager').after(template.content);
+						button.dataset.before = String(payload.before);
+						if (!payload.hasOlder) document.getElementById('conversation-history-pager').remove();
+						if (window.htmx) htmx.process(chat);
+						if (window.normalizeConversationHistory) window.normalizeConversationHistory();
+						await new Promise(resolve => requestAnimationFrame(() => { if (chat.isConnected) chat.scrollTop = top + chat.scrollHeight - height; resolve(); }));
+					} catch (failure) { if (failure.name !== 'AbortError') { error.textContent = failure.message; error.classList.remove('hidden'); } throw failure; }
+					finally { button.disabled = false; }
+					})().finally(() => { pending = null; });
+					return pending;
+				}
+				button.addEventListener('click', () => { loadOlder().catch(() => {}); });
+				window.ensureConversationMessage = async (id, valid = () => true, progress = () => {}) => {
+					const find = () => chat.querySelector('[data-message-id="' + CSS.escape(id) + '"]');
+					let pages = 0;
+					while (!find() && button.isConnected && !signal.aborted && valid()) {
+						const before = button.dataset.before; await loadOlder();
+						progress(++pages);
+						if (before === button.dataset.before) break;
+					}
+					return find();
+				};
+			})();
+		</script>
+	}
+}
+
+templ ConversationSearchPreview(conversation repo.Conversation, messages []repo.MessageData, selectedID int, pages ...repo.ConversationMessagePage) {
+	<div class="space-y-4">
+		for index, message := range messages {
+			if historyPageOrDefault(pages).HistoryScope=="contact" && (index==0 || messages[index-1].ConversationId!=message.ConversationId) {
+				@ConversationAppointmentDivider(conversation,historyConversation(conversation,pages,message.ConversationId),messagesTimezone(messages))
+			}
+			@components.MessageSearchPreview(message, conversation.Contact.Name, message.Id == selectedID)
+		}
+	</div>
+}
+
+templ ConversationTimelineContent(conversation repo.Conversation, agent repo.Agent, messages []repo.MessageData, events []repo.ConversationEvent, page repo.ConversationMessagePage) {
+	<script data-history-scope={historyMode(page)} data-attendance-id={fmt.Sprint(conversation.Id)} data-attendance-started={conversation.CreatedAt.Format(time.RFC3339)} data-attendance-timezone={messagesTimezone(messages)}>
+		(function(){
+			const script=document.currentScript;const chat=document.getElementById('chatMessages');const mode=script.dataset.historyScope;
+			chat.dataset.historyScope=mode;chat.dataset.historyVersion=String(Number(chat.dataset.historyVersion||0)+1);const version=chat.dataset.historyVersion;
+			window.ensureConversationMessage=null;
+			const search=document.getElementById('conversation-message-search');if(search)search.dataset.historyScope=mode;
+			const input=document.getElementById('conversation-message-search-input');if(input)input.placeholder=mode==='contact'?'Buscar no histórico do contato nesta conexão':'Buscar no atendimento atual';
+			document.querySelectorAll('[data-history-mode]').forEach(link=>{const selected=link.dataset.historyMode===mode;link.setAttribute('aria-current',selected?'true':'false');link.classList.toggle('bg-purple-100',selected);link.classList.toggle('text-purple-700',selected);});
+			const label=document.getElementById('conversation-history-scope-label');if(label){let started='';try{started=new Intl.DateTimeFormat('pt-BR',{dateStyle:'short',timeStyle:'short',timeZone:script.dataset.attendanceTimezone}).format(new Date(script.dataset.attendanceStarted));}catch(_){}label.textContent=mode==='contact'?'Atendimento atual e atendimentos encerrados deste contato, somente nesta conexão. Os envios pertencem ao atendimento atual.':'Mensagens do atendimento #'+script.dataset.attendanceId+(started?' · Iniciado em '+started:'')+'.';}
+			const error=document.getElementById('conversation-history-scope-error');if(error)error.classList.add('hidden');
+			if(window.conversationHistoryObserver)window.conversationHistoryObserver.disconnect();
+			window.normalizeConversationHistory=()=>{
+				if(mode!=='contact')return;let previous=null;
+				const template=chat.querySelector('[data-current-history-divider]');const current=template?.dataset.currentHistoryDivider;
+				Array.from(chat.children).forEach(node=>{
+					if(node.dataset.historyConversation!==undefined){if(node.dataset.historyConversation===previous)node.remove();else previous=node.dataset.historyConversation;return;}
+					const origin=node.dataset.messageConversation||node.dataset.noteConversation;if(!origin)return;
+					if(origin===current&&origin!==previous&&template)node.before(template.content.cloneNode(true));previous=origin;
+				});
+			};
+			window.conversationHistoryObserver=new MutationObserver(()=>window.normalizeConversationHistory());window.conversationHistoryObserver.observe(chat,{childList:true});
+			document.dispatchEvent(new CustomEvent('conversation:history-scope'));
+			requestAnimationFrame(()=>{if(chat.isConnected&&chat.dataset.historyVersion===version){window.normalizeConversationHistory();chat.scrollTop=chat.scrollHeight;}});
+		})();
+	</script>
+	if page.HistoryScope=="contact" {
+		<template data-current-history-divider={fmt.Sprint(conversation.Id)}>@ConversationAppointmentDivider(conversation,historyConversation(conversation,[]repo.ConversationMessagePage{page},conversation.Id),messagesTimezone(messages))</template>
+	}
+	@ConversationHistoryPager(conversation.URL.String(),page)
+	@ConversationMessages(conversation,agent,messages,events,page)
+	if page.HistoryScope=="contact" && conversation.Status!="closed" && !timelineHasConversation(messages,events,conversation.Id) {
+		@ConversationAppointmentDivider(conversation,historyConversation(conversation,[]repo.ConversationMessagePage{page},conversation.Id),messagesTimezone(messages))
+	}
+}
+
+templ ConversationSearchDialog() {
+	<dialog id="conversation-search-preview" aria-labelledby="conversation-search-preview-title" class="m-auto w-[calc(100%-1.5rem)] max-w-3xl max-h-[90dvh] overflow-hidden rounded-3xl border border-stone-200 bg-white p-0 shadow-2xl backdrop:bg-stone-950/60 backdrop:backdrop-blur-sm">
+		<div class="flex max-h-[90dvh] flex-col">
+			<header class="flex shrink-0 items-center gap-3 border-b border-stone-100 px-5 py-4"><span class="grid h-11 w-11 shrink-0 place-items-center rounded-xl bg-purple-100 text-purple-700"><i class="fas fa-magnifying-glass"></i></span><div class="min-w-0 flex-1"><h2 id="conversation-search-preview-title" class="text-base font-black text-gray-900">Mensagem encontrada</h2><p class="mt-1 text-xs text-gray-500">Até 5 mensagens anteriores e 5 posteriores para consultar o contexto.</p></div><button id="conversation-search-preview-close" type="button" aria-label="Fechar prévia" class="grid h-9 w-9 shrink-0 place-items-center rounded-xl text-gray-500 hover:bg-stone-100"><i class="fas fa-xmark"></i></button></header>
+			<div id="conversation-search-preview-content" class="min-h-0 flex-1 overflow-y-auto bg-stone-100 p-4 sm:p-6"></div>
+			<footer class="shrink-0 border-t border-stone-100 bg-white px-5 py-4"><p id="conversation-search-preview-status" role="status" aria-live="polite" class="mb-3 text-xs text-gray-500"></p><div class="flex flex-wrap items-center justify-between gap-3"><div class="flex items-center gap-2"><button id="conversation-search-preview-previous" type="button" aria-label="Resultado anterior" class="grid h-9 w-9 place-items-center rounded-lg text-gray-500 hover:bg-stone-100 disabled:opacity-30"><i class="fas fa-chevron-up"></i></button><span id="conversation-search-preview-count" class="text-xs font-bold text-gray-600"></span><button id="conversation-search-preview-next" type="button" aria-label="Próximo resultado" class="grid h-9 w-9 place-items-center rounded-lg text-gray-500 hover:bg-stone-100 disabled:opacity-30"><i class="fas fa-chevron-down"></i></button></div><button id="conversation-search-preview-load" type="button" disabled class="rounded-xl bg-purple-600 px-4 py-2.5 text-xs font-bold text-white hover:bg-purple-700 disabled:cursor-wait disabled:opacity-50"><i class="fas fa-clock-rotate-left mr-2"></i>Carregar conversa até aqui</button></div></footer>
+		</div>
+	</dialog>
+}

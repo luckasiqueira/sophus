@@ -30,6 +30,9 @@ func AuthPlatform(ctx iris.Context) {
 }
 
 func PlatformAdminIdentifier(ctx iris.Context) (repo.PlatformAdmin, error) {
+	if HasSupportCookie(ctx) && !supportExitRequest(ctx) {
+		return repo.PlatformAdmin{}, errPlatformUnavailableInSupport
+	}
 	if admin, ok := ctx.Values().Get(platformAdminContextKey).(repo.PlatformAdmin); ok {
 		return admin, nil
 	}
@@ -56,10 +59,11 @@ func identifyPlatformAdmin(ctx iris.Context) (repo.PlatformAdmin, error) {
 		return repo.PlatformAdmin{}, errors.New("error decoding platform token")
 	}
 	var claims struct {
-		Id      int `json:"id"`
-		Version int `json:"version"`
+		Id      int  `json:"id"`
+		Version int  `json:"version"`
+		TOTP    bool `json:"totp"`
 	}
-	if err := jwtToken.Claims(&claims); err != nil || claims.Id <= 0 {
+	if err := jwtToken.Claims(&claims); err != nil || claims.Id <= 0 || !claims.TOTP {
 		return repo.PlatformAdmin{}, errors.New("invalid platform claims")
 	}
 	admin, err := repo.GetPlatformAdminById(claims.Id)

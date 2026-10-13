@@ -76,7 +76,8 @@ func TestAbacatePayGetProductByExternalID(t *testing.T) {
 
 	t.Run("not found", func(t *testing.T) {
 		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-			http.Error(w, "product not found", http.StatusNotFound)
+			w.WriteHeader(http.StatusBadRequest)
+			fmt.Fprint(w, `{"success":false,"data":null,"error":"Product not found"}`)
 		}))
 		defer server.Close()
 
@@ -184,6 +185,37 @@ func TestAbacatePayFindCheckoutValidatesDetail(t *testing.T) {
 	}
 	if detailRequests != 3 {
 		t.Fatalf("detail requests = %d", detailRequests)
+	}
+}
+
+func TestAbacatePayFindCheckoutByURLValidatesIdentity(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/checkouts/list":
+			if r.URL.Query().Get("externalId") != "payment-42" {
+				t.Errorf("external ID = %q", r.URL.Query().Get("externalId"))
+			}
+			fmt.Fprint(w, `{"data":[{"id":"wrong"},{"id":"match"}],"success":true,"error":null}`)
+		case "/checkouts/get":
+			id := r.URL.Query().Get("id")
+			if id == "wrong" {
+				fmt.Fprint(w, checkoutEnvelope("wrong", "other-payment", "key"))
+			} else {
+				fmt.Fprint(w, checkoutEnvelope("match", "payment-42", "key"))
+			}
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	defer server.Close()
+	client := NewAbacatePayClient(server.Client(), "api-key", server.URL)
+	checkout, found, err := client.FindCheckoutByURL(context.Background(), "payment-42", "https://pay.example/match")
+	if err != nil || !found || checkout.ID != "match" {
+		t.Fatalf("checkout = %#v, found = %v, err = %v", checkout, found, err)
+	}
+	_, found, err = client.FindCheckoutByURL(context.Background(), "payment-42", "https://pay.example/wrong")
+	if err != nil || found {
+		t.Fatalf("foreign checkout accepted: found = %v, err = %v", found, err)
 	}
 }
 

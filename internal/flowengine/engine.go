@@ -1,6 +1,7 @@
 package flowengine
 
 import (
+	"context"
 	"crypto/sha256"
 	"database/sql"
 	"encoding/json"
@@ -8,8 +9,12 @@ import (
 	"fmt"
 	"log"
 	"math/rand/v2"
+	"mime"
 	"net/mail"
+	"os"
+	"path/filepath"
 	"regexp"
+	"sophus/internal/llm"
 	"sophus/internal/media"
 	"sophus/internal/repo"
 	"sophus/pkg/http/middlewares/sse"
@@ -23,7 +28,17 @@ const (
 	maxDepth                 = 50
 	maxExecutionTime         = 5 * time.Minute
 	maxExecutionContextBytes = 4 << 20
+	noResponseWaitNodeKey    = "_noResponseWaitNodeId"
 )
+
+func logLLMFailure(operation string, companyID, credentialID int, provider, model string, err error) {
+	failure, known := llm.FailureForError(err)
+	if !known {
+		log.Printf("llm request failed operation=%s company=%d credential=%d provider=%s model=%s category=internal", operation, companyID, credentialID, provider, model)
+		return
+	}
+	log.Printf("llm request failed operation=%s company=%d credential=%d provider=%s model=%s category=%s upstream_status=%d retryable=%t", operation, companyID, credentialID, failure.Provider, model, failure.Category, failure.StatusCode, failure.Retryable)
+}
 
 type Engine struct {
 	messenger    *Messenger
@@ -139,6 +154,19 @@ func (e *Engine) ExecuteFlow(flowID, conversationID, companyID int, initialConte
 		if execution.CurrentNodeId != nil {
 			savedNodeID := *execution.CurrentNodeId
 			savedNode := findNode(flowData.Nodes, savedNodeID)
+			if boolVal(initialContext, "_timedOut") && stringVal(savedCtx, noResponseWaitNodeKey) == savedNodeID && flowData.Settings.NoResponse.Enabled {
+				delete(context, noResponseWaitNodeKey)
+				if savedNode != nil && savedNode.Type == NodeNPSEvaluation {
+					if err := repo.TimeoutFlowNPSEvaluation(execution.Id, savedNodeID); err != nil {
+						return e.failExecution(execution.Id, fmt.Sprintf("falha ao encerrar avaliação NPS sem resposta: %v", err))
+					}
+				}
+				if err := e.handleNoResponse(flowData.Settings.NoResponse, conversation, companyID, context); err != nil {
+					return e.failExecution(execution.Id, fmt.Sprintf("falha ao tratar cliente sem resposta: %v", err))
+				}
+				return e.completeExecution(execution.Id, savedNodeID, context)
+			}
+			delete(context, noResponseWaitNodeKey)
 			if savedNode != nil && savedNode.Type == NodeWaitForResponse {
 				output := "replied"
 				if boolVal(initialContext, "_timedOut") {
@@ -224,6 +252,7 @@ func (e *Engine) ExecuteFlow(flowID, conversationID, companyID int, initialConte
 		result, err := e.processNode(execution.Id, *currentNode, context, conversation, companyID, flowData, true)
 		if err != nil {
 			if errors.Is(err, repo.ErrFlowExecutionInactive) {
+				log.Printf("flow execution stopped because it is no longer active: execution=%d node=%s", execution.Id, currentNodeID)
 				return nil
 			}
 			return e.failExecution(execution.Id, err.Error())
@@ -234,7 +263,7 @@ func (e *Engine) ExecuteFlow(flowID, conversationID, companyID int, initialConte
 		}
 
 		if result.WaitForResponse {
-			timeoutSeconds := intVal(currentNode.Data, "timeout")
+			timeoutSeconds := applyNoResponseWait(flowData, currentNodeID, context, intVal(currentNode.Data, "timeout"))
 			if !result.WaitPersisted {
 				if err := e.saveWaitingState(execution.Id, currentNodeID, context, timeoutSeconds, string(currentNode.Type)); err != nil {
 					return e.failExecution(execution.Id, fmt.Sprintf("não foi possível colocar a execução em espera: %v", err))
@@ -246,7 +275,7 @@ func (e *Engine) ExecuteFlow(flowID, conversationID, companyID int, initialConte
 			return nil
 		}
 
-		if currentNode.Type == NodeEnd {
+		if currentNode.Type == NodeEnd || currentNode.Type == NodeAIAgent {
 			return e.completeExecution(execution.Id, currentNodeID, context)
 		}
 		if result.DirectNodeID != "" {
@@ -292,6 +321,26 @@ func (e *Engine) processNode(executionID int, node FlowNode, ctx ExecutionContex
 		return ProcessResult{}, nil
 	case NodeSendText:
 		return ProcessResult{}, e.executeSendText(node, ctx, conversation)
+	case NodeAIAgent:
+		agentID := intVal(node.Data, "aiAgentId")
+		agent, err := repo.GetAIAgent(agentID, companyID)
+		if err != nil || !agent.IsActive {
+			return ProcessResult{}, errors.New("agente de IA não está disponível")
+		}
+		session, err := repo.ActivateAIAgentSession(conversation.Id, agentID, companyID, safeModeEnabled(node.Data))
+		if err != nil {
+			return ProcessResult{}, fmt.Errorf("não foi possível transferir para o agente de IA: %w", err)
+		}
+		if message := strings.TrimSpace(agent.WelcomeMessage); message != "" {
+			if err := e.messenger.SendText(conversation, ReplaceVariables(message, ctx)); err != nil {
+				return ProcessResult{}, err
+			}
+		} else if message := strings.TrimSpace(stringVal(ctx, "response")); message != "" {
+			session.Agent = agent
+			incomingKey := fmt.Sprintf("flow:%d:%s", executionID, node.ID)
+			go processAIAgentMessage(session, conversation, e.messenger.Connection, message, incomingKey)
+		}
+		return ProcessResult{}, nil
 	case NodeSendTemplate:
 		content := strings.TrimSpace(stringVal(node.Data, "_templateContent"))
 		if content == "" {
@@ -317,7 +366,8 @@ func (e *Engine) processNode(executionID int, node FlowNode, ctx ExecutionContex
 				"userReplied":           nil,
 				"_timedOut":             nil,
 			})
-			if err := e.saveWaitingState(executionID, node.ID, waitContext, intVal(node.Data, "timeout"), string(node.Type)); err != nil {
+			timeoutSeconds := applyNoResponseWait(flowData, node.ID, waitContext, intVal(node.Data, "timeout"))
+			if err := e.saveWaitingState(executionID, node.ID, waitContext, timeoutSeconds, string(node.Type)); err != nil {
 				return ProcessResult{}, err
 			}
 			if err := e.messenger.SendMenu(conversation, node.Data, waitContext); err != nil {
@@ -339,6 +389,23 @@ func (e *Engine) processNode(executionID int, node FlowNode, ctx ExecutionContex
 			}
 		}
 		return ProcessResult{Context: resultContext, OutputHandle: handle}, nil
+	case NodeSendButtons:
+		waitingID, _ := ctx["_waitingForButtonsNodeId"].(string)
+		if waitingID != node.ID {
+			waitContext := mergeContext(ctx, ExecutionContext{
+				"_waitingForButtonsNodeId": node.ID, "response": nil, "userReplied": nil, "_timedOut": nil,
+			})
+			timeoutSeconds := applyNoResponseWait(flowData, node.ID, waitContext, intVal(node.Data, "timeout"))
+			if err := e.saveWaitingState(executionID, node.ID, waitContext, timeoutSeconds, string(node.Type)); err != nil {
+				return ProcessResult{}, err
+			}
+			if err := e.messenger.SendButtons(conversation, node.Data, waitContext); err != nil {
+				return ProcessResult{}, err
+			}
+			return ProcessResult{WaitForResponse: true, WaitPersisted: true, Context: waitContext}, nil
+		}
+		return ProcessResult{Context: ExecutionContext{"_waitingForButtonsNodeId": nil, "_timedOut": nil},
+			OutputHandle: buttonResponseHandle(node.Data, stringVal(ctx, "response"), ctx)}, nil
 	case NodeCondition:
 		metadata, err := repo.GetFlowConditionMetadata(conversation.Id, companyID)
 		if err != nil {
@@ -354,7 +421,8 @@ func (e *Engine) processNode(executionID int, node FlowNode, ctx ExecutionContex
 			waitContext := mergeContext(ctx, ExecutionContext{
 				"_waitingForSwitchNodeId": node.ID, "response": nil, "userReplied": nil, "_timedOut": nil,
 			})
-			if err := e.saveWaitingState(executionID, node.ID, waitContext, intVal(node.Data, "timeout"), string(node.Type)); err != nil {
+			timeoutSeconds := applyNoResponseWait(flowData, node.ID, waitContext, intVal(node.Data, "timeout"))
+			if err := e.saveWaitingState(executionID, node.ID, waitContext, timeoutSeconds, string(node.Type)); err != nil {
 				return ProcessResult{}, err
 			}
 			if strings.TrimSpace(stringVal(node.Data, "message")) != "" {
@@ -388,9 +456,17 @@ func (e *Engine) processNode(executionID int, node FlowNode, ctx ExecutionContex
 		}
 		return ProcessResult{}, nil
 	case NodeHTTPRequest:
+		requestStartedAt := time.Now()
 		resp := e.messenger.ExecuteHTTPRequest(node.Data, ctx)
+		outcome := httpResponseHandle(resp)
+		outputHandle := httpRequestOutputHandle(node, flowData.Edges, outcome)
+		routing := outputHandle
+		if routing == "" {
+			routing = "continue"
+		}
+		log.Printf("flow HTTP request finished: execution=%d node=%s status=%d outcome=%s routing=%s duration=%s", executionID, node.ID, intVal(resp, "status"), outcome, routing, time.Since(requestStartedAt).Round(time.Millisecond))
 		resultContext := ExecutionContext{}
-		if saveTo := stringVal(node.Data, "saveResponseTo"); saveTo != "" {
+		if saveTo := strings.TrimSpace(stringVal(node.Data, "saveResponseTo")); saveTo != "" {
 			resultContext[saveTo] = resp
 		}
 		mapped, mappingErrors := applyHTTPResponseMappings(resp, node.Data)
@@ -403,7 +479,66 @@ func (e *Engine) processNode(executionID int, node FlowNode, ctx ExecutionContex
 		} else {
 			resultContext["_httpMappingErrors"] = nil
 		}
-		return ProcessResult{Context: resultContext}, nil
+		return ProcessResult{Context: resultContext, OutputHandle: outputHandle}, nil
+	case NodeSetContactField:
+		value, err := flowCustomFieldValue(node, ctx)
+		if err != nil {
+			return ProcessResult{}, err
+		}
+		if err := repo.SetFlowContactCustomField(conversation.Id, executionID, companyID, strings.TrimSpace(stringVal(node.Data, "fieldKey")), value); err != nil {
+			return ProcessResult{}, err
+		}
+		return ProcessResult{}, nil
+	case NodeConversationSummary:
+		summary, err := executeConversationSummary(node, companyID, conversation.Id)
+		if err != nil {
+			log.Printf("conversation summary failed: execution=%d node=%s error=%v", executionID, node.ID, err)
+			return ProcessResult{OutputHandle: "failure"}, nil
+		}
+		if boolVal(node.Data, "persist") {
+			if err := repo.AddFlowConversationEvent(conversation.Id, executionID, companyID, node.ID, "history", "Resumo da conversa: "+summary); err != nil {
+				return ProcessResult{}, err
+			}
+		}
+		return ProcessResult{OutputHandle: "success", Context: ExecutionContext{strings.TrimSpace(stringVal(node.Data, "saveResponseTo")): summary}}, nil
+	case NodeNPSEvaluation:
+		waitingID, _ := ctx["_waitingForNPSNodeId"].(string)
+		if waitingID != node.ID {
+			waitContext := mergeContext(ctx, ExecutionContext{"_waitingForNPSNodeId": node.ID, "response": nil, "userReplied": nil, "_timedOut": nil})
+			if err := repo.StartFlowNPSEvaluation(conversation.Id, executionID, companyID, node.ID); err != nil {
+				return ProcessResult{}, err
+			}
+			timeoutSeconds := applyNoResponseWait(flowData, node.ID, waitContext, intVal(node.Data, "timeout"))
+			if err := e.saveWaitingState(executionID, node.ID, waitContext, timeoutSeconds, string(node.Type)); err != nil {
+				return ProcessResult{}, err
+			}
+			if err := e.executeSendText(FlowNode{ID: node.ID, Type: NodeSendText, Data: map[string]interface{}{"message": stringVal(node.Data, "message")}}, ctx, conversation); err != nil {
+				return ProcessResult{}, err
+			}
+			return ProcessResult{WaitForResponse: true, WaitPersisted: true, Context: waitContext}, nil
+		}
+		if boolVal(ctx, "_timedOut") {
+			if err := repo.TimeoutFlowNPSEvaluation(executionID, node.ID); err != nil {
+				return ProcessResult{}, err
+			}
+			return ProcessResult{OutputHandle: "timeout", Context: ExecutionContext{"_waitingForNPSNodeId": nil, "_timedOut": nil, "response": nil, "userReplied": false}}, nil
+		}
+		raw := strings.TrimSpace(fmt.Sprint(ctx["response"]))
+		score, err := strconv.Atoi(raw)
+		if err != nil || score < 0 || score > 10 {
+			if err := repo.InvalidateFlowNPSEvaluation(executionID, node.ID, raw, time.Now()); err != nil {
+				return ProcessResult{}, err
+			}
+			return ProcessResult{OutputHandle: "invalid", Context: ExecutionContext{"_waitingForNPSNodeId": nil, "_timedOut": nil}}, nil
+		}
+		category := npsCategory(score)
+		if err := repo.CompleteFlowNPSEvaluation(executionID, node.ID, score, category, raw, time.Now()); err != nil {
+			return ProcessResult{}, err
+		}
+		return ProcessResult{OutputHandle: category, Context: ExecutionContext{
+			"_waitingForNPSNodeId": nil, "_timedOut": nil,
+			strings.TrimSpace(stringVal(node.Data, "saveScoreTo")): score,
+		}}, nil
 	case NodeWaitForResponse:
 		return ProcessResult{WaitForResponse: true, Context: ExecutionContext{
 			"response": nil, "userReplied": nil, "_timedOut": nil,
@@ -414,7 +549,8 @@ func (e *Engine) processNode(executionID int, node FlowNode, ctx ExecutionContex
 			waitContext := mergeContext(ctx, ExecutionContext{
 				"_waitingForInputNodeId": node.ID, "response": nil, "userReplied": nil, "_timedOut": nil,
 			})
-			if err := e.saveWaitingState(executionID, node.ID, waitContext, intVal(node.Data, "timeout"), string(node.Type)); err != nil {
+			timeoutSeconds := applyNoResponseWait(flowData, node.ID, waitContext, intVal(node.Data, "timeout"))
+			if err := e.saveWaitingState(executionID, node.ID, waitContext, timeoutSeconds, string(node.Type)); err != nil {
 				return ProcessResult{}, err
 			}
 			if msg := stringVal(node.Data, "message"); msg != "" {
@@ -442,7 +578,7 @@ func (e *Engine) processNode(executionID int, node FlowNode, ctx ExecutionContex
 				"_waitingForInputNodeId": nil, "_timedOut": nil,
 			}, OutputHandle: "invalid"}, nil
 		}
-		varName := stringVal(node.Data, "variableName")
+		varName := strings.TrimSpace(stringVal(node.Data, "variableName"))
 		if varName == "" {
 			varName = "userInput"
 		}
@@ -453,7 +589,7 @@ func (e *Engine) processNode(executionID int, node FlowNode, ctx ExecutionContex
 		}, OutputHandle: "valid"}, nil
 	case NodeCheckResponse:
 		hasResponse := ctx["userReplied"] == true
-		if saveTo := stringVal(node.Data, "saveResponseTo"); saveTo != "" {
+		if saveTo := strings.TrimSpace(stringVal(node.Data, "saveResponseTo")); saveTo != "" {
 			ctx[saveTo] = hasResponse
 		}
 		return ProcessResult{ConditionResult: &hasResponse}, nil
@@ -494,10 +630,18 @@ func (e *Engine) processNode(executionID int, node FlowNode, ctx ExecutionContex
 		sse.NotifyConversations(companyID)
 		return ProcessResult{Context: ExecutionContext{contextKey: value}}, nil
 	case NodeBusinessHours:
-		hours, err := decodeBusinessHours(node.Data)
+		companySettings, err := repo.GetCompanySettings(companyID)
 		if err != nil {
 			return ProcessResult{}, err
 		}
+		policy := companySettings.Operations
+		if !policy.BusinessHoursEnabled {
+			open := true
+			return ProcessResult{ConditionResult: &open}, nil
+		}
+		hours := BusinessHours{Enabled: true, Timezone: companySettings.Timezone, Days: policy.BusinessHoursDays,
+			StartTime: policy.BusinessHoursStart, EndTime: policy.BusinessHoursEnd, LunchEnabled: policy.BusinessHoursLunchEnabled,
+			LunchStart: policy.BusinessHoursLunchStart, LunchEnd: policy.BusinessHoursLunchEnd}
 		open, err := businessHoursOpenAt(hours, time.Now())
 		return ProcessResult{ConditionResult: &open}, err
 	case NodeRandomSplit:
@@ -567,37 +711,87 @@ func (e *Engine) processNode(executionID int, node FlowNode, ctx ExecutionContex
 		subflowContext["subflowError"] = nil
 		return ProcessResult{OutputHandle: "success", Context: subflowContext}, nil
 	case NodeAI:
-		apiURL := strings.TrimSpace(env.Backend["AI_API_URL"])
-		apiKey := strings.TrimSpace(env.Backend["AI_API_KEY"])
-		model := strings.TrimSpace(env.Backend["AI_MODEL"])
-		if apiURL == "" || apiKey == "" || model == "" {
-			return ProcessResult{OutputHandle: "failure", Context: ExecutionContext{"aiError": "integração de IA não configurada"}}, nil
+		credentialID := intVal(node.Data, "credentialId")
+		if credentialID <= 0 {
+			return e.processLegacyAINode(node, ctx)
 		}
-		messages := []map[string]string{}
-		if systemPrompt := strings.TrimSpace(ReplaceVariables(stringVal(node.Data, "systemPrompt"), ctx)); systemPrompt != "" {
-			messages = append(messages, map[string]string{"role": "system", "content": systemPrompt})
-		}
-		messages = append(messages, map[string]string{"role": "user", "content": ReplaceVariables(stringVal(node.Data, "prompt"), ctx)})
-		body, err := json.Marshal(map[string]interface{}{"model": model, "messages": messages})
+		credential, err := repo.GetAICredential(credentialID, companyID)
 		if err != nil {
-			return ProcessResult{}, err
+			return ProcessResult{OutputHandle: "failure", Context: ExecutionContext{"aiError": "credencial de IA não encontrada"}}, nil
 		}
-		response := e.messenger.ExecuteHTTPRequest(map[string]interface{}{
-			"method": "POST", "url": apiURL, "bodyMode": "rawJSON", "body": string(body), "timeout": 60000,
-			"headerMode": "fields", "headerFields": []interface{}{
-				map[string]interface{}{"key": "Authorization", "value": "Bearer " + apiKey},
-			},
-		}, ExecutionContext{})
-		text, ok := aiResponseText(response)
-		if !ok {
-			return ProcessResult{OutputHandle: "failure", Context: ExecutionContext{
-				"aiError": aiResponseError(response), "aiResponse": response,
-			}}, nil
+		apiKey, err := llm.DecryptAPIKey(credential.APIKeyCiphertext)
+		if err != nil {
+			return ProcessResult{OutputHandle: "failure", Context: ExecutionContext{"aiError": err.Error()}}, nil
+		}
+		systemPrompt := strings.TrimSpace(ReplaceVariables(stringVal(node.Data, "systemPrompt"), ctx))
+		prompt := ReplaceVariables(stringVal(node.Data, "prompt"), ctx)
+		knowledgeBase := strings.TrimSpace(ReplaceVariables(stringVal(node.Data, "knowledgeBase"), ctx))
+		if knowledgeBase != "" {
+			systemPrompt = strings.TrimSpace(systemPrompt + "\n\nBASE DE CONHECIMENTO (fonte prioritária):\n" + relevantKnowledge(knowledgeBase, prompt, 30000))
+		}
+		messages := []llm.Message{{Role: "user", Content: prompt}}
+		requestContext, cancel := context.WithTimeout(context.Background(), 70*time.Second)
+		defer cancel()
+		response, err := llm.Complete(requestContext, llm.Request{
+			Provider: credential.Provider, Model: credential.Model, APIKey: apiKey, System: systemPrompt, Messages: messages,
+			MaxOutputTokens: 1024, Temperature: 0.4, SafeMode: safeModeEnabled(node.Data),
+		})
+		if err != nil {
+			logLLMFailure("flow_ai", companyID, credential.Id, credential.Provider, credential.Model, err)
+			return ProcessResult{OutputHandle: "failure", Context: ExecutionContext{"aiError": llm.SafeErrorMessage(err)}}, nil
 		}
 		variableName := strings.TrimSpace(stringVal(node.Data, "saveResponseTo"))
 		return ProcessResult{OutputHandle: "success", Context: ExecutionContext{
-			variableName: text, "aiError": nil,
+			variableName: response.Text, "aiError": nil,
 		}}, nil
+	case NodeMediaTranscription:
+		credential, err := resolveFlowAICredential(node, companyID)
+		if err != nil || (credential.Provider != "openai" && credential.Provider != "groq") {
+			return ProcessResult{OutputHandle: "failure", Context: ExecutionContext{"transcriptionError": "credencial incompatível com transcrição de mídia"}}, nil
+		}
+		messageID, _ := ctx["messageId"].(string)
+		var attachment repo.MessageData
+		if strings.TrimSpace(messageID) != "" {
+			attachment, err = repo.GetIncomingMediaByMessage(messageID, companyID)
+		} else {
+			attachment, err = repo.GetLatestIncomingMedia(conversation.Id, companyID)
+		}
+		if err != nil || strings.TrimSpace(attachment.MediaPath) == "" {
+			return ProcessResult{OutputHandle: "failure", Context: ExecutionContext{"transcriptionError": "nenhuma mídia recebida foi encontrada"}}, nil
+		}
+		filePath, err := media.FilePath(companyID, attachment.MediaPath)
+		if err != nil {
+			return ProcessResult{OutputHandle: "failure", Context: ExecutionContext{"transcriptionError": "caminho de mídia inválido"}}, nil
+		}
+		data, err := os.ReadFile(filePath)
+		if err != nil {
+			return ProcessResult{OutputHandle: "failure", Context: ExecutionContext{"transcriptionError": "não foi possível ler a mídia"}}, nil
+		}
+		kind := attachment.MediaType
+		if kind == "audio" {
+			enabled, permissionErr := repo.CompanyAudioTranscriptionEnabled(companyID)
+			if permissionErr != nil || !enabled {
+				return ProcessResult{OutputHandle: "failure", Context: ExecutionContext{"transcriptionError": "a ferramenta de transcrição de áudio não está contratada na assinatura"}}, nil
+			}
+		}
+		if !llm.SupportsMediaAnalysis(credential.Provider, kind) {
+			return ProcessResult{OutputHandle: "failure", Context: ExecutionContext{"transcriptionError": "a credencial Groq suporta somente transcrição de áudio"}}, nil
+		}
+		contentType := mime.TypeByExtension(strings.ToLower(filepath.Ext(filePath)))
+		if contentType == "" {
+			contentType = "application/octet-stream"
+		}
+		prompt := strings.TrimSpace(ReplaceVariables(stringVal(node.Data, "prompt"), ctx))
+		if len(prompt) > 10000 {
+			return ProcessResult{OutputHandle: "failure", Context: ExecutionContext{"transcriptionError": "prompt expandido excede o limite de 10000 caracteres"}}, nil
+		}
+		response, err := llm.AnalyzeMedia(context.Background(), credential.Provider, credential.Model, credential.APIKey, kind, contentType, data, prompt, safeModeEnabled(node.Data))
+		if err != nil {
+			logLLMFailure("flow_media_transcription", companyID, credential.ID, credential.Provider, credential.Model, err)
+			return ProcessResult{OutputHandle: "failure", Context: ExecutionContext{"transcriptionError": llm.SafeErrorMessage(err)}}, nil
+		}
+		variableName := strings.TrimSpace(stringVal(node.Data, "saveResponseTo"))
+		return ProcessResult{OutputHandle: "success", Context: ExecutionContext{variableName: response.Text, "transcriptionError": nil}}, nil
 	case NodeScheduleMessage:
 		message := strings.TrimSpace(ReplaceVariables(stringVal(node.Data, "message"), ctx))
 		if message == "" || len(message) > 10000 {
@@ -615,6 +809,43 @@ func (e *Engine) processNode(executionID int, node FlowNode, ctx ExecutionContex
 	default:
 		return ProcessResult{}, fmt.Errorf("tipo de node desconhecido: %s", node.Type)
 	}
+}
+
+// processLegacyAINode keeps existing persisted flows working until they are saved with a credentialId.
+func (e *Engine) processLegacyAINode(node FlowNode, ctx ExecutionContext) (ProcessResult, error) {
+	apiURL := strings.TrimSpace(env.Backend["AI_API_URL"])
+	apiKey := strings.TrimSpace(env.Backend["AI_API_KEY"])
+	model := strings.TrimSpace(env.Backend["AI_MODEL"])
+	if apiURL == "" || apiKey == "" || model == "" {
+		return ProcessResult{OutputHandle: "failure", Context: ExecutionContext{"aiError": "integração de IA não configurada"}}, nil
+	}
+	messages := []map[string]string{}
+	systemPrompt := strings.TrimSpace(ReplaceVariables(stringVal(node.Data, "systemPrompt"), ctx))
+	if safeModeEnabled(node.Data) {
+		systemPrompt = llm.ApplySafeMode(systemPrompt)
+	}
+	if systemPrompt != "" {
+		messages = append(messages, map[string]string{"role": "system", "content": systemPrompt})
+	}
+	messages = append(messages, map[string]string{"role": "user", "content": ReplaceVariables(stringVal(node.Data, "prompt"), ctx)})
+	body, err := json.Marshal(map[string]interface{}{"model": model, "messages": messages})
+	if err != nil {
+		return ProcessResult{}, err
+	}
+	response := e.messenger.ExecuteHTTPRequest(map[string]interface{}{
+		"method": "POST", "url": apiURL, "bodyMode": "rawJSON", "body": string(body), "timeout": 60000,
+		"headerMode": "fields", "headerFields": []interface{}{
+			map[string]interface{}{"key": "Authorization", "value": "Bearer " + apiKey},
+		},
+	}, ExecutionContext{})
+	text, ok := aiResponseText(response)
+	if !ok {
+		return ProcessResult{OutputHandle: "failure", Context: ExecutionContext{
+			"aiError": aiResponseError(response), "aiResponse": response,
+		}}, nil
+	}
+	variableName := strings.TrimSpace(stringVal(node.Data, "saveResponseTo"))
+	return ProcessResult{OutputHandle: "success", Context: ExecutionContext{variableName: text, "aiError": nil}}, nil
 }
 
 func applyConditionMetadata(ctx ExecutionContext, metadata repo.FlowConditionMetadata) {
@@ -685,7 +916,7 @@ func (e *Engine) getNextNode(currentNodeID, nodeType string, edges []FlowEdge, c
 	}
 	if outputHandle != "" {
 		for _, edge := range outgoing {
-			if edge.SourceHandle == outputHandle || (nodeType == string(NodeSendMenu) && outputHandle == "fallback" && edge.SourceHandle == "") {
+			if edge.SourceHandle == outputHandle || (nodeType == string(NodeSendMenu) && outputHandle == "fallback" && edge.SourceHandle == "") || (nodeType == string(NodeHTTPRequest) && outputHandle == "success" && edge.SourceHandle == "") {
 				return edge.Target, nil
 			}
 		}
@@ -709,6 +940,139 @@ func (e *Engine) getNextNode(currentNodeID, nodeType string, edges []FlowEdge, c
 		}
 	}
 	return outgoing[0].Target, nil
+}
+
+func httpResponseHandle(response map[string]interface{}) string {
+	if boolVal(response, "error") {
+		return "failure"
+	}
+	status := intVal(response, "status")
+	if status >= 200 && status < 300 {
+		return "success"
+	}
+	return "failure"
+}
+
+func httpRequestOutputHandle(node FlowNode, edges []FlowEdge, outcome string) string {
+	if configured, exists := node.Data["routeByStatus"]; exists {
+		if enabled, ok := configured.(bool); ok && enabled {
+			return outcome
+		}
+		return ""
+	}
+	for _, edge := range edges {
+		if edge.Source == node.ID && edge.SourceHandle == "failure" {
+			return outcome
+		}
+	}
+	return ""
+}
+
+func flowCustomFieldValue(node FlowNode, ctx ExecutionContext) (interface{}, error) {
+	value := strings.TrimSpace(ReplaceVariables(stringVal(node.Data, "value"), ctx))
+	switch stringVal(node.Data, "fieldType") {
+	case "text":
+		return value, nil
+	case "number":
+		parsed, err := strconv.ParseFloat(value, 64)
+		if err != nil {
+			return nil, fmt.Errorf("valor do campo personalizado não é numérico")
+		}
+		return parsed, nil
+	case "boolean":
+		parsed, err := strconv.ParseBool(value)
+		if err != nil {
+			return nil, fmt.Errorf("valor do campo personalizado deve ser true ou false")
+		}
+		return parsed, nil
+	default:
+		return nil, fmt.Errorf("tipo de campo personalizado inválido")
+	}
+}
+
+type flowAICredential struct {
+	ID              int
+	Provider        string
+	Model           string
+	APIKey          string
+	MaxOutputTokens int
+	Temperature     float64
+}
+
+func resolveFlowAICredential(node FlowNode, companyID int) (flowAICredential, error) {
+	if credentialID := intVal(node.Data, "credentialId"); credentialID > 0 {
+		credential, err := repo.GetAICredential(credentialID, companyID)
+		if err != nil || !credential.HasAPIKey {
+			return flowAICredential{}, fmt.Errorf("credencial de IA não encontrada")
+		}
+		apiKey, err := llm.DecryptAPIKey(credential.APIKeyCiphertext)
+		if err != nil {
+			return flowAICredential{}, err
+		}
+		return flowAICredential{
+			ID: credential.Id, Provider: credential.Provider, Model: credential.Model, APIKey: apiKey,
+			MaxOutputTokens: 1024, Temperature: 0.4,
+		}, nil
+	}
+
+	// Flows persisted before credentials were selectable stored an AI agent ID.
+	agent, err := repo.GetAIAgent(intVal(node.Data, "aiAgentId"), companyID)
+	if err != nil || !agent.IsActive {
+		return flowAICredential{}, fmt.Errorf("credencial de IA não encontrada")
+	}
+	apiKey, err := llm.DecryptAPIKey(agent.APIKeyCiphertext)
+	if err != nil {
+		return flowAICredential{}, err
+	}
+	return flowAICredential{
+		ID: agent.CredentialId, Provider: agent.Provider, Model: agent.Model, APIKey: apiKey,
+		MaxOutputTokens: agent.MaxOutputTokens, Temperature: agent.Temperature,
+	}, nil
+}
+
+func executeConversationSummary(node FlowNode, companyID, conversationID int) (string, error) {
+	credential, err := resolveFlowAICredential(node, companyID)
+	if err != nil {
+		return "", err
+	}
+	history, err := repo.GetAIConversationHistory(conversationID, companyID, intVal(node.Data, "maxMessages"))
+	if err != nil {
+		return "", err
+	}
+	if len(history) == 0 {
+		return "", fmt.Errorf("conversa sem mensagens para resumir")
+	}
+	instruction := "Produza agora um resumo objetivo da conversa acima. Inclua solicitação do cliente, decisões, pendências e próximos passos. Não invente informações."
+	if custom := strings.TrimSpace(stringVal(node.Data, "instructions")); custom != "" {
+		instruction += " Instruções adicionais: " + custom
+	}
+	requestContext, cancel := context.WithTimeout(context.Background(), 70*time.Second)
+	defer cancel()
+	response, err := llm.Complete(requestContext, llm.Request{
+		Provider: credential.Provider, Model: credential.Model, APIKey: credential.APIKey,
+		System:   "Você resume conversas de atendimento em português do Brasil, com clareza e concisão.",
+		Messages: normalizeAIHistory(history, instruction), MaxOutputTokens: credential.MaxOutputTokens, Temperature: credential.Temperature,
+		SafeMode: safeModeEnabled(node.Data),
+	})
+	if err != nil {
+		logLLMFailure("flow_conversation_summary", companyID, credential.ID, credential.Provider, credential.Model, err)
+		return "", fmt.Errorf("não foi possível gerar o resumo: %s", llm.SafeErrorMessage(err))
+	}
+	summary := strings.TrimSpace(response.Text)
+	if summary == "" {
+		return "", fmt.Errorf("provedor retornou resumo vazio")
+	}
+	return summary, nil
+}
+
+func npsCategory(score int) string {
+	if score >= 9 {
+		return "promoter"
+	}
+	if score >= 7 {
+		return "passive"
+	}
+	return "detractor"
 }
 
 func (e *Engine) executeSendText(node FlowNode, ctx ExecutionContext, conversation repo.Conversation) error {
@@ -846,6 +1210,29 @@ func (e *Engine) executeAssign(data map[string]interface{}, conversationID, comp
 		return err
 	}
 	sse.NotifyConversations(companyID)
+	return nil
+}
+
+func applyNoResponseWait(flowData FlowData, nodeID string, ctx ExecutionContext, configuredTimeout int) int {
+	settings := flowData.Settings.NoResponse
+	if !settings.Enabled {
+		return configuredTimeout
+	}
+	ctx[noResponseWaitNodeKey] = nodeID
+	return settings.ReminderMinutes * 60
+}
+
+func (e *Engine) handleNoResponse(settings NoResponseSettings, conversation repo.Conversation, companyID int, ctx ExecutionContext) error {
+	message := ReplaceVariables(strings.TrimSpace(settings.ReminderMessage), ctx)
+	reminderErr := e.messenger.SendText(conversation, message)
+	transferErr := e.executeAssign(map[string]interface{}{
+		"assignType": settings.TargetType,
+		"assignId":   settings.TargetID,
+	}, conversation.Id, companyID)
+	if reminderErr != nil || transferErr != nil {
+		return errors.Join(reminderErr, transferErr)
+	}
+	ctx["noResponseTriggered"] = true
 	return nil
 }
 
@@ -1108,7 +1495,7 @@ func (e *Engine) executeInlineFlow(executionID int, flowData FlowData, ctx Execu
 			return nil, fmt.Errorf("node %s do subfluxo não encontrado", currentNodeID)
 		}
 		switch node.Type {
-		case NodeSendMenu, NodeSwitch, NodeWaitForResponse, NodeInput:
+		case NodeSendMenu, NodeSendButtons, NodeSwitch, NodeWaitForResponse, NodeInput, NodeNPSEvaluation:
 			return nil, fmt.Errorf("subfluxo não pode usar o node assíncrono %s", node.Type)
 		}
 		result, err := e.processNode(executionID, *node, context, conversation, companyID, flowData, false)

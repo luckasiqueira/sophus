@@ -1,0 +1,20 @@
+package components
+
+import "encoding/json"
+import "fmt"
+import "sophus/internal/repo"
+
+func internalNoteAuthor(event repo.ConversationEvent) string {
+	var metadata struct { AuthorName string `json:"authorName"` }
+	_ = json.Unmarshal(event.Metadata, &metadata)
+	if metadata.AuthorName != "" { return metadata.AuthorName }
+	return "Automação"
+}
+
+templ InternalNote(event repo.ConversationEvent, timezone string) {
+	<article data-note-conversation={fmt.Sprint(event.ConversationID)} data-internal-note-id={ fmt.Sprint(event.ID) } class="ml-auto max-w-2xl rounded-2xl rounded-tr-none border border-amber-300 bg-amber-100 p-4 shadow-sm" style="background-color: #fef3c7; border-color: #fcd34d;">
+		<header class="flex flex-wrap items-center justify-between gap-2"><span class="text-xs font-bold text-amber-800"><i class="fas fa-lock mr-2"></i>Nota interna · { internalNoteAuthor(event) }</span><time class="text-[10px] text-amber-700">{ messageTimeLabel(event.CreatedAt, timezone, "02/01/2006 15:04") }</time></header>
+		<p class="mt-2 whitespace-pre-wrap break-words text-sm leading-relaxed text-gray-800">{ event.Content }</p>
+		<p class="mt-2 text-[10px] font-semibold text-amber-700">Visível apenas para a equipe. Não enviada ao WhatsApp.</p>
+	</article>
+}

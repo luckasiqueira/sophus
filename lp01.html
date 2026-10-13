@@ -3,9 +3,10 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <meta name="description" content="Sophus reúne conversas, equipe, conexões e automações em um único ambiente de atendimento.">
-    <meta name="theme-color" content="#17141f">
-    <title>Sophus | Um ambiente para toda a operação de atendimento</title>
+    <meta name="description" content="Centralize o WhatsApp com a Sophus: atendimento multiagente, agentes de IA, automações visuais, contatos, respostas rápidas e relatórios em um único workspace.">
+    <meta name="theme-color" content="#0c0a12">
+    <title>Sophus | Sua equipe, sua IA, seu atendimento</title>
+    <link rel="icon" type="image/svg+xml" href="logos/Sophus_simbolo_colorido.svg">
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -26,7 +27,29 @@
         };
     </script>
     <style>
+        html { color-scheme: dark; scroll-padding-top: 96px; }
         body { background: #0c0a12; }
+        section[id] { scroll-margin-top: 16px; }
+        .hero-atmosphere {
+            background: radial-gradient(ellipse at 12% 15%, rgba(59,130,246,.12), transparent 45%), radial-gradient(ellipse at 85% 45%, rgba(97,35,204,.17), transparent 45%);
+        }
+        .headline-gradient { background: linear-gradient(110deg, #93c5fd, #c4b5fd 55%, #f0abfc); background-clip: text; -webkit-background-clip: text; color: transparent; }
+        .feature-card { transition: transform .25s ease, border-color .25s ease, box-shadow .25s ease; }
+        .feature-card:hover { transform: translateY(-4px); border-color: rgba(167,139,250,.32) !important; box-shadow: 0 20px 50px -25px rgba(97,35,204,.3); }
+        .gradient-frame { background: linear-gradient(135deg, rgba(96,165,250,.5), rgba(167,139,250,.25), rgba(255,255,255,.05)); padding: 1px; border-radius: 2rem; }
+        .section-kicker { display: flex; align-items: center; gap: 10px; }
+        .section-kicker::before { content: ''; width: 22px; height: 2px; background: #a78bfa; }
+        a:focus-visible, button:focus-visible, input:focus-visible { outline: 2px solid #a78bfa; outline-offset: 4px; }
+        .product-tab[aria-selected="true"] { background: rgba(167,139,250,.15); box-shadow: inset 0 0 0 1px rgba(167,139,250,.3); color: #fff; }
+        .product-tab[aria-selected="false"] { color: #a8a29e; }
+        .product-tab[aria-selected="false"]:hover { background: rgba(255,255,255,.06); color: #fff; }
+        .report-bar { background: linear-gradient(to top, #6123cc, #a78bfa); }
+        .faq-item summary { list-style: none; }
+        .faq-item summary::-webkit-details-marker { display: none; }
+        .faq-item[open] .faq-icon { transform: rotate(45deg); }
+        .faq-item[open] { border-color: rgba(167,139,250,.3); }
+        .price-card { display: flex; flex-direction: column; height: 100%; }
+        .price-card ul { flex: 1; }
         .admin-surface {
             background:
                 radial-gradient(circle at 14% 7%, rgba(59,130,246,.38), transparent 27%),
@@ -51,7 +74,7 @@
         .dark-page .text-gray-700 { color: #e7e5e4 !important; }
         .dark-page .text-gray-600 { color: #b8b4be !important; }
         .dark-page .text-gray-500 { color: #96919d !important; }
-        .dark-page .text-gray-400 { color: #736e7a !important; }
+        .dark-page .text-gray-400 { color: #9b95a5 !important; }
         .dark-page .border-stone-100,
         .dark-page .border-stone-200,
         .dark-page .border-stone-300 { border-color: rgba(255,255,255,.09) !important; }
@@ -80,7 +103,6 @@
         .dark-page .text-pink-700 { color: #f9a8d4 !important; }
         .dark-page input { color: #f5f5f4; }
         .dark-page input::placeholder { color: #78716c; }
-        .dark-page .brand-mark,
         .dark-page .light-action { background: #fff !important; color: #6123cc !important; }
         .dark-page .shadow-sm,
         .dark-page .shadow-soft { box-shadow: 0 18px 45px -30px rgba(0,0,0,.8); }
@@ -95,46 +117,48 @@
         @media (prefers-reduced-motion: reduce) {
             html { scroll-behavior: auto; }
             .status-pulse { animation: none; }
+            .feature-card { transition: none; }
+            .feature-card:hover { transform: none; }
         }
     </style>
 </head>
 <body class="dark-page overflow-x-hidden font-sans text-stone-100 antialiased">
     <header class="sticky top-0 z-50 border-b border-white/10 bg-[#0c0a12]/90 backdrop-blur-xl">
         <div class="mx-auto flex h-[76px] max-w-[1440px] items-center justify-between px-5 sm:px-7 lg:px-10">
-            <a href="#inicio" class="flex items-center gap-3" aria-label="Sophus, início">
-                <span class="brand-mark grid h-10 w-10 place-items-center rounded-2xl bg-white text-purple-700 shadow-sm ring-1 ring-white/10">
-                    <i class="fas fa-paper-plane"></i>
-                </span>
-                <span>
-                    <strong class="block leading-none tracking-tight">Sophus</strong>
-                    <span class="mt-1 block text-[9px] font-bold uppercase tracking-[.24em] text-gray-500">Workspace de atendimento</span>
-                </span>
+            <a href="#inicio" class="flex shrink-0 flex-col items-start gap-1" aria-label="Sophus, início">
+                <img src="logos/Sophus_logo_horizontal_colorido_branco.svg" alt="Sophus" width="1120" height="256" class="h-9 w-auto">
+                <span class="text-[8px] font-bold uppercase tracking-[.2em] text-gray-500">Workspace de atendimento</span>
             </a>
 
-            <nav class="hidden items-center gap-8 text-sm font-semibold text-gray-600 lg:flex" aria-label="Navegação principal">
+            <nav class="hidden items-center gap-5 text-sm font-semibold text-gray-600 xl:flex" aria-label="Navegação principal">
                 <a href="#produto" class="transition hover:text-purple-700">Produto</a>
-                <a href="#fluxo" class="transition hover:text-purple-700">Como funciona</a>
+                <a href="#inteligencia" class="transition hover:text-purple-700">Inteligência artificial</a>
                 <a href="#modulos" class="transition hover:text-purple-700">Módulos</a>
                 <a href="#automacao" class="transition hover:text-purple-700">Automação</a>
+                <a href="#relatorios" class="transition hover:text-purple-700">Relatórios</a>
+                <a href="#planos" class="transition hover:text-purple-700">Planos</a>
             </nav>
 
-            <div class="hidden items-center gap-3 lg:flex">
+            <div class="hidden items-center gap-3 xl:flex">
                 <a href="/login" class="rounded-xl px-4 py-2.5 text-sm font-semibold text-gray-700 transition hover:bg-white">Entrar</a>
                 <a href="mailto:contato@sophus.com.br" class="inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-blue-500 to-purple-700 px-5 py-3 text-sm font-semibold text-white shadow-md transition hover:-translate-y-0.5 hover:shadow-lg">
                     Falar com a Sophus <i class="fas fa-arrow-right text-xs"></i>
                 </a>
             </div>
 
-            <button id="menu-button" type="button" class="grid h-11 w-11 shrink-0 place-items-center rounded-xl border border-stone-200 bg-white text-gray-700 lg:hidden" aria-label="Abrir menu" aria-controls="mobile-menu" aria-expanded="false">
+            <button id="menu-button" type="button" class="grid h-11 w-11 shrink-0 place-items-center rounded-xl border border-stone-200 bg-white text-gray-700 xl:hidden" aria-label="Abrir menu" aria-controls="mobile-menu" aria-expanded="false">
                 <i class="fas fa-bars"></i>
             </button>
         </div>
-        <div id="mobile-menu" class="hidden border-t border-stone-200 bg-white px-5 py-5 shadow-xl lg:hidden">
+        <div id="mobile-menu" class="hidden max-h-[calc(100dvh-76px)] overflow-y-auto border-t border-stone-200 bg-white px-5 py-5 shadow-xl xl:hidden">
             <nav class="grid gap-1 text-sm font-semibold text-gray-700" aria-label="Navegação móvel">
                 <a href="#produto" class="rounded-xl px-4 py-3 hover:bg-stone-100">Produto</a>
-                <a href="#fluxo" class="rounded-xl px-4 py-3 hover:bg-stone-100">Como funciona</a>
+                <a href="#inteligencia" class="rounded-xl px-4 py-3 hover:bg-stone-100">Inteligência artificial</a>
                 <a href="#modulos" class="rounded-xl px-4 py-3 hover:bg-stone-100">Módulos</a>
                 <a href="#automacao" class="rounded-xl px-4 py-3 hover:bg-stone-100">Automação</a>
+                <a href="#relatorios" class="rounded-xl px-4 py-3 hover:bg-stone-100">Relatórios</a>
+                <a href="#planos" class="rounded-xl px-4 py-3 hover:bg-stone-100">Planos e preços</a>
+                <a href="#duvidas" class="rounded-xl px-4 py-3 hover:bg-stone-100">Dúvidas frequentes</a>
                 <div class="mt-3 grid grid-cols-2 gap-3 border-t border-stone-200 pt-4">
                     <a href="/login" class="rounded-xl border border-stone-200 px-4 py-3 text-center">Entrar</a>
                     <a href="mailto:contato@sophus.com.br" class="rounded-xl bg-purple-700 px-4 py-3 text-center text-white">Falar conosco</a>
@@ -144,38 +168,40 @@
     </header>
 
     <main id="inicio">
-        <section class="px-5 pb-12 pt-14 sm:px-7 sm:pt-20 lg:px-10 lg:pb-24 lg:pt-28">
+        <section class="hero-atmosphere px-5 pb-12 pt-14 sm:px-7 sm:pt-20 lg:px-10 lg:pb-24 lg:pt-24">
             <div class="mx-auto max-w-[1440px]">
-                <div class="grid items-end gap-10 lg:grid-cols-[.95fr_1.05fr] lg:gap-16">
+                <div class="grid items-center gap-8 lg:grid-cols-[1.2fr_.8fr] lg:gap-16">
                     <div class="max-w-3xl">
                         <p class="flex items-center gap-3 text-xs font-bold uppercase tracking-[.23em] text-purple-700">
-                            <span class="h-px w-9 bg-purple-700"></span> Atendimento como operação
+                            <span class="h-px w-9 bg-purple-700"></span> Pessoas + inteligência + operação
                         </p>
-                        <h1 class="mt-6 text-[2.8rem] font-black leading-[.98] tracking-[-.055em] sm:text-6xl lg:text-7xl xl:text-[5.5rem]">
-                            Um ambiente.<br><span class="text-gray-400">Toda a equipe.</span><br>Cada conversa.
+                        <h1 class="mt-6 text-[2.7rem] font-black leading-[1.04] tracking-[-.055em] sm:text-6xl lg:text-7xl xl:text-[5rem]">
+                            Seu atendimento.<br>Sua equipe.<br><span class="headline-gradient">Agora, com IA.</span>
                         </h1>
                     </div>
                     <div class="max-w-xl lg:pb-2">
-                        <p class="text-base leading-relaxed text-gray-600 sm:text-lg">A Sophus conecta as frentes do atendimento em uma interface única: conversas, pessoas, setores, canais e rotinas automáticas.</p>
+                        <span class="inline-flex items-center gap-2 rounded-full border border-violet-400/20 bg-violet-400/10 px-3 py-1.5 text-xs font-semibold text-violet-200"><i class="fas fa-wand-magic-sparkles"></i> Agentes de IA e automações conectadas</span>
+                        <p class="mt-5 text-base leading-relaxed text-gray-600 sm:text-lg">Reúna o WhatsApp da empresa, o conhecimento dos seus agentes de IA e o trabalho da equipe em um só lugar. Do primeiro contato ao relatório, cada etapa ganha contexto.</p>
                         <div class="mt-7 flex flex-col gap-3 sm:flex-row">
-                            <a href="#produto" class="inline-flex items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-blue-500 to-purple-700 px-6 py-3.5 text-sm font-bold text-white shadow-md transition hover:-translate-y-0.5 hover:shadow-lg">Ver o ambiente <i class="fas fa-arrow-down text-xs"></i></a>
-                            <a href="/login" class="inline-flex items-center justify-center gap-2 rounded-xl border border-stone-300 bg-white px-6 py-3.5 text-sm font-bold text-gray-800 transition hover:border-purple-300 hover:text-purple-700">Acessar o painel</a>
+                            <a href="#produto" class="inline-flex items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-blue-500 to-purple-700 px-6 py-3.5 text-sm font-bold text-white shadow-md transition hover:-translate-y-0.5 hover:shadow-lg">Explorar a plataforma <i class="fas fa-arrow-down text-xs"></i></a>
+                            <a href="#planos" class="inline-flex items-center justify-center gap-2 rounded-xl border border-stone-300 bg-white px-6 py-3.5 text-sm font-bold text-gray-800 transition hover:border-purple-300 hover:text-purple-700">Ver planos e preços</a>
                         </div>
+                        <p class="mt-5 text-xs leading-relaxed text-gray-500">Multiagente · Flow Builder · Contatos · Relatórios</p>
                     </div>
                 </div>
 
                 <div class="relative mt-14 lg:mt-20">
-                    <div class="absolute -inset-x-8 bottom-0 top-1/4 -z-10 rounded-[3rem] bg-gradient-to-b from-purple-100/70 to-transparent blur-2xl"></div>
-                    <div class="overflow-hidden rounded-[1.8rem] border border-stone-800 bg-stone-950 shadow-frame">
+                    <div class="pointer-events-none absolute inset-x-0 bottom-0 top-1/4 -z-10 rounded-[3rem] bg-gradient-to-b from-violet-500/20 to-transparent blur-2xl"></div>
+                    <div class="overflow-hidden rounded-[1.8rem] border border-violet-400/20 bg-stone-950 shadow-frame">
                         <div class="flex h-12 items-center justify-between border-b border-white/10 px-4 text-white sm:px-5">
                             <div class="flex items-center gap-2"><span class="h-2.5 w-2.5 rounded-full bg-red-400"></span><span class="h-2.5 w-2.5 rounded-full bg-amber-400"></span><span class="h-2.5 w-2.5 rounded-full bg-emerald-400"></span></div>
                             <div class="hidden items-center gap-2 rounded-lg border border-white/5 bg-white/5 px-4 py-1.5 font-mono text-[9px] text-stone-400 sm:flex"><i class="fas fa-lock text-[8px]"></i> app.sophus.com.br/messages</div>
-                            <span class="flex items-center gap-2 text-[9px] font-bold uppercase tracking-wider text-emerald-300"><span class="status-pulse h-1.5 w-1.5 rounded-full bg-emerald-400"></span> Operação online</span>
+                            <span class="flex items-center gap-2 text-[9px] font-bold uppercase tracking-wider text-violet-300"><i class="fas fa-eye"></i> Prévia do workspace</span>
                         </div>
 
                         <div class="grid min-h-[520px] grid-cols-[58px_minmax(0,1fr)] sm:grid-cols-[72px_minmax(0,1fr)] lg:grid-cols-[72px_290px_minmax(0,1fr)]">
                             <aside class="admin-surface flex flex-col items-center gap-3 border-r border-white/5 py-4 text-white sm:py-5">
-                                <span class="brand-mark grid h-10 w-10 place-items-center rounded-2xl bg-white text-purple-700 shadow-lg"><i class="fas fa-paper-plane text-sm"></i></span>
+                                <img src="logos/Sophus_simbolo_colorido.svg" alt="Sophus" width="256" height="256" class="h-10 w-10 shrink-0">
                                 <span class="mt-3 grid h-10 w-10 place-items-center rounded-2xl bg-white/15 ring-1 ring-white/10"><i class="fas fa-comment-dots text-sm"></i></span>
                                 <span class="grid h-10 w-10 place-items-center rounded-2xl text-white/55"><i class="fas fa-layer-group text-sm"></i></span>
                                 <span class="grid h-10 w-10 place-items-center rounded-2xl text-white/55"><i class="fas fa-user text-sm"></i></span>
@@ -202,6 +228,7 @@
                                         <div class="max-w-[82%] rounded-2xl rounded-tl-sm border border-stone-200 bg-white p-3 text-[10px] leading-relaxed text-gray-600 shadow-sm sm:text-xs">Olá, preciso de ajuda para recuperar o acesso da minha equipe.</div>
                                         <div class="ml-auto max-w-[82%] rounded-2xl rounded-tr-sm bg-purple-700 p-3 text-[10px] leading-relaxed text-white shadow-sm sm:text-xs">Olá, Marina. Vou verificar isso com você. Qual usuário está tentando acessar?</div>
                                         <div class="max-w-[82%] rounded-2xl rounded-tl-sm border border-stone-200 bg-white p-3 text-[10px] leading-relaxed text-gray-600 shadow-sm sm:text-xs">É o usuário do setor financeiro.</div>
+                                        <div class="flex items-start gap-2 rounded-xl border border-amber-400/15 bg-amber-400/5 p-3 text-[10px] leading-relaxed text-amber-200 sm:text-xs"><i class="fas fa-note-sticky mt-0.5"></i><div><strong class="block text-[9px] uppercase tracking-wider">Nota interna · visível para a equipe</strong>Contato já validado. Conferir permissões do financeiro.</div></div>
                                     </div>
                                     <div class="border-t border-stone-200 p-3 sm:p-4"><div class="flex items-center gap-3 rounded-xl border border-stone-200 bg-stone-50 px-3 py-2.5 text-[10px] text-gray-400"><i class="far fa-face-smile"></i><span>Digite uma mensagem</span><i class="fas fa-paperclip ml-auto"></i><span class="grid h-7 w-7 place-items-center rounded-lg bg-purple-700 text-white"><i class="fas fa-paper-plane text-[9px]"></i></span></div></div>
                                 </div>
@@ -209,7 +236,7 @@
                         </div>
                     </div>
 
-                    <div class="absolute -bottom-6 right-5 hidden rounded-2xl border border-stone-200 bg-white p-4 shadow-soft sm:block lg:right-14"><div class="flex items-center gap-3"><span class="grid h-10 w-10 place-items-center rounded-xl bg-emerald-100 text-emerald-700"><i class="fas fa-bolt"></i></span><div><p class="text-[10px] font-semibold uppercase tracking-wider text-gray-400">Atualização</p><p class="mt-1 text-xs font-bold">Conversas em tempo real</p></div></div></div>
+                    <div class="absolute -bottom-6 right-5 hidden rounded-2xl border border-violet-400/20 bg-white p-4 shadow-soft sm:block lg:right-14"><div class="flex items-center gap-3"><span class="grid h-10 w-10 place-items-center rounded-xl bg-purple-100 text-purple-700"><i class="fas fa-robot"></i></span><div><p class="text-[10px] font-semibold uppercase tracking-wider text-gray-400">Humanos e IA</p><p class="mt-1 text-xs font-bold">Conectados pelo mesmo flow</p></div></div></div>
                 </div>
             </div>
         </section>
@@ -225,27 +252,48 @@
         <section id="produto" class="px-5 py-20 sm:px-7 lg:px-10 lg:py-32">
             <div class="mx-auto max-w-[1440px]">
                 <div class="grid gap-10 lg:grid-cols-[.72fr_1.28fr] lg:items-end">
-                    <div><p class="text-xs font-bold uppercase tracking-[.22em] text-purple-700">O produto</p><h2 class="mt-4 text-4xl font-black leading-[1.02] tracking-[-.045em] sm:text-5xl">A operação aparece inteira, sem ficar pesada.</h2></div>
-                    <p class="max-w-xl text-base leading-relaxed text-gray-600 lg:justify-self-end">A mesma linguagem do painel organiza do detalhe de uma mensagem à visão geral da equipe. Informação suficiente para agir, sem excesso de camadas.</p>
+                    <div><p class="section-kicker text-xs font-bold uppercase tracking-[.22em] text-purple-700">Explore o workspace</p><h2 class="mt-4 text-4xl font-black leading-[1.02] tracking-[-.045em] sm:text-5xl">Tudo conversa.<br>Inclusive seus dados.</h2></div>
+                    <p class="max-w-xl text-base leading-relaxed text-gray-600 lg:justify-self-end">Navegue pelas áreas do workspace. Conversas, equipe, conexões, IA e indicadores compartilham a mesma base de trabalho.</p>
                 </div>
 
                 <div class="mt-12 grid overflow-hidden rounded-[2rem] border border-stone-200 bg-white shadow-soft lg:grid-cols-[310px_minmax(0,1fr)]">
                     <div class="admin-surface relative overflow-hidden p-6 text-white sm:p-8">
                         <div class="admin-grid absolute inset-0 opacity-25"></div>
                         <div class="relative"><span class="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/10 px-3 py-1.5 text-[10px] font-semibold text-stone-200"><span class="status-pulse h-1.5 w-1.5 rounded-full bg-emerald-400"></span> Ambiente conectado</span><h3 class="mt-7 text-2xl font-black tracking-tight">O painel acompanha o trabalho.</h3><p class="mt-3 text-sm leading-relaxed text-stone-300">Escolha uma área para visualizar como os elementos da operação se relacionam.</p>
-                        <div class="mt-8 space-y-2" role="tablist" aria-label="Áreas do produto">
+                        <div class="mt-8 space-y-2" role="tablist" aria-label="Áreas do produto" aria-orientation="vertical">
                             <button type="button" data-product-tab="inbox" role="tab" aria-selected="true" class="product-tab flex w-full items-center gap-3 rounded-xl bg-white/15 px-4 py-3 text-left text-sm font-semibold ring-1 ring-white/10"><i class="fas fa-inbox w-5 text-center text-purple-300"></i> Conversas <i class="fas fa-arrow-right ml-auto text-xs"></i></button>
                             <button type="button" data-product-tab="team" role="tab" aria-selected="false" class="product-tab flex w-full items-center gap-3 rounded-xl px-4 py-3 text-left text-sm font-semibold text-stone-400 transition hover:bg-white/10 hover:text-white"><i class="fas fa-users w-5 text-center text-blue-300"></i> Equipe <i class="fas fa-arrow-right ml-auto text-xs opacity-0"></i></button>
                             <button type="button" data-product-tab="channels" role="tab" aria-selected="false" class="product-tab flex w-full items-center gap-3 rounded-xl px-4 py-3 text-left text-sm font-semibold text-stone-400 transition hover:bg-white/10 hover:text-white"><i class="fas fa-circle-nodes w-5 text-center text-emerald-300"></i> Conexões <i class="fas fa-arrow-right ml-auto text-xs opacity-0"></i></button>
+                            <button type="button" data-product-tab="ai" role="tab" aria-selected="false" class="product-tab flex w-full items-center gap-3 rounded-xl px-4 py-3 text-left text-sm font-semibold"><i class="fas fa-robot w-5 text-center text-violet-300"></i> Agentes de IA <i class="fas fa-arrow-right ml-auto text-xs opacity-0"></i></button>
+                            <button type="button" data-product-tab="reports" role="tab" aria-selected="false" class="product-tab flex w-full items-center gap-3 rounded-xl px-4 py-3 text-left text-sm font-semibold"><i class="fas fa-chart-column w-5 text-center text-cyan-300"></i> Relatórios <i class="fas fa-arrow-right ml-auto text-xs opacity-0"></i></button>
                         </div></div>
                     </div>
 
-                    <div class="min-h-[520px] bg-stone-50 p-4 sm:p-7 lg:p-9">
+                    <div class="min-w-0 bg-stone-50 p-4 sm:min-h-[520px] sm:p-7 lg:p-9">
+                        <p class="mb-5 text-[10px] leading-relaxed text-gray-500"><i class="fas fa-eye mr-1"></i> Prévia ilustrativa · nomes, contagens e gráficos de exemplo</p>
                         <section id="panel-inbox" class="product-panel h-full" role="tabpanel">
                             <div class="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between"><div><p class="text-[10px] font-bold uppercase tracking-[.2em] text-purple-700">Fila de trabalho</p><h3 class="mt-2 text-2xl font-black">Conversas</h3><p class="mt-1 text-sm text-gray-500">Ativas, pendentes e fechadas no mesmo fluxo.</p></div><span class="w-fit rounded-full bg-purple-100 px-3 py-1.5 text-xs font-semibold text-purple-700">12 em andamento</span></div>
                             <div class="mt-7 overflow-hidden rounded-2xl border border-stone-200 bg-white"><div class="grid grid-cols-[1fr_auto] items-center gap-4 border-b border-stone-100 p-4 sm:grid-cols-[1.2fr_.7fr_.7fr_auto]"><div class="flex items-center gap-3"><span class="grid h-10 w-10 place-items-center rounded-full bg-purple-100 text-xs font-bold text-purple-700">MF</span><div><p class="text-sm font-bold">Marina Freitas</p><p class="mt-1 text-xs text-gray-500">Preciso de ajuda com meu acesso</p></div></div><span class="hidden text-xs text-gray-500 sm:block">Suporte</span><span class="hidden text-xs text-gray-500 sm:block">Lucas</span><span class="rounded-full bg-blue-50 px-3 py-1.5 text-[10px] font-semibold text-blue-700">Ativa</span></div><div class="grid grid-cols-[1fr_auto] items-center gap-4 border-b border-stone-100 p-4 sm:grid-cols-[1.2fr_.7fr_.7fr_auto]"><div class="flex items-center gap-3"><span class="grid h-10 w-10 place-items-center rounded-full bg-blue-100 text-xs font-bold text-blue-700">RS</span><div><p class="text-sm font-bold">Renato Souza</p><p class="mt-1 text-xs text-gray-500">Gostaria de conhecer as opções</p></div></div><span class="hidden text-xs text-gray-500 sm:block">Comercial</span><span class="hidden text-xs text-gray-500 sm:block">Flow</span><span class="rounded-full bg-amber-50 px-3 py-1.5 text-[10px] font-semibold text-amber-700">Pendente</span></div><div class="grid grid-cols-[1fr_auto] items-center gap-4 p-4 sm:grid-cols-[1.2fr_.7fr_.7fr_auto]"><div class="flex items-center gap-3"><span class="grid h-10 w-10 place-items-center rounded-full bg-emerald-100 text-xs font-bold text-emerald-700">CB</span><div><p class="text-sm font-bold">Clara Barros</p><p class="mt-1 text-xs text-gray-500">Certo, muito obrigada!</p></div></div><span class="hidden text-xs text-gray-500 sm:block">Financeiro</span><span class="hidden text-xs text-gray-500 sm:block">Amanda</span><span class="rounded-full bg-stone-100 px-3 py-1.5 text-[10px] font-semibold text-gray-600">Fechada</span></div></div>
                         </section>
 
+                        <section id="panel-ai" class="product-panel hidden h-full" role="tabpanel">
+                            <p class="text-[10px] font-bold uppercase tracking-[.2em] text-violet-300">Automação cognitiva</p>
+                            <h3 class="mt-2 text-2xl font-black">Agentes com conhecimento próprio</h3>
+                            <p class="mt-2 text-sm leading-relaxed text-gray-500">Configure identidade, tom, memória e instruções. Ative na conexão ou transfira a conversa por um flow.</p>
+                            <div class="mt-6 overflow-hidden rounded-2xl border border-violet-400/20 bg-white">
+                                <div class="h-1 bg-gradient-to-r from-violet-500 via-fuchsia-400 to-cyan-400"></div>
+                                <div class="p-5 sm:p-6">
+                                    <div class="flex items-center gap-3"><span class="grid h-12 w-12 place-items-center rounded-2xl bg-purple-100 text-xl text-purple-700"><i class="fas fa-robot"></i></span><div><h4 class="font-bold">Luna · Assistente de suporte</h4><p class="mt-1 text-xs text-gray-500">Exemplo de configuração</p></div></div>
+                                    <div class="mt-5 grid gap-3 sm:grid-cols-2"><div class="rounded-xl bg-stone-50 p-4"><p class="text-[10px] uppercase tracking-wider text-gray-500">Comportamento</p><p class="mt-2 text-sm font-semibold">Tom profissional</p><p class="mt-1 text-xs text-gray-500">Memória de mensagens configurável</p></div><div class="rounded-xl bg-stone-50 p-4"><p class="text-[10px] uppercase tracking-wider text-gray-500">Conhecimento</p><p class="mt-2 text-sm font-semibold">Conteúdo da sua empresa</p><p class="mt-1 text-xs text-gray-500">Texto e extração de conteúdo de PDF</p></div></div>
+                                    <div class="mt-4 flex flex-wrap gap-2 text-xs font-semibold"><span class="rounded-full bg-purple-100 px-3 py-1.5 text-purple-700"><i class="fas fa-key mr-1"></i> Credencial por agente</span><span class="rounded-full bg-emerald-100 px-3 py-1.5 text-emerald-700"><i class="fas fa-shield-halved mr-1"></i> Modo seguro configurável</span></div>
+                                </div>
+                            </div>
+                        </section>
+                        <section id="panel-reports" class="product-panel hidden h-full" role="tabpanel">
+                            <p class="text-[10px] font-bold uppercase tracking-[.2em] text-cyan-300">Estatísticas de atendimento</p><h3 class="mt-2 text-2xl font-black">Recortes que ajudam a decidir</h3><p class="mt-2 text-sm leading-relaxed text-gray-500">Filtre por período, conexão, setor e agente. Consulte mensagens, conversas e detalhamentos, com exportação em PDF.</p>
+                            <div class="mt-6 flex flex-wrap gap-2 text-xs"><span class="rounded-lg border border-stone-200 bg-white px-3 py-2">Últimos 7 dias</span><span class="rounded-lg border border-stone-200 bg-white px-3 py-2">Todas as conexões</span><span class="rounded-lg border border-stone-200 bg-white px-3 py-2">Todos os setores</span></div>
+                            <div class="mt-4 rounded-2xl border border-stone-200 bg-white p-5"><div class="flex items-center justify-between gap-4"><h4 class="text-sm font-bold">Evolução das mensagens</h4><span class="text-[10px] text-gray-500">Gráfico ilustrativo</span></div><div role="img" class="mt-6 flex h-36 items-end gap-3 border-b border-white/10" aria-label="Exemplo ilustrativo de evolução semanal"><div class="report-bar h-[35%] flex-1 rounded-t-lg"></div><div class="report-bar h-[55%] flex-1 rounded-t-lg"></div><div class="report-bar h-[45%] flex-1 rounded-t-lg"></div><div class="report-bar h-[75%] flex-1 rounded-t-lg"></div><div class="report-bar h-[65%] flex-1 rounded-t-lg"></div><div class="report-bar h-[90%] flex-1 rounded-t-lg"></div><div class="report-bar h-[70%] flex-1 rounded-t-lg"></div></div><div class="mt-3 flex justify-between text-[10px] text-gray-500"><span>Seg</span><span>Ter</span><span>Qua</span><span>Qui</span><span>Sex</span><span>Sáb</span><span>Dom</span></div></div>
+                        </section>
                         <section id="panel-team" class="product-panel hidden h-full" role="tabpanel">
                             <div class="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between"><div><p class="text-[10px] font-bold uppercase tracking-[.2em] text-purple-700">Equipe e acesso</p><h3 class="mt-2 text-2xl font-black">Agentes da empresa</h3><p class="mt-1 text-sm text-gray-500">Papéis, status e permissões em uma lista clara.</p></div><button type="button" class="w-fit rounded-xl bg-gradient-to-r from-blue-500 to-purple-700 px-4 py-2.5 text-xs font-bold text-white"><i class="fas fa-user-plus mr-1"></i> Novo agente</button></div>
                             <div class="mt-7 grid gap-3 sm:grid-cols-3"><div class="rounded-2xl border border-stone-200 bg-white p-4"><p class="text-[10px] font-bold uppercase text-gray-400">Equipe</p><div class="mt-3 flex items-end justify-between"><strong class="text-3xl">12</strong><span class="grid h-9 w-9 place-items-center rounded-xl bg-purple-100 text-purple-700"><i class="fas fa-users text-sm"></i></span></div></div><div class="rounded-2xl border border-stone-200 bg-white p-4"><p class="text-[10px] font-bold uppercase text-gray-400">Ativos</p><div class="mt-3 flex items-end justify-between"><strong class="text-3xl">09</strong><span class="grid h-9 w-9 place-items-center rounded-xl bg-emerald-100 text-emerald-700"><i class="fas fa-headset text-sm"></i></span></div></div><div class="rounded-2xl border border-stone-200 bg-white p-4"><p class="text-[10px] font-bold uppercase text-gray-400">Admins</p><div class="mt-3 flex items-end justify-between"><strong class="text-3xl">02</strong><span class="grid h-9 w-9 place-items-center rounded-xl bg-blue-100 text-blue-700"><i class="fas fa-user-shield text-sm"></i></span></div></div></div>
@@ -256,6 +304,24 @@
                             <div class="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between"><div><p class="text-[10px] font-bold uppercase tracking-[.2em] text-purple-700">Canais da operação</p><h3 class="mt-2 text-2xl font-black">Conexões WhatsApp</h3><p class="mt-1 text-sm text-gray-500">Estado operacional atualizado em cada conexão.</p></div><button type="button" class="w-fit rounded-xl bg-gradient-to-r from-blue-500 to-purple-700 px-4 py-2.5 text-xs font-bold text-white"><i class="fas fa-plus mr-1"></i> Adicionar conexão</button></div>
                             <div class="mt-7 grid gap-4 md:grid-cols-2"><article class="rounded-2xl border border-stone-200 border-t-4 border-t-emerald-300 bg-white p-5 shadow-sm"><div class="flex items-start justify-between"><span class="grid h-11 w-11 place-items-center rounded-2xl bg-emerald-100 text-xl text-emerald-700"><i class="fab fa-whatsapp"></i></span><span class="rounded-full bg-emerald-100 px-2.5 py-1 text-[10px] font-semibold text-emerald-700"><i class="fas fa-circle mr-1 text-[7px]"></i>Conectado</span></div><h4 class="mt-5 font-bold">Atendimento principal</h4><p class="mt-1 text-xs text-gray-500">Canal da equipe de atendimento</p></article><article class="rounded-2xl border border-stone-200 border-t-4 border-t-amber-300 bg-white p-5 shadow-sm"><div class="flex items-start justify-between"><span class="grid h-11 w-11 place-items-center rounded-2xl bg-amber-100 text-amber-700"><i class="fas fa-circle-notch fa-spin"></i></span><span class="rounded-full bg-amber-100 px-2.5 py-1 text-[10px] font-semibold text-amber-700">Conectando</span></div><h4 class="mt-5 font-bold">Unidade comercial</h4><p class="mt-1 text-xs text-gray-500">Sincronizando o canal</p></article></div>
                         </section>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <section id="inteligencia" class="px-5 py-20 sm:px-7 lg:px-10 lg:py-28">
+            <div class="mx-auto max-w-[1440px] gradient-frame">
+                <div class="relative overflow-hidden rounded-[calc(2rem-1px)] bg-[#110e1b] p-6 sm:p-10 lg:p-14">
+                    <div class="pointer-events-none absolute -right-24 -top-24 h-80 w-80 rounded-full bg-violet-600/15 blur-3xl"></div>
+                    <div class="relative grid items-center gap-12 lg:grid-cols-[1.1fr_.9fr]">
+                        <div><p class="section-kicker text-xs font-bold uppercase tracking-[.22em] text-violet-300">Inteligência com contexto</p><h2 class="mt-5 text-3xl font-black leading-[1.08] tracking-[-.045em] sm:text-5xl">A IA aprende o contexto.<br><span class="headline-gradient">Sua equipe mantém a direção.</span></h2><p class="mt-5 max-w-xl text-base leading-relaxed text-gray-600">Crie agentes com instruções e base de conhecimento próprias. Combine atendimento autônomo e fluxos visuais, escolhendo em qual conexão ou etapa a IA assume a conversa.</p>
+                            <ul class="mt-7 space-y-4 text-sm text-stone-300"><li class="flex gap-3"><i class="fas fa-book-open mt-1 text-violet-300"></i><span><strong class="block text-white">Conhecimento da sua empresa</strong><span class="mt-1 block text-gray-500">Adicione texto ou extraia conteúdo de PDFs para revisar antes de salvar.</span></span></li><li class="flex gap-3"><i class="fas fa-sliders mt-1 text-blue-300"></i><span><strong class="block text-white">Comportamento configurável</strong><span class="mt-1 block text-gray-500">Ajuste tom, memória, instruções e limites de saída.</span></span></li><li class="flex gap-3"><i class="fas fa-key mt-1 text-emerald-300"></i><span><strong class="block text-white">Credenciais centralizadas</strong><span class="mt-1 block text-gray-500">Selecione provedor e modelo por credencial, com chaves armazenadas de forma criptografada.</span></span></li></ul>
+                        </div>
+                        <div class="min-w-0 rounded-3xl border border-white/10 bg-[#0c0a12] p-5 shadow-2xl sm:p-7">
+                            <div class="flex items-center gap-3 border-b border-white/10 pb-5"><span class="grid h-11 w-11 place-items-center rounded-2xl bg-violet-500/15 text-violet-300"><i class="fas fa-brain"></i></span><div><h3 class="text-sm font-bold">IA no Flow Builder</h3><p class="mt-1 text-xs text-gray-500">Blocos disponíveis na plataforma</p></div></div>
+                            <div class="mt-5 space-y-3"><div class="flex items-center gap-3 rounded-xl border border-violet-400/20 bg-violet-400/5 p-4"><i class="fas fa-wand-magic-sparkles w-5 text-violet-300"></i><div><p class="text-sm font-bold">Gerar com IA</p><p class="mt-1 text-xs text-gray-500">Use instruções, contexto e variáveis.</p></div></div><div class="flex items-center gap-3 rounded-xl border border-white/10 bg-white/5 p-4"><i class="fas fa-file-lines w-5 text-blue-300"></i><div><p class="text-sm font-bold">Resumir conversa</p><p class="mt-1 text-xs text-gray-500">Transforme histórico em contexto útil.</p></div></div><div class="flex items-center gap-3 rounded-xl border border-white/10 bg-white/5 p-4"><i class="fas fa-microphone-lines w-5 text-fuchsia-300"></i><div><p class="text-sm font-bold">Transcrever mídia</p><p class="mt-1 text-xs text-gray-500">Inclua transcrição nas etapas do fluxo.</p></div></div><div class="flex items-center gap-3 rounded-xl border border-white/10 bg-white/5 p-4"><i class="fas fa-robot w-5 text-emerald-300"></i><div><p class="text-sm font-bold">Transferir para agente IA</p><p class="mt-1 text-xs text-gray-500">Escolha quem assume o atendimento.</p></div></div></div>
+                            <p class="mt-5 text-[11px] leading-relaxed text-gray-500">Os recursos de IA utilizam as credenciais e capacidades do provedor e modelo configurados.</p>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -275,8 +341,14 @@
 
         <section id="modulos" class="px-5 py-20 sm:px-7 lg:px-10 lg:py-28">
             <div class="mx-auto max-w-[1440px]">
-                <div class="grid gap-8 lg:grid-cols-[.8fr_1.2fr] lg:items-end"><div><p class="text-xs font-bold uppercase tracking-[.22em] text-purple-700">Módulos conectados</p><h2 class="mt-4 text-4xl font-black leading-[1.02] tracking-[-.045em] sm:text-5xl">Uma base comum para cada frente.</h2></div><p class="max-w-xl text-base leading-relaxed text-gray-600 lg:justify-self-end">Cada módulo resolve uma parte específica, sem separar os dados e as pessoas que sustentam a operação.</p></div>
+                <div class="grid gap-8 lg:grid-cols-[.8fr_1.2fr] lg:items-end"><div><p class="section-kicker text-xs font-bold uppercase tracking-[.22em] text-purple-700">Módulos conectados</p><h2 class="mt-4 text-4xl font-black leading-[1.02] tracking-[-.045em] sm:text-5xl">Mais contexto.<br>Menos trabalho repetido.</h2></div><p class="max-w-xl text-base leading-relaxed text-gray-600 lg:justify-self-end">Além de filas, setores e conexões, a Sophus reúne ferramentas para manter o relacionamento, acelerar respostas e acompanhar o atendimento.</p></div>
                 <div class="mt-12 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                    <article class="feature-card rounded-3xl border border-stone-200 bg-white p-6"><div class="flex items-center justify-between"><span class="grid h-11 w-11 place-items-center rounded-xl bg-purple-100 text-purple-700"><i class="fas fa-address-book"></i></span><span class="text-[10px] font-bold uppercase tracking-wider text-violet-300">Relacionamento</span></div><h3 class="mt-6 text-lg font-black">Contatos e tags</h3><p class="mt-2 text-sm leading-relaxed text-gray-500">Busque por nome, empresa, email, telefone ou tag. Importe contatos de uma instância conectada e reutilize tags nos flows.</p></article>
+                    <article class="feature-card rounded-3xl border border-stone-200 bg-white p-6"><div class="flex items-center justify-between"><span class="grid h-11 w-11 place-items-center rounded-xl bg-blue-100 text-blue-700"><i class="fas fa-bolt"></i></span><code class="rounded-lg bg-stone-50 px-3 py-1 text-sm text-blue-300">/atalho</code></div><h3 class="mt-6 text-lg font-black">Respostas rápidas</h3><p class="mt-2 text-sm leading-relaxed text-gray-500">Uma biblioteca compartilhada pela empresa. Digite / para escolher e revisar a mensagem antes de enviar.</p></article>
+                    <article class="feature-card rounded-3xl border border-stone-200 bg-white p-6"><span class="grid h-11 w-11 place-items-center rounded-xl bg-amber-100 text-amber-700"><i class="fas fa-note-sticky"></i></span><h3 class="mt-6 text-lg font-black">Notas e histórico</h3><p class="mt-2 text-sm leading-relaxed text-gray-500">Registre notas internas e pesquise mensagens da conversa. Administradores podem exportar o histórico atual ou do contato em PDF.</p></article>
+                    <article class="feature-card rounded-3xl border border-stone-200 bg-white p-6"><span class="grid h-11 w-11 place-items-center rounded-xl bg-emerald-100 text-emerald-700"><i class="fas fa-chart-column"></i></span><h3 class="mt-6 text-lg font-black">Relatórios com filtros</h3><p class="mt-2 text-sm leading-relaxed text-gray-500">Volume de mensagens, situação das conversas e detalhamento por conexão, fila e agente, com seleção de período e PDF.</p></article>
+                    <article class="feature-card rounded-3xl border border-stone-200 bg-white p-6"><span class="grid h-11 w-11 place-items-center rounded-xl bg-pink-100 text-pink-700"><i class="fas fa-photo-film"></i></span><h3 class="mt-6 text-lg font-black">Mídias organizadas</h3><p class="mt-2 text-sm leading-relaxed text-gray-500">Galeria com filtros de imagens, vídeos, áudios e documentos. Acompanhe uso de armazenamento e configure limpeza automática.</p></article>
+                    <article class="feature-card rounded-3xl border border-stone-200 bg-white p-6"><span class="grid h-11 w-11 place-items-center rounded-xl bg-purple-100 text-purple-700"><i class="fas fa-globe"></i></span><h3 class="mt-6 text-lg font-black">Integrações e disponibilidade</h3><p class="mt-2 text-sm leading-relaxed text-gray-500">Botões de WhatsApp para seu site, horários de atendimento e respostas fora do expediente. Conecte APIs via HTTP nos flows.</p></article>
                     <article class="rounded-3xl border border-stone-200 bg-white p-6 shadow-sm"><div class="flex items-start justify-between"><span class="grid h-11 w-11 place-items-center rounded-xl bg-purple-100 text-purple-700"><i class="fas fa-comments"></i></span><span class="font-mono text-[10px] text-gray-400">01</span></div><h3 class="mt-8 text-lg font-black">Conversas</h3><p class="mt-2 text-sm leading-relaxed text-gray-500">Filas ativas, pendentes e fechadas com responsável e setor.</p></article>
                     <article class="rounded-3xl border border-stone-200 bg-white p-6 shadow-sm"><div class="flex items-start justify-between"><span class="grid h-11 w-11 place-items-center rounded-xl bg-blue-100 text-blue-700"><i class="fas fa-layer-group"></i></span><span class="font-mono text-[10px] text-gray-400">02</span></div><h3 class="mt-8 text-lg font-black">Setores</h3><p class="mt-2 text-sm leading-relaxed text-gray-500">Departamentos e vínculos que distribuem o trabalho da equipe.</p></article>
                     <article class="rounded-3xl border border-stone-200 bg-white p-6 shadow-sm"><div class="flex items-start justify-between"><span class="grid h-11 w-11 place-items-center rounded-xl bg-emerald-100 text-emerald-700"><i class="fas fa-users"></i></span><span class="font-mono text-[10px] text-gray-400">03</span></div><h3 class="mt-8 text-lg font-black">Agentes</h3><p class="mt-2 text-sm leading-relaxed text-gray-500">Perfis administrativos e de atendimento com acessos próprios.</p></article>
@@ -289,9 +361,9 @@
 
         <section id="automacao" class="bg-white px-5 py-20 sm:px-7 lg:px-10 lg:py-28">
             <div class="mx-auto grid max-w-[1440px] gap-12 lg:grid-cols-[.7fr_1.3fr] lg:items-center">
-                <div><p class="text-xs font-bold uppercase tracking-[.22em] text-purple-700">Construtor visual</p><h2 class="mt-4 text-4xl font-black leading-[1.02] tracking-[-.045em] sm:text-5xl">A rotina deixa de depender da memória.</h2><p class="mt-5 text-base leading-relaxed text-gray-600">O editor transforma etapas do atendimento em blocos conectados. Cada nó descreve uma ação clara e cada caminho pode ser revisado pela equipe.</p><div class="mt-8 flex flex-wrap gap-2 text-xs font-semibold"><span class="rounded-full bg-blue-100 px-3 py-1.5 text-blue-700">Mensagens</span><span class="rounded-full bg-amber-100 px-3 py-1.5 text-amber-700">Condições</span><span class="rounded-full bg-purple-100 px-3 py-1.5 text-purple-700">Ações</span><span class="rounded-full bg-pink-100 px-3 py-1.5 text-pink-700">Interações</span></div></div>
+                <div><p class="section-kicker text-xs font-bold uppercase tracking-[.22em] text-purple-700">Flow Builder evoluído</p><h2 class="mt-4 text-4xl font-black leading-[1.02] tracking-[-.045em] sm:text-5xl">Do menu inicial à próxima ação inteligente.</h2><p class="mt-5 text-base leading-relaxed text-gray-600">Comece com modelos prontos e conecte mensagens, botões, condições, APIs e IA. Reutilize subfluxos e distribua conversas com regras claras.</p><div class="mt-7 grid gap-3 text-sm text-gray-600"><p><i class="fas fa-users-gear mr-2 text-violet-300"></i>Distribuição inteligente e horários comerciais</p><p><i class="fas fa-calendar-plus mr-2 text-blue-300"></i>Agendamento e lembretes para clientes sem resposta</p><p><i class="fas fa-star-half-stroke mr-2 text-amber-300"></i>Avaliação NPS e campos personalizados</p><p><i class="fas fa-code-branch mr-2 text-emerald-300"></i>Variáveis, tags, subfluxos e requisições HTTP</p></div><div class="mt-8 flex flex-wrap gap-2 text-xs font-semibold"><span class="rounded-full bg-blue-100 px-3 py-1.5 text-blue-700">Mensagens</span><span class="rounded-full bg-amber-100 px-3 py-1.5 text-amber-700">Lógica</span><span class="rounded-full bg-purple-100 px-3 py-1.5 text-purple-700">IA e integrações</span><span class="rounded-full bg-pink-100 px-3 py-1.5 text-pink-700">Interações</span></div></div>
 
-                <div class="canvas-grid overflow-hidden rounded-[2rem] border border-stone-200 bg-stone-50 p-5 shadow-soft sm:p-8">
+                <div class="canvas-grid min-w-0 overflow-hidden rounded-[2rem] border border-stone-200 bg-stone-50 p-5 shadow-soft sm:p-8">
                     <div class="mb-7 flex flex-col gap-3 border-b border-stone-200 pb-5 sm:flex-row sm:items-center sm:justify-between"><div class="flex items-center gap-3"><span class="grid h-10 w-10 place-items-center rounded-xl bg-purple-100 text-purple-700"><i class="fas fa-diagram-project"></i></span><div><h3 class="text-sm font-black">Fluxo de recepção</h3><p class="mt-1 text-[10px] text-gray-500">Editor de automações</p></div></div><button type="button" class="w-fit rounded-xl bg-gradient-to-r from-blue-500 to-purple-700 px-4 py-2.5 text-xs font-bold text-white"><i class="fas fa-cloud-arrow-up mr-1"></i> Publicar</button></div>
                     <div class="overflow-x-auto pb-3">
                         <div class="grid min-w-[720px] grid-cols-[1fr_55px_1fr_55px_1fr] items-center">
@@ -306,12 +378,75 @@
             </div>
         </section>
 
+        <section class="px-5 py-20 sm:px-7 lg:px-10" aria-labelledby="atendimento-title">
+            <div class="mx-auto max-w-[1440px]">
+                <div class="max-w-3xl"><p class="section-kicker text-xs font-bold uppercase tracking-[.22em] text-violet-300">O melhor caminho para cada conversa</p><h2 id="atendimento-title" class="mt-5 text-3xl font-black leading-[1.08] tracking-[-.045em] sm:text-5xl">Humano, flow ou IA?<br><span class="headline-gradient">Você combina os três.</span></h2><p class="mt-5 text-base leading-relaxed text-gray-600">Cada forma de atendimento tem seu papel. Use a mesma plataforma para coordenar as etapas e escolher quem assume a conversa.</p></div>
+                <div class="mt-10 grid gap-5 md:grid-cols-3">
+                    <article class="feature-card rounded-3xl border border-white/10 bg-[#15121e] p-6 sm:p-8"><span class="grid h-12 w-12 place-items-center rounded-2xl bg-blue-400/10 text-blue-300"><i class="fas fa-headset"></i></span><h3 class="mt-6 text-xl font-bold">Sua equipe</h3><p class="mt-3 text-sm leading-relaxed text-gray-500">Para exceções, negociações e conversas que precisam de atenção humana.</p><ul class="mt-6 space-y-3 border-t border-white/10 pt-5 text-sm text-stone-300"><li><i class="fas fa-check mr-2 text-blue-300"></i>Responsável e setor definidos</li><li><i class="fas fa-check mr-2 text-blue-300"></i>Notas internas e histórico</li><li><i class="fas fa-check mr-2 text-blue-300"></i>Respostas rápidas compartilhadas</li></ul></article>
+                    <article class="feature-card rounded-3xl border border-white/10 bg-[#15121e] p-6 sm:p-8"><span class="grid h-12 w-12 place-items-center rounded-2xl bg-emerald-400/10 text-emerald-300"><i class="fas fa-diagram-project"></i></span><h3 class="mt-6 text-xl font-bold">Seus flows</h3><p class="mt-3 text-sm leading-relaxed text-gray-500">Para processos com etapas previsíveis, regras e integrações bem definidas.</p><ul class="mt-6 space-y-3 border-t border-white/10 pt-5 text-sm text-stone-300"><li><i class="fas fa-check mr-2 text-emerald-300"></i>Menus, condições e variáveis</li><li><i class="fas fa-check mr-2 text-emerald-300"></i>APIs, agendamentos e subfluxos</li><li><i class="fas fa-check mr-2 text-emerald-300"></i>Transferência para equipe ou IA</li></ul></article>
+                    <article class="feature-card rounded-3xl border border-violet-400/25 bg-gradient-to-b from-violet-500/10 to-[#15121e] p-6 sm:p-8"><span class="grid h-12 w-12 place-items-center rounded-2xl bg-violet-400/15 text-violet-300"><i class="fas fa-robot"></i></span><h3 class="mt-6 text-xl font-bold">Seus agentes de IA</h3><p class="mt-3 text-sm leading-relaxed text-gray-500">Para respostas orientadas pelo contexto e pelo conhecimento da sua empresa.</p><ul class="mt-6 space-y-3 border-t border-white/10 pt-5 text-sm text-stone-300"><li><i class="fas fa-check mr-2 text-violet-300"></i>Instruções e conhecimento próprios</li><li><i class="fas fa-check mr-2 text-violet-300"></i>Tom e memória configuráveis</li><li><i class="fas fa-check mr-2 text-violet-300"></i>Ativação na conexão ou no flow</li></ul></article>
+                </div>
+            </div>
+        </section>
+
+        <section id="relatorios" class="px-5 py-20 sm:px-7 lg:px-10 lg:py-28">
+            <div class="mx-auto grid max-w-[1440px] items-center gap-12 lg:grid-cols-2">
+                <div class="min-w-0 rounded-3xl border border-white/10 bg-[#14111d] p-5 shadow-soft sm:p-8">
+                    <div class="flex flex-wrap items-center justify-between gap-3 border-b border-white/10 pb-5"><div><p class="text-[10px] font-bold uppercase tracking-wider text-violet-300">Visão operacional</p><h3 class="mt-2 text-lg font-bold">Relatórios de atendimento</h3></div><span class="rounded-lg bg-violet-400/10 px-3 py-2 text-xs font-bold text-violet-200"><i class="fas fa-file-pdf mr-1"></i> Exportação PDF</span></div>
+                    <div class="mt-5 grid gap-3 sm:grid-cols-2"><div class="rounded-xl border border-white/10 p-4"><i class="fas fa-arrow-up text-violet-300"></i><p class="mt-3 text-sm font-semibold">Mensagens enviadas</p><p class="mt-1 text-xs text-gray-500">Volume no período selecionado</p></div><div class="rounded-xl border border-white/10 p-4"><i class="fas fa-arrow-down text-emerald-300"></i><p class="mt-3 text-sm font-semibold">Mensagens recebidas</p><p class="mt-1 text-xs text-gray-500">Evolução do atendimento</p></div><div class="rounded-xl border border-white/10 p-4"><i class="fas fa-clock text-amber-300"></i><p class="mt-3 text-sm font-semibold">Conversas não atendidas</p><p class="mt-1 text-xs text-gray-500">Situação atual da operação</p></div><div class="rounded-xl border border-white/10 p-4"><i class="fas fa-comments text-blue-300"></i><p class="mt-3 text-sm font-semibold">Conversas distintas</p><p class="mt-1 text-xs text-gray-500">Contagem sem duplicidade</p></div></div>
+                    <div class="mt-5 flex flex-wrap gap-2 text-[11px] text-stone-300"><span class="rounded-full bg-white/5 px-3 py-1.5">Conexão</span><span class="rounded-full bg-white/5 px-3 py-1.5">Fila / setor</span><span class="rounded-full bg-white/5 px-3 py-1.5">Agente</span><span class="rounded-full bg-white/5 px-3 py-1.5">Período personalizado</span></div>
+                </div>
+                <div><p class="section-kicker text-xs font-bold uppercase tracking-[.22em] text-violet-300">Decisões com visibilidade</p><h2 class="mt-5 text-3xl font-black leading-[1.08] tracking-[-.045em] sm:text-5xl">Acompanhe o trabalho.<br><span class="headline-gradient">Encontre o próximo ajuste.</span></h2><p class="mt-5 text-base leading-relaxed text-gray-600">Consulte gráficos e detalhamentos por conexão, fila e agente. Selecione o período no fuso horário da empresa e exporte os resultados em PDF, respeitando as permissões de visualização.</p><div class="mt-7 rounded-2xl border border-white/10 bg-white/5 p-5"><h3 class="text-sm font-bold"><i class="fas fa-shield-halved mr-2 text-emerald-300"></i>Administração com controle</h3><p class="mt-2 text-sm leading-relaxed text-gray-500">Papéis de acesso, registros de auditoria e autenticação em duas etapas para o administrador global. Cobranças, créditos e capacidade adicional acompanham a gestão da plataforma.</p></div></div>
+            </div>
+        </section>
+
+        <section id="planos" class="hero-atmosphere border-y border-white/5 px-5 py-20 sm:px-7 lg:px-10 lg:py-28">
+            <div class="mx-auto max-w-[1200px]">
+                <div class="mx-auto max-w-3xl text-center"><p class="text-xs font-bold uppercase tracking-[.22em] text-violet-300">Planos e preços</p><h2 class="mt-5 text-3xl font-black leading-[1.08] tracking-[-.045em] sm:text-5xl">O espaço certo<br>para a sua operação.</h2><p class="mt-5 text-base leading-relaxed text-gray-600">Escolha a capacidade de equipe e conexões que combina com seu momento. Converse com a Sophus para confirmar a oferta e configurar sua empresa.</p><span class="mt-6 inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-3 py-1.5 text-xs text-stone-300"><i class="fas fa-calendar-days text-violet-300"></i>Valores mensais de referência</span></div>
+                <div class="mt-12 grid items-stretch gap-5 lg:grid-cols-3">
+                    <article class="price-card rounded-3xl border border-white/10 bg-[#15121e] p-7 sm:p-8">
+                        <span class="text-xs font-bold uppercase tracking-[.18em] text-blue-300">Starter</span><h3 class="mt-3 text-xl font-bold">Uma equipe, um canal</h3><p class="mt-3 text-sm leading-relaxed text-gray-500">Para centralizar o atendimento de uma operação enxuta.</p>
+                        <div class="my-8"><p class="flex items-baseline gap-1.5"><span class="text-lg text-stone-400">R$</span><strong class="text-5xl font-black tracking-tight">97</strong><span class="text-sm text-gray-500">/mês</span></p><p class="mt-2 text-xs text-gray-500">Valor provisório para contratação mensal</p></div>
+                        <ul class="space-y-4 border-t border-white/10 pt-6 text-sm text-stone-300"><li class="flex items-center gap-3"><i class="fas fa-user-group w-5 text-blue-300"></i>Até <strong>3 agentes</strong></li><li class="flex items-center gap-3"><i class="fab fa-whatsapp w-5 text-blue-300"></i><strong>1 conexão</strong> de WhatsApp</li><li class="flex items-start gap-3"><i class="fas fa-sliders mt-1 w-5 text-blue-300"></i><span>Escopo de recursos e armazenamento confirmado na proposta</span></li></ul>
+                        <a href="mailto:contato@sophus.com.br?subject=Interesse%20no%20plano%20Starter" class="mt-8 inline-flex items-center justify-center gap-2 rounded-xl border border-white/15 bg-white/5 px-5 py-3.5 text-sm font-bold transition hover:bg-white/10">Conhecer o Starter <i class="fas fa-arrow-right text-xs"></i></a>
+                    </article>
+                    <article class="price-card relative overflow-hidden rounded-3xl border border-violet-400/40 bg-gradient-to-b from-violet-500/15 to-[#15121e] p-7 shadow-frame sm:p-8">
+                        <div class="flex flex-wrap items-center justify-between gap-2"><span class="text-xs font-bold uppercase tracking-[.18em] text-violet-300">Professional</span><span class="rounded-full bg-violet-400/15 px-2.5 py-1 text-[10px] font-bold text-violet-200">Mais capacidade</span></div><h3 class="mt-3 text-xl font-bold">Mais pessoas, mais canais</h3><p class="mt-3 text-sm leading-relaxed text-gray-500">Para equipes que atendem em múltiplas frentes.</p>
+                        <div class="my-8"><p class="flex items-baseline gap-1.5"><span class="text-lg text-stone-400">R$</span><strong class="text-5xl font-black tracking-tight">197</strong><span class="text-sm text-gray-500">/mês</span></p><p class="mt-2 text-xs text-gray-500">Valor provisório para contratação mensal</p></div>
+                        <ul class="space-y-4 border-t border-white/10 pt-6 text-sm text-stone-300"><li class="flex items-center gap-3"><i class="fas fa-user-group w-5 text-violet-300"></i>Até <strong>10 agentes</strong></li><li class="flex items-center gap-3"><i class="fab fa-whatsapp w-5 text-violet-300"></i><strong>3 conexões</strong> de WhatsApp</li><li class="flex items-start gap-3"><i class="fas fa-sliders mt-1 w-5 text-violet-300"></i><span>Escopo de recursos e armazenamento confirmado na proposta</span></li></ul>
+                        <a href="mailto:contato@sophus.com.br?subject=Interesse%20no%20plano%20Professional" class="mt-8 inline-flex items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-blue-500 to-purple-700 px-5 py-3.5 text-sm font-bold text-white transition hover:-translate-y-0.5 hover:shadow-lg">Conhecer o Professional <i class="fas fa-arrow-right text-xs"></i></a>
+                    </article>
+                    <article class="price-card rounded-3xl border border-white/10 bg-[#15121e] p-7 sm:p-8">
+                        <span class="text-xs font-bold uppercase tracking-[.18em] text-emerald-300">Enterprise</span><h3 class="mt-3 text-xl font-bold">Seu cenário, sua capacidade</h3><p class="mt-3 text-sm leading-relaxed text-gray-500">Para operações com necessidades específicas de escala.</p>
+                        <div class="my-8"><p class="text-4xl font-black leading-tight tracking-tight">Sob consulta</p><p class="mt-3 text-xs text-gray-500">Proposta de acordo com a operação</p></div>
+                        <ul class="space-y-4 border-t border-white/10 pt-6 text-sm text-stone-300"><li class="flex items-center gap-3"><i class="fas fa-user-group w-5 text-emerald-300"></i><span>Equipe dimensionada na proposta</span></li><li class="flex items-center gap-3"><i class="fab fa-whatsapp w-5 text-emerald-300"></i><span>Conexões conforme a demanda</span></li><li class="flex items-start gap-3"><i class="fas fa-sliders mt-1 w-5 text-emerald-300"></i><span>Recursos, armazenamento e adicionais a combinar</span></li></ul>
+                        <a href="mailto:contato@sophus.com.br?subject=Proposta%20Enterprise%20Sophus" class="mt-8 inline-flex items-center justify-center gap-2 rounded-xl border border-white/15 bg-white/5 px-5 py-3.5 text-sm font-bold transition hover:bg-white/10">Desenhar minha operação <i class="fas fa-arrow-right text-xs"></i></a>
+                    </article>
+                </div>
+                <div class="mt-6 grid gap-5 rounded-2xl border border-white/10 bg-white/5 p-5 text-xs leading-relaxed text-gray-500 sm:grid-cols-2"><p><strong class="mb-1 block text-stone-200">Tabela provisória</strong>Os valores e limites acima são referências comerciais, sujeitos à confirmação na proposta. Condições anuais e período de teste devem ser consultados.</p><p><strong class="mb-1 block text-stone-200">IA e capacidade adicional</strong>A IA utiliza credenciais de provedores externos. Uso, custos do provedor, armazenamento e adicionais precisam ser confirmados na contratação.</p></div>
+            </div>
+        </section>
+
+        <section id="duvidas" class="px-5 py-20 sm:px-7 lg:px-10 lg:py-28">
+            <div class="mx-auto grid max-w-[1200px] gap-10 lg:grid-cols-[.8fr_1.2fr]">
+                <div><p class="section-kicker text-xs font-bold uppercase tracking-[.22em] text-violet-300">Antes de começar</p><h2 class="mt-5 text-3xl font-black leading-[1.08] tracking-[-.045em] sm:text-4xl">Respostas para<br>o próximo passo.</h2><p class="mt-5 text-sm leading-relaxed text-gray-500">Entenda como equipe, conexões, automações e IA se encaixam. Para condições comerciais, converse com nosso time.</p><a href="mailto:contato@sophus.com.br?subject=Duvidas%20sobre%20a%20Sophus" class="mt-6 inline-flex items-center gap-2 text-sm font-semibold text-violet-300">Falar com a Sophus <i class="fas fa-arrow-right text-xs"></i></a></div>
+                <div class="space-y-3">
+                    <details class="faq-item rounded-2xl border border-white/10 bg-[#15121e] px-5"><summary class="flex cursor-pointer items-center justify-between gap-4 py-5 text-sm font-semibold">Várias pessoas podem atender pelo mesmo WhatsApp?<i class="faq-icon fas fa-plus shrink-0 text-xs text-violet-300 transition"></i></summary><p class="pb-5 text-sm leading-relaxed text-gray-500">Sim. Os agentes acessam suas próprias contas e trabalham com responsável, setor e histórico da conversa. A quantidade de agentes e conexões é definida pelo plano contratado.</p></details>
+                    <details class="faq-item rounded-2xl border border-white/10 bg-[#15121e] px-5"><summary class="flex cursor-pointer items-center justify-between gap-4 py-5 text-sm font-semibold">Preciso programar para criar um flow?<i class="faq-icon fas fa-plus shrink-0 text-xs text-violet-300 transition"></i></summary><p class="pb-5 text-sm leading-relaxed text-gray-500">O editor é visual, com blocos para mensagens, menus, condições, transferências e outras ações. Você pode começar com modelos prontos. Integrações HTTP mais específicas exigem configurar a API de destino.</p></details>
+                    <details class="faq-item rounded-2xl border border-white/10 bg-[#15121e] px-5"><summary class="flex cursor-pointer items-center justify-between gap-4 py-5 text-sm font-semibold">Como os agentes de IA usam o conteúdo da empresa?<i class="faq-icon fas fa-plus shrink-0 text-xs text-violet-300 transition"></i></summary><p class="pb-5 text-sm leading-relaxed text-gray-500">Você configura instruções, tom, memória e uma base de conhecimento com texto. Também pode extrair conteúdo de PDFs e revisá-lo antes de salvar. O agente utiliza o provedor e modelo associados à credencial escolhida.</p></details>
+                    <details class="faq-item rounded-2xl border border-white/10 bg-[#15121e] px-5"><summary class="flex cursor-pointer items-center justify-between gap-4 py-5 text-sm font-semibold">O consumo de IA está incluído nesses preços?<i class="faq-icon fas fa-plus shrink-0 text-xs text-violet-300 transition"></i></summary><p class="pb-5 text-sm leading-relaxed text-gray-500">A tabela é provisória e não presume inclusão de consumo de IA. Os recursos usam credenciais externas; custos e limites dependem do provedor e modelo. Confirme o escopo da oferta com a Sophus antes de contratar.</p></details>
+                    <details class="faq-item rounded-2xl border border-white/10 bg-[#15121e] px-5"><summary class="flex cursor-pointer items-center justify-between gap-4 py-5 text-sm font-semibold">É possível acompanhar e exportar o atendimento?<i class="faq-icon fas fa-plus shrink-0 text-xs text-violet-300 transition"></i></summary><p class="pb-5 text-sm leading-relaxed text-gray-500">Os relatórios permitem recortes por período, conexão, fila e agente e exportação em PDF. Administradores também podem exportar a conversa atual ou o histórico do contato. Os acessos respeitam as permissões de cada perfil.</p></details>
+                    <details class="faq-item rounded-2xl border border-white/10 bg-[#15121e] px-5"><summary class="flex cursor-pointer items-center justify-between gap-4 py-5 text-sm font-semibold">Como contratar ou consultar cobrança anual?<i class="faq-icon fas fa-plus shrink-0 text-xs text-violet-300 transition"></i></summary><p class="pb-5 text-sm leading-relaxed text-gray-500">Escolha um plano acima para enviar um email com seu interesse. Nosso time confirma valores, recursos, capacidade, condições anuais e eventual período de teste na proposta. Quem já tem acesso pode entrar pelo botão Entrar.</p></details>
+                </div>
+            </div>
+        </section>
+
         <section class="px-5 py-14 sm:px-7 lg:px-10 lg:py-24">
             <div class="admin-surface relative mx-auto max-w-[1440px] overflow-hidden rounded-[2rem] px-6 py-14 text-white shadow-frame sm:px-10 lg:px-16 lg:py-20">
                 <div class="admin-grid absolute inset-0 opacity-30"></div>
                 <div class="relative grid gap-10 lg:grid-cols-[1fr_auto] lg:items-end">
                     <div class="max-w-3xl"><p class="text-xs font-bold uppercase tracking-[.22em] text-blue-300">Conheça a Sophus</p><h2 class="mt-4 text-4xl font-black leading-[1.02] tracking-[-.045em] sm:text-5xl lg:text-6xl">Veja como o ambiente se encaixa na sua operação.</h2><p class="mt-5 max-w-2xl text-base leading-relaxed text-stone-300">Converse com nosso time para conhecer o produto e os caminhos disponíveis para sua empresa.</p></div>
-                    <div class="flex flex-col gap-3 sm:flex-row lg:flex-col"><a href="mailto:contato@sophus.com.br" class="light-action inline-flex items-center justify-center gap-2 rounded-xl bg-white px-6 py-3.5 text-sm font-bold text-purple-700 shadow-lg transition hover:-translate-y-0.5">Falar com a Sophus <i class="fas fa-arrow-right text-xs"></i></a><a href="/login" class="inline-flex items-center justify-center rounded-xl border border-white/15 bg-white/5 px-6 py-3.5 text-sm font-bold text-white transition hover:bg-white/10">Já tenho acesso</a></div>
+                    <div class="flex flex-col gap-3 sm:flex-row lg:flex-col"><a href="#planos" class="light-action inline-flex items-center justify-center gap-2 rounded-xl bg-white px-6 py-3.5 text-sm font-bold text-purple-700 shadow-lg transition hover:-translate-y-0.5">Escolher meu plano <i class="fas fa-arrow-right text-xs"></i></a><a href="mailto:contato@sophus.com.br?subject=Conhecer%20a%20Sophus" class="inline-flex items-center justify-center rounded-xl border border-white/15 bg-white/5 px-6 py-3.5 text-sm font-bold text-white transition hover:bg-white/10">Conversar sobre minha operação</a></div>
                 </div>
             </div>
         </section>
@@ -320,9 +455,10 @@
     <footer class="px-5 pb-10 pt-6 sm:px-7 lg:px-10">
         <div class="mx-auto max-w-[1440px] border-t border-stone-200 pt-9">
             <div class="flex flex-col gap-8 sm:flex-row sm:items-start sm:justify-between">
-                <div><a href="#inicio" class="flex items-center gap-3"><span class="brand-mark grid h-10 w-10 place-items-center rounded-2xl bg-white text-purple-700 shadow-sm ring-1 ring-white/10"><i class="fas fa-paper-plane"></i></span><span><strong class="block leading-none">Sophus</strong><span class="mt-1 block text-[9px] font-bold uppercase tracking-[.24em] text-gray-500">Workspace de atendimento</span></span></a><p class="mt-4 max-w-sm text-sm leading-relaxed text-gray-500">Um ambiente para conversas, equipe, conexões e automações.</p></div>
-                <nav class="flex flex-wrap gap-x-7 gap-y-3 text-sm font-semibold text-gray-500" aria-label="Navegação do rodapé"><a href="#produto" class="hover:text-purple-700">Produto</a><a href="#fluxo" class="hover:text-purple-700">Como funciona</a><a href="#modulos" class="hover:text-purple-700">Módulos</a><a href="#automacao" class="hover:text-purple-700">Automação</a><a href="mailto:contato@sophus.com.br" class="hover:text-purple-700">Contato</a></nav>
+                <div><a href="#inicio" class="flex flex-col items-start gap-1"><img src="logos/Sophus_logo_horizontal_colorido_branco.svg" alt="Sophus" width="1120" height="256" class="h-9 w-auto"><span class="text-[8px] font-bold uppercase tracking-[.2em] text-gray-500">Workspace de atendimento</span></a><p class="mt-4 max-w-sm text-sm leading-relaxed text-gray-500">Um ambiente para conversas, equipe, conexões e automações.</p></div>
+                <nav class="flex flex-wrap gap-x-7 gap-y-3 text-sm font-semibold text-gray-500" aria-label="Navegação do rodapé"><a href="#produto" class="hover:text-purple-700">Produto</a><a href="#inteligencia" class="hover:text-purple-700">Inteligência artificial</a><a href="#modulos" class="hover:text-purple-700">Módulos</a><a href="#automacao" class="hover:text-purple-700">Automação</a><a href="#relatorios" class="hover:text-purple-700">Relatórios</a><a href="mailto:contato@sophus.com.br" class="hover:text-purple-700">Contato</a></nav>
             </div>
+            <div class="mt-8 flex flex-wrap gap-x-6 gap-y-3 text-sm font-semibold text-violet-300"><a href="#planos" class="hover:text-white">Planos e preços</a><a href="#duvidas" class="hover:text-white">Dúvidas frequentes</a><a href="#inicio" class="ml-auto inline-flex items-center gap-2 hover:text-white">Voltar ao início <i class="fas fa-arrow-up text-xs"></i></a></div>
             <div class="mt-9 flex flex-col gap-2 border-t border-stone-200 pt-6 text-xs text-gray-500 sm:flex-row sm:items-center sm:justify-between"><p>© <span id="year">2026</span> Sophus. Todos os direitos reservados.</p><p>Atendimento e operação no mesmo espaço.</p></div>
         </div>
     </footer>
@@ -351,18 +487,45 @@
         const productTabs = document.querySelectorAll('[data-product-tab]');
         const productPanels = document.querySelectorAll('.product-panel');
 
-        productTabs.forEach(tab => tab.addEventListener('click', () => {
+        function selectProductTab(tab) {
             const selected = tab.dataset.productTab;
             productTabs.forEach(item => {
                 const isActive = item === tab;
                 item.setAttribute('aria-selected', String(isActive));
-                item.className = isActive
-                    ? 'product-tab flex w-full items-center gap-3 rounded-xl bg-white/15 px-4 py-3 text-left text-sm font-semibold ring-1 ring-white/10'
-                    : 'product-tab flex w-full items-center gap-3 rounded-xl px-4 py-3 text-left text-sm font-semibold text-stone-400 transition hover:bg-white/10 hover:text-white';
+                item.tabIndex = isActive ? 0 : -1;
                 item.querySelector('.fa-arrow-right').classList.toggle('opacity-0', !isActive);
             });
             productPanels.forEach(panel => panel.classList.toggle('hidden', panel.id !== `panel-${selected}`));
-        }));
+        }
+
+        productTabs.forEach((tab, index) => {
+            tab.id = `product-tab-${tab.dataset.productTab}`;
+            tab.setAttribute('aria-controls', `panel-${tab.dataset.productTab}`);
+            tab.tabIndex = index === 0 ? 0 : -1;
+            const panel = document.getElementById(`panel-${tab.dataset.productTab}`);
+            panel.setAttribute('aria-labelledby', tab.id);
+            panel.tabIndex = 0;
+            tab.addEventListener('click', () => selectProductTab(tab));
+            tab.addEventListener('keydown', event => {
+                let next;
+                if (event.key === 'ArrowDown') next = (index + 1) % productTabs.length;
+                if (event.key === 'ArrowUp') next = (index - 1 + productTabs.length) % productTabs.length;
+                if (event.key === 'Home') next = 0;
+                if (event.key === 'End') next = productTabs.length - 1;
+                if (next !== undefined) {
+                    event.preventDefault();
+                    selectProductTab(productTabs[next]);
+                    productTabs[next].focus();
+                }
+            });
+        });
+        document.querySelectorAll('#modulos article').forEach(card => card.classList.add('feature-card'));
+        document.addEventListener('keydown', event => {
+            if (event.key === 'Escape' && !mobileMenu.classList.contains('hidden')) {
+                closeMobileMenu();
+                menuButton.focus();
+            }
+        });
 
         document.getElementById('year').textContent = new Date().getFullYear();
     </script>

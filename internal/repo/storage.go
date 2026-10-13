@@ -2,6 +2,7 @@ package repo
 
 import (
 	"database/sql"
+	"encoding/json"
 	"errors"
 	"time"
 )
@@ -12,10 +13,10 @@ func GetCompanyStorageUsage(companyID int) (StorageUsage, error) {
 	var usage StorageUsage
 	var scannedAt sql.NullTime
 	err := db.QueryRow(`SELECT c.id, COALESCE(su."usedBytes", 0), COALESCE(su."reservedBytes", 0),
-		COALESCE(su."fileCount", 0), p."storageLimitGB", su."scannedAt"
+		COALESCE(su."fileCount", 0), limits."storageLimitGB", su."scannedAt"
 		FROM companies c
 		JOIN subscriptions s ON s."companyId" = c.id AND s.status IN ('trialing', 'active', 'past_due')
-		JOIN plans p ON p.id = s."planId"
+		JOIN subscription_effective_limits limits ON limits."subscriptionId"=s.id
 		LEFT JOIN company_storage_usage su ON su."companyId" = c.id
 		WHERE c.id = $1`, companyID).Scan(&usage.CompanyId, &usage.UsedBytes, &usage.ReservedBytes,
 		&usage.FileCount, &usage.StorageLimitGB, &scannedAt)
@@ -41,9 +42,9 @@ func ReserveCompanyStorage(companyID int, bytes int64) error {
 	}
 	defer tx.Rollback()
 	var limitGB int
-	if err := tx.QueryRow(`SELECT p."storageLimitGB" FROM companies c
+	if err := tx.QueryRow(`SELECT limits."storageLimitGB" FROM companies c
 		JOIN subscriptions s ON s."companyId" = c.id AND s.status IN ('trialing', 'active', 'past_due')
-		JOIN plans p ON p.id = s."planId" WHERE c.id = $1 FOR UPDATE OF c`, companyID).Scan(&limitGB); err != nil {
+		JOIN subscription_effective_limits limits ON limits."subscriptionId"=s.id WHERE c.id = $1 FOR UPDATE OF c`, companyID).Scan(&limitGB); err != nil {
 		return err
 	}
 	if _, err := tx.Exec(`INSERT INTO company_storage_usage ("companyId") VALUES ($1)
@@ -66,6 +67,7 @@ func ReserveCompanyStorage(companyID int, bytes int64) error {
 }
 
 func CompleteCompanyStorageReservation(companyID int, reserved, actual int64) error {
+	defer invalidateAccessCache()
 	if reserved <= 0 || actual < 0 || actual > reserved {
 		return errors.New("invalid storage reservation completion")
 	}
@@ -99,6 +101,7 @@ func ReleaseCompanyStorageReservation(companyID int, reserved int64) error {
 }
 
 func ReconcileCompanyStorage(companyID int, usedBytes int64, fileCount int, scannedAt time.Time) error {
+	defer invalidateAccessCache()
 	_, err := db.Exec(`INSERT INTO company_storage_usage ("companyId", "usedBytes", "fileCount", "scannedAt")
 		VALUES ($1, $2, $3, $4)
 		ON CONFLICT ("companyId") DO UPDATE SET "usedBytes" = EXCLUDED."usedBytes",
@@ -112,13 +115,14 @@ func ReconcileCompanyStorage(companyID int, usedBytes int64, fileCount int, scan
 }
 
 func DecrementCompanyStorage(companyID int, bytes int64) error {
+	defer invalidateAccessCache()
 	_, err := db.Exec(`UPDATE company_storage_usage SET "usedBytes" = GREATEST(0, "usedBytes" - $1),
 		"fileCount" = GREATEST(0, "fileCount" - 1), "updatedAt" = now() WHERE "companyId" = $2`, bytes, companyID)
 	return err
 }
 
 func ListCompanyStoragePolicies() ([]CompanyStoragePolicy, error) {
-	rows, err := db.Query(`SELECT id, "mediaRetentionDays" FROM companies WHERE "isActive" = true ORDER BY id`)
+	rows, err := db.Query(`SELECT id, "mediaRetentionDays", "operationSettings" FROM companies WHERE "isActive" = true ORDER BY id`)
 	if err != nil {
 		return nil, err
 	}
@@ -127,9 +131,14 @@ func ListCompanyStoragePolicies() ([]CompanyStoragePolicy, error) {
 	for rows.Next() {
 		var policy CompanyStoragePolicy
 		var retention sql.NullInt64
-		if err := rows.Scan(&policy.CompanyId, &retention); err != nil {
+		var operationsJSON []byte
+		if err := rows.Scan(&policy.CompanyId, &retention, &operationsJSON); err != nil {
 			return nil, err
 		}
+		if err := json.Unmarshal(operationsJSON, &policy.Operations); err != nil {
+			return nil, err
+		}
+		policy.Operations = normalizeCompanyOperationSettings(policy.Operations)
 		if retention.Valid {
 			value := int(retention.Int64)
 			policy.MediaRetentionDays = &value
@@ -139,12 +148,122 @@ func ListCompanyStoragePolicies() ([]CompanyStoragePolicy, error) {
 	return policies, rows.Err()
 }
 
+func ApplyConversationInactivityPolicy(companyID, minutes int, now time.Time) (int, error) {
+	if minutes <= 0 {
+		return 0, nil
+	}
+	cutoff := now.Add(-time.Duration(minutes) * time.Minute)
+	tx, err := db.Begin()
+	if err != nil {
+		return 0, err
+	}
+	defer tx.Rollback()
+	rows, err := tx.Query(`SELECT cv.id FROM conversations cv JOIN connections co ON co.id = cv."connectionId"
+		WHERE co."companyId" = $1 AND cv.status <> 'closed' AND COALESCE(
+			(SELECT MAX(m."createdAt") FROM messages m WHERE m."conversationId" = cv.id), cv."updatedAt") < $2 FOR UPDATE`, companyID, cutoff)
+	if err != nil {
+		return 0, err
+	}
+	ids := []int{}
+	for rows.Next() {
+		var id int
+		if err := rows.Scan(&id); err != nil {
+			rows.Close()
+			return 0, err
+		}
+		ids = append(ids, id)
+	}
+	if err := rows.Close(); err != nil {
+		return 0, err
+	}
+	for _, id := range ids {
+		if _, err := tx.Exec(`UPDATE flow_executions SET status = 'failed', "errorMessage" = 'execução cancelada por inatividade', "completedAt" = now(), "updatedAt" = now() WHERE "conversationId" = $1 AND status IN ('running','waiting')`, id); err != nil {
+			return 0, err
+		}
+		if _, err := tx.Exec(`UPDATE ai_agent_sessions SET status = 'ended', "endedAt" = now(), "updatedAt" = now() WHERE "conversationId" = $1 AND status = 'active'`, id); err != nil {
+			return 0, err
+		}
+		if _, err := tx.Exec(`UPDATE conversations SET status = 'closed', "updatedAt" = now() WHERE id = $1`, id); err != nil {
+			return 0, err
+		}
+	}
+	return len(ids), tx.Commit()
+}
+
+func DeleteExpiredConversations(companyID, days int, now time.Time) (int64, error) {
+	if days <= 0 {
+		return 0, nil
+	}
+	tx, err := db.Begin()
+	if err != nil {
+		return 0, err
+	}
+	defer tx.Rollback()
+	cutoff := now.AddDate(0, 0, -days)
+	if _, err := tx.Exec(`DELETE FROM messages m USING conversations cv, connections co
+		WHERE m."conversationId" = cv.id AND co.id = cv."connectionId" AND co."companyId" = $1
+			AND cv.status = 'closed' AND cv."updatedAt" < $2`, companyID, cutoff); err != nil {
+		return 0, err
+	}
+	rows, err := tx.Query(`DELETE FROM conversations cv USING connections co WHERE co.id = cv."connectionId"
+		AND co."companyId" = $1 AND cv.status = 'closed' AND cv."updatedAt" < $2 RETURNING cv.id`, companyID, cutoff)
+	if err != nil {
+		return 0, err
+	}
+	ids := []int{}
+	for rows.Next() {
+		var id int
+		if err := rows.Scan(&id); err != nil {
+			rows.Close()
+			return 0, err
+		}
+		ids = append(ids, id)
+	}
+	err = rows.Err()
+	rows.Close()
+	if err != nil {
+		return 0, err
+	}
+	if err := tx.Commit(); err != nil {
+		return 0, err
+	}
+	for _, id := range ids {
+		invalidateConversationHistory(companyID, id)
+		invalidateConversationEventHistory(companyID, id)
+	}
+	return int64(len(ids)), nil
+}
+
+func ListExpiredConversationMedia(companyID, days int, now time.Time) ([]string, error) {
+	if days <= 0 {
+		return nil, nil
+	}
+	rows, err := db.Query(`SELECT DISTINCT m."mediaPath" FROM messages m
+		JOIN conversations cv ON cv.id = m."conversationId" JOIN connections co ON co.id = cv."connectionId"
+		WHERE co."companyId" = $1 AND cv.status = 'closed' AND cv."updatedAt" < $2
+			AND m."mediaScope" = 'messages' AND m."mediaPath" IS NOT NULL AND m."mediaPath" <> ''`, companyID, now.AddDate(0, 0, -days))
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	paths := []string{}
+	for rows.Next() {
+		var path string
+		if err := rows.Scan(&path); err != nil {
+			return nil, err
+		}
+		paths = append(paths, path)
+	}
+	return paths, rows.Err()
+}
+
 func ListExpiredMessageMedia(companyID, retentionDays int, now time.Time) ([]string, error) {
 	cutoff := now.AddDate(0, 0, -retentionDays)
-	rows, err := db.Query(`SELECT DISTINCT m."mediaPath" FROM messages m
+	rows, err := db.Query(`SELECT m."mediaPath" FROM messages m
 		JOIN conversations c ON c.id = m."conversationId"
 		JOIN connections cn ON cn.id = c."connectionId"
-		WHERE cn."companyId" = $1 AND m."mediaPath" IS NOT NULL AND m."mediaPath" <> '' AND m."createdAt" < $2`, companyID, cutoff)
+		WHERE cn."companyId" = $1 AND m."mediaScope" = 'messages' AND m."mediaPath" IS NOT NULL AND m."mediaPath" <> ''
+		GROUP BY m."mediaPath" HAVING MAX(m."createdAt") < $2`, companyID, cutoff)
 	if err != nil {
 		return nil, err
 	}
@@ -161,11 +280,32 @@ func ListExpiredMessageMedia(companyID, retentionDays int, now time.Time) ([]str
 }
 
 func ClearMessageMediaPath(companyID int, path string) error {
-	_, err := db.Exec(`UPDATE messages m SET "mediaPath" = NULL, "updatedAt" = now()
+	rows, err := db.Query(`UPDATE messages m SET "mediaPath" = NULL, "updatedAt" = now()
 		FROM conversations c, connections cn
 		WHERE m."conversationId" = c.id AND c."connectionId" = cn.id
-			AND cn."companyId" = $1 AND m."mediaPath" = $2`, companyID, path)
-	return err
+			AND cn."companyId" = $1 AND m."mediaScope" = 'messages' AND m."mediaPath" = $2 RETURNING m."conversationId",m."messageId"`, companyID, path)
+	if err != nil {
+		return err
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var conversationID int
+		var messageID string
+		if err := rows.Scan(&conversationID, &messageID); err != nil {
+			return err
+		}
+		scheduleConversationHistoryUpdate(conversationID, messageID, companyID)
+	}
+	return rows.Err()
+}
+
+func CountMessageMediaReferences(companyID int, scope, path string) (int, error) {
+	var count int
+	err := db.QueryRow(`SELECT COUNT(*) FROM messages m
+		JOIN conversations cv ON cv.id = m."conversationId"
+		JOIN connections co ON co.id = cv."connectionId"
+		WHERE co."companyId" = $1 AND m."mediaScope" = $2 AND m."mediaPath" = $3`, companyID, scope, path).Scan(&count)
+	return count, err
 }
 
 func CountFlowMediaReferences(companyID int, fileName string) (int, error) {

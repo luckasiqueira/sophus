@@ -1,0 +1,158 @@
+package web
+
+templ GuidedOnboarding() {
+	<style>
+		#app-onboarding { position: fixed; inset: 0; width: 100vw; height: 100dvh; max-width: none; max-height: none; margin: 0; padding: 0; border: 0; background: transparent; overflow: hidden; color: #1c1917; }
+		#app-onboarding::backdrop { background: transparent; }
+		#app-onboarding-mask { position: absolute; inset: 0; width: 100%; height: 100%; }
+		#app-onboarding-spotlight { position: absolute; pointer-events: none; border: 2px solid #c4b5fd; border-radius: 16px; box-shadow: 0 0 0 4px rgba(196,181,253,.2); }
+		#app-onboarding-card { position: absolute; box-sizing: border-box; width: min(390px,calc(100vw - 28px)); max-height: calc(100dvh - 28px); overflow-y: auto; border: 1px solid #ede9fe; border-radius: 24px; padding: 24px; background: white; box-shadow: 0 24px 70px rgba(0,0,0,.3); font-family: inherit; }
+		#app-onboarding-card h2 { margin: 12px 0 8px; font-size: 22px; font-weight: 800; line-height: 1.25; }
+		#app-onboarding-description { margin: 0; font-size: 14px; line-height: 1.65; color: #57534e; }
+		#app-onboarding-progress { height: 4px; overflow: hidden; border-radius: 4px; background: #ede9fe; }
+		#app-onboarding-progress > span { display: block; height: 100%; background: #7c3aed; border-radius: inherit; }
+		#app-onboarding-actions { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 10px; margin-top: 20px; }
+		#app-onboarding-actions button { border-radius: 12px; padding: 10px 14px; font-size: 13px; font-weight: 700; cursor: pointer; border: 1px solid #e7e5e4; background: white; }
+		#app-onboarding-actions button:focus-visible { outline: 3px solid #c4b5fd; outline-offset: 2px; }
+		#app-onboarding-actions button:disabled { opacity: .5; cursor: wait; }
+		#app-onboarding-actions #app-onboarding-next { color: white; background: #7c3aed; border-color: #7c3aed; }
+		#app-onboarding-actions #app-onboarding-skip { padding-left: 0; color: #78716c; border-color: transparent; }
+		#app-onboarding-card [hidden] { display: none !important; }
+		#app-onboarding-error { margin-top: 12px; color: #b91c1c; font-size: 12px; line-height: 1.5; }
+		@media(max-width:1023px) { #app-onboarding-card { padding: 18px; max-height: max(160px,calc(100dvh - 180px)); } #app-onboarding-card h2 { font-size: 19px; } #app-onboarding-description { line-height: 1.5; } }
+	</style>
+	<dialog id="app-onboarding" aria-labelledby="app-onboarding-title" aria-describedby="app-onboarding-description">
+		<svg id="app-onboarding-mask" aria-hidden="true"><path fill="rgba(23,20,31,.76)" fill-rule="evenodd"></path></svg>
+		<div id="app-onboarding-spotlight" aria-hidden="true"></div>
+		<section id="app-onboarding-card">
+			<div class="flex items-center justify-between gap-3"><span class="text-[10px] font-black uppercase tracking-[.18em] text-purple-600">Conheça a plataforma</span><span id="app-onboarding-counter" class="text-xs font-bold text-gray-400" aria-live="polite"></span></div>
+			<h2 id="app-onboarding-title"></h2>
+			<p id="app-onboarding-description"></p>
+			<div id="app-onboarding-progress" class="mt-5" role="progressbar" aria-label="Progresso do guia" aria-valuemin="0"><span></span></div>
+			<p id="app-onboarding-error" role="alert" hidden></p>
+			<div id="app-onboarding-actions"><button id="app-onboarding-skip" type="button">Pular guia</button><div class="flex gap-2"><button id="app-onboarding-back" type="button">Voltar</button><button id="app-onboarding-next" type="button">Próximo <i class="fas fa-arrow-right ml-1" aria-hidden="true"></i></button></div></div>
+			<button id="app-onboarding-close-unsaved" type="button" hidden class="mt-3 text-xs font-semibold text-gray-500 underline">Fechar sem salvar o progresso</button>
+		</section>
+	</dialog>
+	<script>
+		(function () {
+			const dialog = document.getElementById('app-onboarding');
+			const card = document.getElementById('app-onboarding-card');
+			const spotlight = document.getElementById('app-onboarding-spotlight');
+			const mask = document.querySelector('#app-onboarding-mask path');
+			const next = document.getElementById('app-onboarding-next');
+			const back = document.getElementById('app-onboarding-back');
+			const skip = document.getElementById('app-onboarding-skip');
+			const errorBox = document.getElementById('app-onboarding-error');
+			const closeUnsaved = document.getElementById('app-onboarding-close-unsaved');
+			const menu = document.getElementById('app-menu-links');
+			const menuButton = document.getElementById('app-menu-button');
+			const sidebarToggle = document.getElementById('app-sidebar-toggle');
+			const account = document.getElementById('app-user-menu');
+			let steps = [], index = 0, active = false, busy = false, previous = null, frame = 0;
+			let saveQueue = Promise.resolve();
+			const allSteps = [
+				{ selector: '#app-conversations-link', title: 'Conversas', text: 'Bem-vindo! Aqui você acompanha atendimentos ativos e pendentes, alterna entre conversas pessoais e grupos e responde seus clientes.' },
+				{ selector: '#app-menu-links a[href="/contacts"]', title: 'Contatos', text: 'Encontre seus clientes, consulte seus dados e inicie um novo atendimento usando uma conexão do WhatsApp.' },
+				{ selector: '#app-menu-links a[href="/instances/"]', title: 'Conexões do WhatsApp', text: 'Conecte os números da empresa pelo QR Code e acompanhe o estado de cada conexão. Este é o ponto de partida para receber e enviar mensagens.', admin: true },
+				{ selector: '#app-menu-links a[href="/flows/"]', title: 'Flows e automações', text: 'Monte fluxos visuais para boas-vindas, menus, coleta de informações e encaminhamento ao atendimento humano.', admin: true },
+				{ selector: '#app-menu-links a[href="/ai-agents"]', title: 'Agentes de IA', text: 'Configure assistentes de inteligência artificial para apoiar o atendimento e responder de acordo com as orientações da empresa.', admin: true },
+				{ selector: '#app-menu-links a[href="/departments"]', title: 'Setores e filas', text: 'Organize a equipe por setor e direcione os atendimentos para as pessoas responsáveis por cada assunto.', admin: true },
+				{ selector: '#app-menu-links a[href="/agents"]', title: 'Atendentes', text: 'Gerencie os acessos da equipe, os administradores e a participação de cada atendente nos setores.', admin: true },
+				{ selector: '#app-menu-links a[href="/quick-replies"]', title: 'Respostas rápidas', text: 'Use mensagens prontas para agilizar o atendimento. No campo de mensagem, digite / para encontrar os atalhos disponíveis.' },
+				{ selector: '#app-menu-links a[href="/media"]', title: 'Biblioteca de mídias', text: 'Encontre e reutilize imagens, áudios, vídeos e documentos já armazenados na plataforma.' },
+				{ selector: '#app-menu-links a[href="/reports"]', title: 'Relatórios', text: 'Acompanhe os indicadores do atendimento, filtre períodos e consulte os resultados da operação.', admin: true },
+				{ selector: '#app-menu-links a[href="/settings"]', title: 'Configurações da empresa', text: 'Defina as regras de mensagens, automações, horários e armazenamento. A administração também acompanha o plano e a cobrança nesta área.', admin: true },
+				{ selector: '#app-notification-center-button', title: 'Notificações', text: 'Acompanhe avisos de novas mensagens nesta central. As preferências de som, prévia e alertas do navegador são individuais.' },
+				{ selector: '#app-user-menu > summary', title: 'Seu perfil e suas preferências', text: 'Abra o menu da sua conta para atualizar o perfil, personalizar rolagem, assinatura e notificações ou rever este guia quando quiser.' }
+			];
+			function setMenu(open) { if ((menuButton.getAttribute('aria-expanded') === 'true') !== open) menuButton.click(); }
+			function setSidebar(expanded) {
+				document.documentElement.dataset.sidebarExpanded = String(expanded);
+				sidebarToggle.setAttribute('aria-expanded', String(expanded));
+				const label = expanded ? 'Retrair menu lateral' : 'Expandir menu lateral';
+				sidebarToggle.setAttribute('aria-label', label); sidebarToggle.title = label;
+				sidebarToggle.querySelector('i').className = expanded ? 'fas fa-angles-left' : 'fas fa-angles-right';
+			}
+			function prepareTarget() {
+				if (!active) return null;
+				const target = document.querySelector(steps[index].selector);
+				const mobile = window.innerWidth < 1024;
+				account.open = false;
+				if (mobile) {
+					const height = Math.max(72, Math.min(window.innerHeight * .4, window.innerHeight - card.offsetHeight - 104));
+					menu.style.maxHeight = height + 'px'; setMenu(menu.contains(target));
+				} else { menu.style.maxHeight = previous.menuHeight; setSidebar(true); }
+				target?.scrollIntoView({ block: 'nearest', inline: 'nearest', behavior: 'instant' });
+				return target;
+			}
+			function position() {
+				frame = 0; if (!active) return;
+				const target = prepareTarget(); if (!target) return;
+				const rect = target.getBoundingClientRect(), width = window.innerWidth, height = window.innerHeight, gap = 14;
+				const left = Math.max(4, rect.left - 5), top = Math.max(4, rect.top - 5);
+				const right = Math.min(width - 4, rect.right + 5), bottom = Math.min(height - 4, rect.bottom + 5);
+				spotlight.style.cssText = 'left:' + left + 'px;top:' + top + 'px;width:' + (right-left) + 'px;height:' + (bottom-top) + 'px';
+				mask.setAttribute('d', 'M0 0H' + width + 'V' + height + 'H0Z M' + left + ' ' + top + 'H' + right + 'V' + bottom + 'H' + left + 'Z');
+				const cardWidth = card.offsetWidth, cardHeight = card.offsetHeight;
+				let x, y;
+				if (width - right >= cardWidth + gap * 2) { x = right + gap; y = top; }
+				else if (left >= cardWidth + gap * 2) { x = left - cardWidth - gap; y = top; }
+				else { x = (width-cardWidth)/2; y = bottom + gap; if (y + cardHeight > height-gap) y = top-cardHeight-gap; }
+				card.style.left = Math.max(gap, Math.min(x, width-cardWidth-gap)) + 'px';
+				card.style.top = Math.max(gap, Math.min(y, height-cardHeight-gap)) + 'px';
+			}
+			function schedulePosition() { if (active && !frame) frame = requestAnimationFrame(position); }
+			function showStep(value) {
+				index = Math.max(0, Math.min(value, steps.length-1));
+				document.getElementById('app-onboarding-title').textContent = steps[index].title;
+				document.getElementById('app-onboarding-description').textContent = steps[index].text;
+				document.getElementById('app-onboarding-counter').textContent = (index+1) + ' de ' + steps.length;
+				const progress = document.getElementById('app-onboarding-progress');
+				progress.setAttribute('aria-valuemax', String(steps.length)); progress.setAttribute('aria-valuenow', String(index+1));
+				progress.firstElementChild.style.width = ((index+1)/steps.length*100) + '%';
+				back.hidden = index === 0; next.textContent = index === steps.length-1 ? 'Concluir' : 'Próximo →';
+				card.scrollTop = 0; schedulePosition();
+			}
+			function showError(error) { if (active) { errorBox.textContent = error.message; errorBox.hidden = false; schedulePosition(); } }
+			function persist(completed) {
+				const state = { completed, step: index };
+				const request = saveQueue.catch(() => {}).then(async () => {
+					const response = await fetch('/management/api/onboarding', { method: 'POST', credentials: 'same-origin', signal: AbortSignal.timeout(10000), headers: { 'Content-Type': 'application/json', Accept: 'application/json' }, body: JSON.stringify(state) });
+					if (!response.ok) { const payload = await response.json().catch(() => ({})); throw new Error(payload.error || 'Não foi possível salvar o progresso do guia.'); }
+				});
+				saveQueue = request; return request;
+			}
+			function close() {
+				active = false; if (frame) { cancelAnimationFrame(frame); frame = 0; }
+				dialog.close(); menu.style.maxHeight = previous.menuHeight; setMenu(previous.menuOpen); setSidebar(previous.expanded);
+				menu.scrollTop = previous.menuScroll; document.getElementById('app-navigation').scrollTop = previous.navigationScroll; account.open = previous.accountOpen;
+				if (previous.focus?.isConnected) previous.focus.focus({ preventScroll: true });
+			}
+			async function finish() {
+				if (!active || busy) return; busy = true; next.disabled = back.disabled = skip.disabled = true; errorBox.hidden = true;
+				try { await persist(true); if (window.agentPreferences?.onboarding) window.agentPreferences.onboarding.completed = true; close(); }
+				catch (error) { showError(error); closeUnsaved.hidden = false; }
+				finally { busy = false; next.disabled = back.disabled = skip.disabled = false; }
+			}
+			function start(replay) {
+				if (active || document.querySelector('dialog[open]')) return;
+				steps = allSteps.filter(step => (!step.admin || window.agentOnboardingAdmin) && document.querySelector(step.selector));
+				if (!steps.length) return;
+				previous = { expanded: document.documentElement.dataset.sidebarExpanded === 'true', menuOpen: menuButton.getAttribute('aria-expanded') === 'true', menuHeight: menu.style.maxHeight, menuScroll: menu.scrollTop, navigationScroll: document.getElementById('app-navigation').scrollTop, accountOpen: false, focus: document.activeElement };
+				account.open = false; errorBox.hidden = closeUnsaved.hidden = true; active = true; dialog.showModal();
+				showStep(replay ? 0 : Number(window.agentPreferences?.onboarding?.step || 0)); next.focus();
+			}
+			next.addEventListener('click', () => { if (busy) return; if (index === steps.length-1) finish(); else { showStep(index+1); persist(false).catch(showError); } });
+			back.addEventListener('click', () => { if (!busy) showStep(index-1); });
+			skip.addEventListener('click', finish); closeUnsaved.addEventListener('click', () => { if (!busy) close(); });
+			dialog.addEventListener('cancel', event => { event.preventDefault(); finish(); });
+			dialog.addEventListener('keydown', event => { if (event.key === 'ArrowRight') { event.preventDefault(); next.click(); } if (event.key === 'ArrowLeft' && !back.hidden) { event.preventDefault(); back.click(); } });
+			window.addEventListener('resize', schedulePosition); document.addEventListener('scroll', schedulePosition, true); document.addEventListener('transitionend', schedulePosition, true);
+			const observer = new ResizeObserver(schedulePosition); observer.observe(card); observer.observe(document.getElementById('app-navigation'));
+			document.getElementById('app-onboarding-replay').addEventListener('click', async () => { await window.agentPreferencesReady; start(true); });
+			window.agentPreferencesReady.then(preferences => { if (preferences?.onboarding?.completed === false) start(false); });
+			window.addEventListener('pagehide', () => { observer.disconnect(); if (frame) cancelAnimationFrame(frame); });
+		})();
+	</script>
+}

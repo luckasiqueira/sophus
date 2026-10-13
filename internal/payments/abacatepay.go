@@ -117,7 +117,7 @@ func (c *AbacatePayClient) GetProductByExternalID(ctx context.Context, externalI
 	query := url.Values{}
 	query.Set("externalId", externalID)
 	responseBody, statusCode, err := c.do(ctx, http.MethodGet, "/products/get?"+query.Encode(), nil, false)
-	if statusCode == http.StatusNotFound {
+	if statusCode == http.StatusNotFound || isAbacateProductNotFound(err) {
 		return AbacateProduct{}, false, nil
 	}
 	if err != nil {
@@ -131,6 +131,15 @@ func (c *AbacatePayClient) GetProductByExternalID(ctx context.Context, externalI
 		return AbacateProduct{}, false, errors.New("AbacatePay product response is missing an ID")
 	}
 	return product, true, nil
+}
+
+func isAbacateProductNotFound(err error) bool {
+	var httpError *HTTPError
+	if !errors.As(err, &httpError) || httpError.StatusCode != http.StatusBadRequest {
+		return false
+	}
+	message := strings.ToLower(strings.TrimSpace(httpError.Message))
+	return strings.Contains(message, "product not found") || strings.Contains(message, "produto não encontrado")
 }
 
 func (c *AbacatePayClient) CreateCheckout(ctx context.Context, productID, externalID, returnURL, completionURL, checkoutKey string) (AbacateCheckout, error) {
@@ -222,6 +231,40 @@ func (c *AbacatePayClient) FindCheckout(ctx context.Context, externalID, checkou
 	return AbacateCheckout{}, false, nil
 }
 
+// FindCheckoutByURL locates a legacy checkout without trusting its URL as proof
+// of ownership. The full checkout is fetched from the authenticated provider API.
+func (c *AbacatePayClient) FindCheckoutByURL(ctx context.Context, externalID, checkoutURL string) (AbacateCheckout, bool, error) {
+	if strings.TrimSpace(externalID) == "" || strings.TrimSpace(checkoutURL) == "" {
+		return AbacateCheckout{}, false, errors.New("checkout identity is required")
+	}
+	query := url.Values{}
+	query.Set("externalId", externalID)
+	query.Set("limit", "100")
+	responseBody, _, err := c.do(ctx, http.MethodGet, "/checkouts/list?"+query.Encode(), nil, false)
+	if err != nil {
+		return AbacateCheckout{}, false, err
+	}
+	summaries, err := decodeAbacatePayEnvelope[[]struct {
+		ID string `json:"id"`
+	}](responseBody, "checkout list")
+	if err != nil {
+		return AbacateCheckout{}, false, err
+	}
+	for _, summary := range summaries {
+		if strings.TrimSpace(summary.ID) == "" {
+			continue
+		}
+		checkout, err := c.GetCheckout(ctx, summary.ID)
+		if err != nil {
+			return AbacateCheckout{}, false, err
+		}
+		if checkout.ExternalID == externalID && checkout.URL == checkoutURL {
+			return checkout, true, nil
+		}
+	}
+	return AbacateCheckout{}, false, nil
+}
+
 func (c *AbacatePayClient) GetCheckout(ctx context.Context, checkoutID string) (AbacateCheckout, error) {
 	if strings.TrimSpace(checkoutID) == "" {
 		return AbacateCheckout{}, errors.New("AbacatePay checkout ID is required")
@@ -237,8 +280,11 @@ func (c *AbacatePayClient) GetCheckout(ctx context.Context, checkoutID string) (
 	if err != nil {
 		return AbacateCheckout{}, err
 	}
-	if err := validateAbacateCheckout(checkout); err != nil {
-		return AbacateCheckout{}, err
+	if strings.TrimSpace(checkout.ID) == "" {
+		return AbacateCheckout{}, errors.New("AbacatePay checkout response is missing an ID")
+	}
+	if checkout.Metadata == nil {
+		checkout.Metadata = map[string]string{}
 	}
 	if checkout.ID != checkoutID {
 		return AbacateCheckout{}, errors.New("AbacatePay checkout response ID does not match the requested ID")

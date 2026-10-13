@@ -23,51 +23,62 @@ var (
 
 var knownFlowNodeTypes = map[FlowNodeType]bool{
 	NodeStart: true, NodeSendText: true, NodeSendImage: true, NodeSendVideo: true, NodeSendAudio: true,
-	NodeSendFile: true, NodeSendMenu: true, NodeCondition: true, NodeSwitch: true, NodeDelay: true,
+	NodeSendFile: true, NodeSendMenu: true, NodeSendButtons: true, NodeCondition: true, NodeSwitch: true, NodeDelay: true,
 	NodeChangeStatus: true, NodeAssign: true, NodeHTTPRequest: true, NodeWaitForResponse: true,
 	NodeInput: true, NodeCheckResponse: true, NodeEnd: true,
 	NodeSetVariable: true, NodeTag: true, NodeUpdateContact: true, NodeBusinessHours: true, NodeRandomSplit: true,
 	NodeMessageType: true, NodeSmartAssign: true,
 	NodeAddNote: true, NodeCallback: true,
-	NodeSubflow:         true,
-	NodeSendTemplate:    true,
-	NodeAI:              true,
-	NodeScheduleMessage: true,
+	NodeSubflow:             true,
+	NodeSendTemplate:        true,
+	NodeAI:                  true,
+	NodeScheduleMessage:     true,
+	NodeAIAgent:             true,
+	NodeSetContactField:     true,
+	NodeConversationSummary: true,
+	NodeNPSEvaluation:       true,
+	NodeMediaTranscription:  true,
 }
 
 type FlowNodeType string
 
 const (
-	NodeStart           FlowNodeType = "start"
-	NodeSendText        FlowNodeType = "sendText"
-	NodeSendImage       FlowNodeType = "sendImage"
-	NodeSendVideo       FlowNodeType = "sendVideo"
-	NodeSendAudio       FlowNodeType = "sendAudio"
-	NodeSendFile        FlowNodeType = "sendFile"
-	NodeSendMenu        FlowNodeType = "sendMenu"
-	NodeCondition       FlowNodeType = "condition"
-	NodeSwitch          FlowNodeType = "switch"
-	NodeDelay           FlowNodeType = "delay"
-	NodeChangeStatus    FlowNodeType = "changeStatus"
-	NodeAssign          FlowNodeType = "assign"
-	NodeHTTPRequest     FlowNodeType = "httpRequest"
-	NodeWaitForResponse FlowNodeType = "waitForResponse"
-	NodeInput           FlowNodeType = "input"
-	NodeCheckResponse   FlowNodeType = "checkResponse"
-	NodeSetVariable     FlowNodeType = "setVariable"
-	NodeTag             FlowNodeType = "tag"
-	NodeUpdateContact   FlowNodeType = "updateContact"
-	NodeBusinessHours   FlowNodeType = "businessHours"
-	NodeRandomSplit     FlowNodeType = "randomSplit"
-	NodeMessageType     FlowNodeType = "messageType"
-	NodeSmartAssign     FlowNodeType = "smartAssign"
-	NodeAddNote         FlowNodeType = "addNote"
-	NodeCallback        FlowNodeType = "callback"
-	NodeSubflow         FlowNodeType = "subflow"
-	NodeSendTemplate    FlowNodeType = "sendTemplate"
-	NodeAI              FlowNodeType = "ai"
-	NodeScheduleMessage FlowNodeType = "scheduleMessage"
-	NodeEnd             FlowNodeType = "end"
+	NodeStart               FlowNodeType = "start"
+	NodeSendText            FlowNodeType = "sendText"
+	NodeSendImage           FlowNodeType = "sendImage"
+	NodeSendVideo           FlowNodeType = "sendVideo"
+	NodeSendAudio           FlowNodeType = "sendAudio"
+	NodeSendFile            FlowNodeType = "sendFile"
+	NodeSendMenu            FlowNodeType = "sendMenu"
+	NodeSendButtons         FlowNodeType = "sendButtons"
+	NodeCondition           FlowNodeType = "condition"
+	NodeSwitch              FlowNodeType = "switch"
+	NodeDelay               FlowNodeType = "delay"
+	NodeChangeStatus        FlowNodeType = "changeStatus"
+	NodeAssign              FlowNodeType = "assign"
+	NodeHTTPRequest         FlowNodeType = "httpRequest"
+	NodeWaitForResponse     FlowNodeType = "waitForResponse"
+	NodeInput               FlowNodeType = "input"
+	NodeCheckResponse       FlowNodeType = "checkResponse"
+	NodeSetVariable         FlowNodeType = "setVariable"
+	NodeTag                 FlowNodeType = "tag"
+	NodeUpdateContact       FlowNodeType = "updateContact"
+	NodeBusinessHours       FlowNodeType = "businessHours"
+	NodeRandomSplit         FlowNodeType = "randomSplit"
+	NodeMessageType         FlowNodeType = "messageType"
+	NodeSmartAssign         FlowNodeType = "smartAssign"
+	NodeAddNote             FlowNodeType = "addNote"
+	NodeCallback            FlowNodeType = "callback"
+	NodeSubflow             FlowNodeType = "subflow"
+	NodeSendTemplate        FlowNodeType = "sendTemplate"
+	NodeAI                  FlowNodeType = "ai"
+	NodeScheduleMessage     FlowNodeType = "scheduleMessage"
+	NodeAIAgent             FlowNodeType = "aiAgent"
+	NodeSetContactField     FlowNodeType = "setContactField"
+	NodeConversationSummary FlowNodeType = "conversationSummary"
+	NodeNPSEvaluation       FlowNodeType = "npsEvaluation"
+	NodeMediaTranscription  FlowNodeType = "mediaTranscription"
+	NodeEnd                 FlowNodeType = "end"
 )
 
 type FlowNode struct {
@@ -86,8 +97,21 @@ type FlowEdge struct {
 }
 
 type FlowData struct {
-	Nodes []FlowNode `json:"nodes"`
-	Edges []FlowEdge `json:"edges"`
+	Nodes    []FlowNode   `json:"nodes"`
+	Edges    []FlowEdge   `json:"edges"`
+	Settings FlowSettings `json:"settings,omitempty"`
+}
+
+type FlowSettings struct {
+	NoResponse NoResponseSettings `json:"noResponse,omitempty"`
+}
+
+type NoResponseSettings struct {
+	Enabled         bool   `json:"enabled"`
+	ReminderMinutes int    `json:"reminderMinutes"`
+	ReminderMessage string `json:"reminderMessage"`
+	TargetType      string `json:"targetType"`
+	TargetID        int    `json:"targetId"`
 }
 
 type ExecutionContext map[string]interface{}
@@ -136,6 +160,9 @@ func ValidateFlowData(raw json.RawMessage) error {
 	if len(data.Nodes) > maxFlowNodes || len(data.Edges) > maxFlowEdges {
 		return fmt.Errorf("flow excede o limite de %d nodes ou %d conexões", maxFlowNodes, maxFlowEdges)
 	}
+	if err := validateNoResponseSettings(data.Settings.NoResponse); err != nil {
+		return fmt.Errorf("configuração sem resposta: %w", err)
+	}
 	nodes := make(map[string]FlowNode, len(data.Nodes))
 	for _, node := range data.Nodes {
 		if !knownFlowNodeTypes[node.Type] {
@@ -162,7 +189,7 @@ func ValidateFlowData(raw json.RawMessage) error {
 		if _, ok := nodes[edge.Target]; !ok {
 			return fmt.Errorf("edge %s possui destino inexistente", edge.ID)
 		}
-		if nodes[edge.Source].Type == NodeEnd {
+		if nodes[edge.Source].Type == NodeEnd || nodes[edge.Source].Type == NodeAIAgent {
 			return fmt.Errorf("edge %s não pode sair de um node Fim", edge.ID)
 		}
 		if nodes[edge.Target].Type == NodeStart {
@@ -216,6 +243,26 @@ func ValidateFlowData(raw json.RawMessage) error {
 	return nil
 }
 
+func validateNoResponseSettings(settings NoResponseSettings) error {
+	if !settings.Enabled {
+		return nil
+	}
+	if settings.ReminderMinutes < 1 || settings.ReminderMinutes > 43200 {
+		return fmt.Errorf("tempo do lembrete deve estar entre 1 e 43200 minutos")
+	}
+	message := strings.TrimSpace(settings.ReminderMessage)
+	if message == "" || len(message) > 10000 {
+		return fmt.Errorf("mensagem do lembrete deve possuir entre 1 e 10000 caracteres")
+	}
+	if settings.TargetType != "agent" && settings.TargetType != "department" {
+		return fmt.Errorf("destino deve ser um agente ou setor")
+	}
+	if settings.TargetID <= 0 {
+		return fmt.Errorf("destino da transferência é obrigatório")
+	}
+	return nil
+}
+
 func ValidateActiveFlowData(raw json.RawMessage) error {
 	if err := ValidateFlowData(raw); err != nil {
 		return err
@@ -251,6 +298,13 @@ func ValidateActiveFlowData(raw json.RawMessage) error {
 }
 
 func validateNodeConfiguration(node FlowNode) error {
+	if node.Type == NodeAI || node.Type == NodeAIAgent || node.Type == NodeConversationSummary || node.Type == NodeMediaTranscription {
+		if value, exists := node.Data["safeMode"]; exists {
+			if _, ok := value.(bool); !ok {
+				return fmt.Errorf("modo seguro deve ser verdadeiro ou falso")
+			}
+		}
+	}
 	switch node.Type {
 	case NodeSendText:
 		message := strings.TrimSpace(stringVal(node.Data, "message"))
@@ -259,6 +313,10 @@ func validateNodeConfiguration(node FlowNode) error {
 		}
 	case NodeSendMenu:
 		if err := validateMenuNode(node.Data); err != nil {
+			return err
+		}
+	case NodeSendButtons:
+		if err := validateButtonsNode(node.Data); err != nil {
 			return err
 		}
 	case NodeSwitch:
@@ -321,6 +379,36 @@ func validateNodeConfiguration(node FlowNode) error {
 		if value == "" || len(value) > 320 {
 			return fmt.Errorf("valor do contato deve possuir entre 1 e 320 caracteres")
 		}
+	case NodeSetContactField:
+		key := strings.TrimSpace(stringVal(node.Data, "fieldKey"))
+		if !flowVariablePattern.MatchString(key) || len(stringVal(node.Data, "value")) > 10000 {
+			return fmt.Errorf("campo personalizado inválido")
+		}
+		fieldType := stringVal(node.Data, "fieldType")
+		if fieldType != "text" && fieldType != "number" && fieldType != "boolean" {
+			return fmt.Errorf("tipo de campo personalizado inválido")
+		}
+	case NodeConversationSummary:
+		if intVal(node.Data, "credentialId") <= 0 && intVal(node.Data, "aiAgentId") <= 0 {
+			return fmt.Errorf("credencial de IA é obrigatória")
+		}
+		if maxMessages := intVal(node.Data, "maxMessages"); maxMessages < 2 || maxMessages > 100 {
+			return fmt.Errorf("quantidade de mensagens deve estar entre 2 e 100")
+		}
+		if len(stringVal(node.Data, "instructions")) > 5000 {
+			return fmt.Errorf("instruções de resumo excedem o limite")
+		}
+		if name := strings.TrimSpace(stringVal(node.Data, "saveResponseTo")); !flowVariablePattern.MatchString(name) {
+			return fmt.Errorf("nome de variável inválido")
+		}
+	case NodeNPSEvaluation:
+		message := strings.TrimSpace(stringVal(node.Data, "message"))
+		if message == "" || len(message) > 10000 {
+			return fmt.Errorf("mensagem de NPS inválida")
+		}
+		if name := strings.TrimSpace(stringVal(node.Data, "saveScoreTo")); !flowVariablePattern.MatchString(name) {
+			return fmt.Errorf("nome de variável inválido")
+		}
 	case NodeRandomSplit:
 		percentage := intVal(node.Data, "percentage")
 		if percentage < 1 || percentage > 99 {
@@ -364,9 +452,26 @@ func validateNodeConfiguration(node FlowNode) error {
 			return fmt.Errorf("modelo de mensagem é obrigatório")
 		}
 	case NodeAI:
+		if intVal(node.Data, "credentialId") <= 0 {
+			return fmt.Errorf("credencial de IA é obrigatória; selecione uma credencial no bloco Gerar com IA")
+		}
 		prompt := strings.TrimSpace(stringVal(node.Data, "prompt"))
-		if prompt == "" || len(prompt) > 20000 || len(stringVal(node.Data, "systemPrompt")) > 10000 {
+		if prompt == "" || len(prompt) > 20000 || len(stringVal(node.Data, "systemPrompt")) > 10000 || len(stringVal(node.Data, "knowledgeBase")) > 500000 {
 			return fmt.Errorf("prompt é obrigatório e deve respeitar os limites de tamanho")
+		}
+		if name := strings.TrimSpace(stringVal(node.Data, "saveResponseTo")); !flowVariablePattern.MatchString(name) {
+			return fmt.Errorf("nome de variável inválido")
+		}
+	case NodeAIAgent:
+		if intVal(node.Data, "aiAgentId") <= 0 {
+			return fmt.Errorf("agente de IA é obrigatório")
+		}
+	case NodeMediaTranscription:
+		if intVal(node.Data, "credentialId") <= 0 && intVal(node.Data, "aiAgentId") <= 0 {
+			return fmt.Errorf("credencial de IA é obrigatória")
+		}
+		if len(stringVal(node.Data, "prompt")) > 2000 {
+			return fmt.Errorf("prompt de transcrição excede o limite de 2000 caracteres")
 		}
 		if name := strings.TrimSpace(stringVal(node.Data, "saveResponseTo")); !flowVariablePattern.MatchString(name) {
 			return fmt.Errorf("nome de variável inválido")
@@ -437,6 +542,15 @@ func validateNodeConfiguration(node FlowNode) error {
 	return nil
 }
 
+func safeModeEnabled(data map[string]interface{}) bool {
+	value, exists := data["safeMode"]
+	if !exists {
+		return true
+	}
+	enabled, ok := value.(bool)
+	return !ok || enabled
+}
+
 func validSourceHandle(node FlowNode, handle string) bool {
 	switch node.Type {
 	case NodeCondition, NodeCheckResponse, NodeBusinessHours:
@@ -451,8 +565,12 @@ func validSourceHandle(node FlowNode, handle string) bool {
 		return handle == "text" || handle == "image" || handle == "video" || handle == "audio" || handle == "document" || handle == "other"
 	case NodeSmartAssign:
 		return handle == "assigned" || handle == "unavailable"
-	case NodeCallback:
+	case NodeCallback, NodeConversationSummary:
 		return handle == "success" || handle == "failure"
+	case NodeHTTPRequest:
+		return handle == "" || handle == "success" || handle == "failure"
+	case NodeNPSEvaluation:
+		return handle == "promoter" || handle == "passive" || handle == "detractor" || handle == "invalid" || handle == "timeout"
 	case NodeSubflow:
 		return handle == "success" || handle == "failure"
 	case NodeAI:
@@ -461,6 +579,16 @@ func validSourceHandle(node FlowNode, handle string) bool {
 		return handle == "scheduled" || handle == "failure"
 	case NodeSendMenu:
 		return handle == "" || handle == "fallback" || strings.HasPrefix(handle, "menu-")
+	case NodeSendButtons:
+		if handle == "fallback" {
+			return true
+		}
+		for _, button := range flowButtons(node.Data) {
+			if handle == "button-"+stringVal(button, "_handleId") && stringVal(button, "_handleId") != "" {
+				return true
+			}
+		}
+		return false
 	case NodeSwitch:
 		if handle == "fallback" {
 			return true
@@ -470,7 +598,7 @@ func validSourceHandle(node FlowNode, handle string) bool {
 			return false
 		}
 		return handle == fmt.Sprintf("case-%d", index) && index >= 0 && index < len(switchCases(node.Data))
-	case NodeEnd:
+	case NodeEnd, NodeAIAgent:
 		return false
 	default:
 		return handle == ""
@@ -509,6 +637,41 @@ func validateMenuNode(data map[string]interface{}) error {
 	}
 	if rows > 50 {
 		return fmt.Errorf("menu excede o limite de 50 opções")
+	}
+	return nil
+}
+
+func flowButtons(data map[string]interface{}) []map[string]interface{} {
+	items, _ := data["buttons"].([]interface{})
+	buttons := make([]map[string]interface{}, 0, len(items))
+	for _, item := range items {
+		button, _ := item.(map[string]interface{})
+		buttons = append(buttons, button)
+	}
+	return buttons
+}
+
+func validateButtonsNode(data map[string]interface{}) error {
+	if description := strings.TrimSpace(stringVal(data, "description")); description == "" || len(description) > 10000 {
+		return fmt.Errorf("mensagem dos botões deve possuir entre 1 e 10000 caracteres")
+	}
+	buttons := flowButtons(data)
+	if len(buttons) < 1 || len(buttons) > 3 {
+		return fmt.Errorf("o bloco exige entre 1 e 3 botões")
+	}
+	ids := map[string]bool{}
+	handles := map[string]bool{}
+	for i, button := range buttons {
+		id := strings.TrimSpace(stringVal(button, "id"))
+		label := strings.TrimSpace(stringVal(button, "text"))
+		handle := stringVal(button, "_handleId")
+		if id == "" || len(id) > 100 || label == "" || len(label) > 25 || !flowNodeIDPattern.MatchString(handle) {
+			return fmt.Errorf("botão %d exige ID único (até 100 caracteres), texto (até 25) e saída válida", i+1)
+		}
+		if ids[id] || handles[handle] {
+			return fmt.Errorf("IDs e saídas dos botões devem ser únicos")
+		}
+		ids[id], handles[handle] = true, true
 	}
 	return nil
 }

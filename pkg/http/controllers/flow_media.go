@@ -31,7 +31,7 @@ func UploadFlowMedia(ctx iris.Context) {
 	}
 	if err := repo.ReserveCompanyStorage(agent.CompanyId, reserved); err != nil {
 		if errors.Is(err, repo.ErrStorageLimitReached) {
-			ctx.StopWithJSON(iris.StatusInsufficientStorage, iris.Map{"error": "limite de armazenamento atingido", "code": "storage_quota_exceeded", "upgradeURL": "/billing"})
+			ctx.StopWithJSON(iris.StatusInsufficientStorage, iris.Map{"error": "limite de armazenamento atingido", "code": "storage_quota_exceeded", "upgradeURL": "/settings?reason=storage_quota#settings-billing"})
 			return
 		}
 		ctx.StopWithJSON(iris.StatusInternalServerError, iris.Map{"error": "não foi possível reservar armazenamento"})

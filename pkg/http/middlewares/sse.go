@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"sophus/internal/repo"
@@ -15,8 +16,18 @@ import (
 	"github.com/kataras/iris/v12"
 )
 
+const maxSSEConnectionsPerAgent = 10
+
+var sseConnectionCounts = struct {
+	sync.Mutex
+	byAgent map[int]int
+}{byAgent: map[int]int{}}
+
 func SSEMessages(ctx iris.Context) {
-	key := strings.TrimPrefix(ctx.GetReferrer().Path, "/messages/")
+	key := strings.TrimSpace(ctx.URLParam("conversation"))
+	if key == "" {
+		key = strings.TrimPrefix(ctx.GetReferrer().Path, "/messages/")
+	}
 	conversationURL, err := uuid.Parse(key)
 	if err != nil {
 		ctx.StopWithStatus(iris.StatusBadRequest)
@@ -31,7 +42,7 @@ func SSEMessages(ctx iris.Context) {
 		ctx.StopWithStatus(iris.StatusForbidden)
 		return
 	}
-	streamSSE(ctx, sse.Global, key, "message")
+	streamSSE(ctx, sse.Global, key, "message", agent.Id)
 }
 
 func SSEConversations(ctx iris.Context) {
@@ -40,7 +51,7 @@ func SSEConversations(ctx iris.Context) {
 		ctx.StopWithStatus(iris.StatusUnauthorized)
 		return
 	}
-	streamSSE(ctx, sse.Conversations, strconv.Itoa(agent.CompanyId), "conversation")
+	streamSSE(ctx, sse.Conversations, strconv.Itoa(agent.CompanyId), "conversation", agent.Id)
 }
 
 func SSEInstances(ctx iris.Context) {
@@ -49,7 +60,7 @@ func SSEInstances(ctx iris.Context) {
 		ctx.StopWithStatus(iris.StatusUnauthorized)
 		return
 	}
-	streamSSE(ctx, sse.Instances, strconv.Itoa(agent.CompanyId), "instance-status")
+	streamSSE(ctx, sse.Instances, strconv.Itoa(agent.CompanyId), "instance-status", agent.Id)
 }
 
 func SSEQRCode(ctx iris.Context) {
@@ -72,10 +83,19 @@ func SSEQRCode(ctx iris.Context) {
 		ctx.StopWithStatus(iris.StatusForbidden)
 		return
 	}
-	streamSSE(ctx, sse.QRGlobal, strconv.Itoa(connectionID), "qrcode")
+	streamSSE(ctx, sse.QRGlobal, strconv.Itoa(connectionID), "qrcode", agent.Id)
 }
 
-func streamSSE(ctx iris.Context, hub *sse.Hub, key, event string) {
+func streamSSE(ctx iris.Context, hub *sse.Hub, key, event string, agentID int) {
+	supportSession, support := SupportSession(ctx)
+	if support {
+		agentID = -supportSession.Admin.Id
+	}
+	if !acquireSSEConnection(agentID) {
+		ctx.StopWithStatus(iris.StatusTooManyRequests)
+		return
+	}
+	defer releaseSSEConnection(agentID)
 	ctx.Header("Content-Type", "text/event-stream")
 	ctx.Header("Cache-Control", "no-cache")
 	ctx.Header("Connection", "keep-alive")
@@ -99,6 +119,11 @@ func streamSSE(ctx iris.Context, hub *sse.Hub, key, event string) {
 	for {
 		select {
 		case incoming := <-client.Ch:
+			if support {
+				if _, err := identifySupportAgent(ctx); err != nil {
+					return
+				}
+			}
 			eventName := incoming.Name
 			if eventName == "" {
 				eventName = event
@@ -107,6 +132,11 @@ func streamSSE(ctx iris.Context, hub *sse.Hub, key, event string) {
 				return
 			}
 		case <-heartbeat.C:
+			if support {
+				if _, err := identifySupportAgent(ctx); err != nil {
+					return
+				}
+			}
 			if _, err := fmt.Fprint(ctx.ResponseWriter(), ": heartbeat\n\n"); err != nil {
 				return
 			}
@@ -115,6 +145,26 @@ func streamSSE(ctx iris.Context, hub *sse.Hub, key, event string) {
 			return
 		}
 	}
+}
+
+func acquireSSEConnection(agentID int) bool {
+	sseConnectionCounts.Lock()
+	defer sseConnectionCounts.Unlock()
+	if sseConnectionCounts.byAgent[agentID] >= maxSSEConnectionsPerAgent {
+		return false
+	}
+	sseConnectionCounts.byAgent[agentID]++
+	return true
+}
+
+func releaseSSEConnection(agentID int) {
+	sseConnectionCounts.Lock()
+	defer sseConnectionCounts.Unlock()
+	if sseConnectionCounts.byAgent[agentID] <= 1 {
+		delete(sseConnectionCounts.byAgent, agentID)
+		return
+	}
+	sseConnectionCounts.byAgent[agentID]--
 }
 
 func writeSSE(ctx iris.Context, flusher http.Flusher, event, data string) error {

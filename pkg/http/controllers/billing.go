@@ -3,6 +3,7 @@ package controllers
 import (
 	"context"
 	"crypto/rand"
+	"crypto/sha256"
 	"crypto/subtle"
 	"database/sql"
 	"encoding/hex"
@@ -10,14 +11,17 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log"
 	"math"
 	"net/http"
+	"net/url"
 	"strconv"
 	"strings"
 	"time"
 
 	"sophus/internal/payments"
 	"sophus/internal/repo"
+	"sophus/pkg/http/middlewares"
 	"sophus/utils/env"
 	"sophus/web"
 
@@ -25,7 +29,10 @@ import (
 	"golang.org/x/crypto/bcrypt"
 )
 
-const paymentProviderRequestTimeout = 15 * time.Second
+const (
+	paymentProviderRequestTimeout = 15 * time.Second
+	webhookProviderRequestTimeout = 2500 * time.Millisecond
+)
 
 type checkoutHTTPError struct {
 	status                    int
@@ -38,7 +45,29 @@ func (e *checkoutHTTPError) Error() string {
 }
 
 func BillingPage(ctx iris.Context) {
+	_, authenticated := middlewares.OptionalAgent(ctx)
+	ctx.Header("Vary", "Cookie")
+	ctx.Header("Cache-Control", "private, no-store")
+	if authenticated {
+		ctx.Redirect(billingSettingsURL(ctx.Request().URL.RawQuery), iris.StatusFound)
+		return
+	}
 	ctx.RenderComponent(web.Billing())
+}
+
+func billingSettingsURL(rawQuery string) string {
+	query, _ := url.ParseQuery(rawQuery)
+	preserved := url.Values{}
+	for _, key := range []string{"payment", "reason"} {
+		for _, value := range query[key] {
+			preserved.Add(key, value)
+		}
+	}
+	target := "/settings"
+	if encoded := preserved.Encode(); encoded != "" {
+		target += "?" + encoded
+	}
+	return target + "#settings-billing"
 }
 
 func PublicBillingCatalog(ctx iris.Context) {
@@ -110,6 +139,8 @@ func RegisterCompanyTrial(ctx iris.Context) {
 			writeJSONError(ctx, iris.StatusNotFound, "plano não encontrado ou indisponível")
 		case errors.Is(err, repo.ErrAgentEmailInUse), isUniqueViolation(err):
 			writeJSONError(ctx, iris.StatusConflict, "o email da empresa ou do responsável já está cadastrado")
+		case errors.Is(err, repo.ErrInvalidTrialDays):
+			writeJSONError(ctx, iris.StatusBadRequest, "o período de teste deve ser menor que o ciclo contratado")
 		default:
 			writeJSONError(ctx, iris.StatusInternalServerError, "não foi possível criar a conta")
 		}
@@ -149,6 +180,17 @@ func GetCompanyBilling(ctx iris.Context) {
 		writeBillingRepositoryError(ctx, err, "não foi possível consultar o plano")
 		return
 	}
+	paymentProvider, err := repo.ResolveCompanyPaymentProvider(agent.CompanyId)
+	if err != nil {
+		writeBillingRepositoryError(ctx, err, "não foi possível consultar o provedor de pagamento")
+		return
+	}
+	if subscription.PriceCents > 0 {
+		if _, _, err := repo.CreatePaymentForCurrentSubscription(agent.CompanyId, paymentProvider); err != nil && !errors.Is(err, repo.ErrRenewalNotDue) {
+			writeBillingRepositoryError(ctx, err, "não foi possível verificar a próxima fatura")
+			return
+		}
+	}
 	companyPayments, err := repo.GetPaymentsByCompany(agent.CompanyId)
 	if err != nil {
 		writeJSONError(ctx, iris.StatusInternalServerError, "não foi possível listar os pagamentos")
@@ -165,16 +207,16 @@ func GetCompanyBilling(ctx iris.Context) {
 			writeBillingRepositoryError(ctx, err, "não foi possível atualizar a assinatura")
 			return
 		}
+		plan, err = repo.GetPlanById(subscription.PlanId)
+		if err != nil {
+			writeBillingRepositoryError(ctx, err, "não foi possível atualizar o plano")
+			return
+		}
 		companyPayments, err = repo.GetPaymentsByCompany(agent.CompanyId)
 		if err != nil {
 			writeJSONError(ctx, iris.StatusInternalServerError, "não foi possível atualizar os pagamentos")
 			return
 		}
-	}
-	paymentProvider, err := repo.ResolveCompanyPaymentProvider(agent.CompanyId)
-	if err != nil {
-		writeBillingRepositoryError(ctx, err, "não foi possível consultar o provedor de pagamento")
-		return
 	}
 	plans, err := repo.ListPlans(false)
 	if err != nil {
@@ -186,6 +228,11 @@ func GetCompanyBilling(ctx iris.Context) {
 		writeBillingRepositoryError(ctx, err, "não foi possível consultar o armazenamento")
 		return
 	}
+	credits, err := repo.GetCompanyCreditSummary(agent.CompanyId)
+	if err != nil {
+		writeJSONError(ctx, iris.StatusInternalServerError, "não foi possível consultar os créditos")
+		return
+	}
 	ctx.JSON(iris.Map{"data": iris.Map{
 		"company":         company,
 		"subscription":    subscription,
@@ -194,7 +241,17 @@ func GetCompanyBilling(ctx iris.Context) {
 		"payments":        companyPayments,
 		"paymentProvider": paymentProvider,
 		"storageUsage":    storageUsage,
+		"credits":         credits,
+		"addons":          companyBillingAddons(agent.CompanyId),
 	}})
+}
+
+func companyBillingAddons(companyID int) *repo.CompanyAddons {
+	state, err := repo.GetCompanyAddons(companyID)
+	if err != nil {
+		return nil
+	}
+	return &state
 }
 
 func CreateCompanyCheckout(ctx iris.Context) {
@@ -202,7 +259,7 @@ func CreateCompanyCheckout(ctx iris.Context) {
 	if !ok {
 		return
 	}
-	payment, err := createPaymentCheckout(ctx, agent.CompanyId, "/billing")
+	payment, err := createPaymentCheckout(ctx, agent.CompanyId, "/settings#settings-billing")
 	if err != nil {
 		writeCheckoutError(ctx, err)
 		return
@@ -236,16 +293,32 @@ func UpdateCompanyBillingCycle(ctx iris.Context) {
 		writeBillingRepositoryError(ctx, err, "não foi possível consultar a assinatura")
 		return
 	}
-	subscription, err := repo.ChangeCompanyPlan(agent.CompanyId, current.PlanId, body.BillingCycle)
+	provider, err := repo.ResolveCompanyPaymentProvider(agent.CompanyId)
+	if err != nil {
+		writeBillingRepositoryError(ctx, err, "não foi possível determinar o provedor de pagamento")
+		return
+	}
+	payment, err := repo.RequestCompanyPlanChange(agent.CompanyId, current.PlanId, body.BillingCycle, provider)
 	if err != nil {
 		if errors.Is(err, repo.ErrOpenPayments) {
 			writeJSONError(ctx, iris.StatusConflict, "aguarde ou conclua a cobrança aberta antes de alterar o ciclo")
 			return
 		}
+		if errors.Is(err, repo.ErrNoSubscriptionChange) {
+			writeJSONError(ctx, iris.StatusConflict, "este ciclo já está contratado")
+			return
+		}
 		writeBillingRepositoryError(ctx, err, "não foi possível alterar o ciclo de cobrança")
 		return
 	}
-	ctx.JSON(iris.Map{"data": subscription})
+	if payment.Status != repo.PaymentStatusPaid {
+		payment, err = createPaymentCheckout(ctx, agent.CompanyId, "/settings#settings-billing")
+		if err != nil {
+			writeCheckoutError(ctx, err)
+			return
+		}
+	}
+	ctx.JSON(iris.Map{"data": payment})
 }
 
 func UpdateCompanyBillingPlan(ctx iris.Context) {
@@ -270,13 +343,20 @@ func UpdateCompanyBillingPlan(ctx iris.Context) {
 		writeCheckoutError(ctx, err)
 		return
 	}
-	subscription, err := repo.ChangeCompanyPlan(agent.CompanyId, body.PlanId, body.BillingCycle)
+	provider, err := repo.ResolveCompanyPaymentProvider(agent.CompanyId)
+	if err != nil {
+		writeBillingRepositoryError(ctx, err, "não foi possível determinar o provedor de pagamento")
+		return
+	}
+	payment, err := repo.RequestCompanyPlanChange(agent.CompanyId, body.PlanId, body.BillingCycle, provider)
 	if err != nil {
 		switch {
 		case errors.Is(err, repo.ErrOpenPayments):
 			writeJSONError(ctx, iris.StatusConflict, "conclua ou aguarde a cobrança aberta antes de trocar o plano")
 		case errors.Is(err, repo.ErrPlanLimitBelowUsage):
 			writeJSONError(ctx, iris.StatusConflict, "o plano escolhido não comporta o uso atual da empresa")
+		case errors.Is(err, repo.ErrNoSubscriptionChange):
+			writeJSONError(ctx, iris.StatusConflict, "este plano e ciclo já estão contratados")
 		case errors.Is(err, sql.ErrNoRows):
 			writeJSONError(ctx, iris.StatusNotFound, "plano não encontrado ou indisponível")
 		default:
@@ -284,7 +364,14 @@ func UpdateCompanyBillingPlan(ctx iris.Context) {
 		}
 		return
 	}
-	ctx.JSON(iris.Map{"data": subscription})
+	if payment.Status != repo.PaymentStatusPaid {
+		payment, err = createPaymentCheckout(ctx, agent.CompanyId, "/settings#settings-billing")
+		if err != nil {
+			writeCheckoutError(ctx, err)
+			return
+		}
+	}
+	ctx.JSON(iris.Map{"data": payment})
 }
 
 func createPaymentCheckout(ctx iris.Context, companyID int, returnPath string) (repo.Payment, error) {
@@ -292,31 +379,21 @@ func createPaymentCheckout(ctx iris.Context, companyID int, returnPath string) (
 	if err != nil {
 		return repo.Payment{}, checkoutRepositoryError(err, "não foi possível consultar a empresa")
 	}
-	subscription, err := repo.GetCurrentSubscription(companyID)
-	if err != nil {
-		return repo.Payment{}, checkoutRepositoryError(err, "não foi possível consultar a assinatura")
-	}
-	plan, err := repo.GetPlanById(subscription.PlanId)
-	if err != nil {
-		return repo.Payment{}, checkoutRepositoryError(err, "não foi possível consultar o plano")
-	}
 	provider, err := repo.ResolveCompanyPaymentProvider(companyID)
 	if err != nil {
 		return repo.Payment{}, checkoutRepositoryError(err, "não foi possível determinar o provedor de pagamento")
 	}
-	if subscription.PriceCents == 0 {
-		return repo.Payment{
-			CompanyId:      companyID,
-			SubscriptionId: subscription.Id,
-			Status:         repo.PaymentStatusPaid,
-			AmountCents:    0,
-			DueDate:        subscription.CurrentPeriodEnd,
-			Provider:       provider,
-		}, nil
-	}
 	payment, _, err := repo.CreatePaymentForCurrentSubscription(companyID, provider)
 	if err != nil {
 		return repo.Payment{}, checkoutRepositoryError(err, "não foi possível preparar a cobrança")
+	}
+	planID, err := repo.GetPaymentPlanID(payment.Id)
+	if err != nil {
+		return repo.Payment{}, checkoutRepositoryError(err, "não foi possível consultar o plano da cobrança")
+	}
+	plan, err := repo.GetPlanById(planID)
+	if err != nil {
+		return repo.Payment{}, checkoutRepositoryError(err, "não foi possível consultar o plano")
 	}
 	if payment.CheckoutURL != nil && strings.TrimSpace(*payment.CheckoutURL) != "" {
 		if payment.Provider != repo.PaymentProviderAbacatePay {
@@ -325,12 +402,32 @@ func createPaymentCheckout(ctx iris.Context, companyID int, returnPath string) (
 		if err := validateCheckoutProviderConfiguration(payment.Provider); err != nil {
 			return repo.Payment{}, err
 		}
+		planChange, planChangeErr := repo.IsPlanChangePayment(payment.Id)
+		if planChangeErr != nil {
+			return repo.Payment{}, checkoutRepositoryError(planChangeErr, "não foi possível validar a cobrança")
+		}
 		payment, reusable, err := reconcileAbacatePayPayment(ctx, payment)
 		if err != nil {
+			var orphan *orphanAbacateCheckoutError
+			if errors.As(err, &orphan) && !planChange {
+				canceled, cancelErr := repo.CancelOrphanAbacatePayCheckout(payment.Id, companyID, orphan.url)
+				if cancelErr != nil {
+					return repo.Payment{}, checkoutRepositoryError(cancelErr, "não foi possível substituir o checkout PIX incompleto")
+				}
+				if canceled {
+					return createPaymentCheckout(ctx, companyID, returnPath)
+				}
+			}
+			if errors.As(err, &orphan) {
+				return repo.Payment{}, &checkoutHTTPError{status: iris.StatusConflict, message: "checkout PIX antigo não encontrado; selecione o plano novamente ou contate o suporte"}
+			}
 			return repo.Payment{}, err
 		}
 		if reusable {
 			return payment, nil
+		}
+		if planChange {
+			return repo.Payment{}, &checkoutHTTPError{status: iris.StatusConflict, message: "a fatura da mudança expirou; selecione o plano novamente"}
 		}
 		payment, _, err = repo.CreatePaymentForCurrentSubscription(companyID, provider)
 		if err != nil {
@@ -339,6 +436,13 @@ func createPaymentCheckout(ctx iris.Context, companyID int, returnPath string) (
 		if payment.CheckoutURL != nil && strings.TrimSpace(*payment.CheckoutURL) != "" {
 			return payment, nil
 		}
+	}
+	payment, err = repo.ApplyCompanyCreditsToPayment(companyID, payment.Id)
+	if err != nil {
+		return repo.Payment{}, checkoutRepositoryError(err, "não foi possível aplicar os créditos à cobrança")
+	}
+	if payment.Status == repo.PaymentStatusPaid {
+		return payment, nil
 	}
 	if payment.AmountCents == 0 {
 		return payment, nil
@@ -387,6 +491,12 @@ func createPaymentCheckout(ctx iris.Context, companyID int, returnPath string) (
 	return payment, nil
 }
 
+type orphanAbacateCheckoutError struct{ url string }
+
+func (e *orphanAbacateCheckoutError) Error() string {
+	return "checkout PIX antigo não encontrado no provedor"
+}
+
 func createMercadoPagoCheckout(ctx iris.Context, company repo.Company, plan repo.Plan, payment repo.Payment, checkoutKey, checkoutLease string, recoverPreference bool, returnPath string) (repo.Payment, error) {
 	accessToken := strings.TrimSpace(env.Backend["MERCADO_PAGO_ACCESS_TOKEN"])
 	if accessToken == "" {
@@ -427,11 +537,11 @@ func createMercadoPagoCheckout(ctx iris.Context, company repo.Company, plan repo
 		ExternalReference: strconv.Itoa(payment.Id),
 		NotificationURL:   publicURL + "/payments/mercado-pago/webhook",
 		BackURLs: payments.BackURLs{
-			Success: publicURL + returnPath + "?payment=success",
-			Failure: publicURL + returnPath + "?payment=failure",
-			Pending: publicURL + returnPath + "?payment=pending",
+			Success: paymentReturnURL(publicURL, returnPath, "success"),
+			Failure: paymentReturnURL(publicURL, returnPath, "failure"),
+			Pending: paymentReturnURL(publicURL, returnPath, "pending"),
 		},
-		ExpirationDate: payment.DueDate,
+		ExpirationDate: paymentCheckoutExpiration(payment.DueDate, time.Now().UTC()),
 		CheckoutKey:    checkoutKey,
 	})
 	if err != nil {
@@ -497,8 +607,8 @@ func createAbacatePayCheckout(ctx iris.Context, company repo.Company, plan repo.
 		ctx.Request().Context(),
 		productID,
 		externalID,
-		publicURL+returnPath+"?payment=pending",
-		publicURL+returnPath+"?payment=success",
+		paymentReturnURL(publicURL, returnPath, "pending"),
+		paymentReturnURL(publicURL, returnPath, "success"),
 		checkoutKey,
 	)
 	if err != nil {
@@ -525,6 +635,24 @@ func createAbacatePayCheckout(ctx iris.Context, company repo.Company, plan repo.
 		return repo.Payment{}, &checkoutHTTPError{status: iris.StatusInternalServerError, message: "checkout criado, mas não foi possível salvar a cobrança", checkoutCreationUncertain: true}
 	}
 	return payment, nil
+}
+
+func paymentReturnURL(publicURL, returnPath, result string) string {
+	target, err := url.Parse(publicURL + returnPath)
+	if err != nil {
+		return publicURL + returnPath
+	}
+	query := target.Query()
+	query.Set("payment", result)
+	target.RawQuery = query.Encode()
+	return target.String()
+}
+
+func paymentCheckoutExpiration(dueDate, now time.Time) time.Time {
+	if dueDate.After(now) {
+		return dueDate
+	}
+	return now.AddDate(0, 0, 1)
 }
 
 func ensureAbacatePayProduct(ctx iris.Context, client *payments.AbacatePayClient, plan repo.Plan, amountCents int64) (string, error) {
@@ -603,15 +731,57 @@ func reconcileAbacatePayPayment(ctx iris.Context, payment repo.Payment) (repo.Pa
 	if checkoutID == "" && payment.ProviderPaymentId != nil {
 		checkoutID = strings.TrimSpace(*payment.ProviderPaymentId)
 	}
-	if checkoutID == "" || payment.CheckoutKey == nil {
-		return repo.Payment{}, false, &checkoutHTTPError{status: iris.StatusUnprocessableEntity, message: "identificação do checkout PIX incompleta"}
-	}
 	client := payments.NewAbacatePayClient(
 		&http.Client{Timeout: paymentProviderRequestTimeout},
 		strings.TrimSpace(env.Backend["ABACATEPAY_API_KEY"]),
 		strings.TrimSpace(env.Backend["ABACATEPAY_BASE_URL"]),
 	)
-	checkout, err := client.GetCheckout(ctx.Request().Context(), checkoutID)
+	if checkoutID == "" || payment.CheckoutKey == nil || strings.TrimSpace(*payment.CheckoutKey) == "" {
+		if payment.CheckoutURL == nil || strings.TrimSpace(*payment.CheckoutURL) == "" {
+			return repo.Payment{}, false, &checkoutHTTPError{status: iris.StatusUnprocessableEntity, message: "checkout PIX sem endereço válido"}
+		}
+		checkout, found, err := client.FindCheckoutByURL(ctx.Request().Context(), strconv.Itoa(payment.Id), *payment.CheckoutURL)
+		if err != nil {
+			return repo.Payment{}, false, &checkoutHTTPError{status: iris.StatusBadGateway, message: "não foi possível verificar o checkout PIX antigo"}
+		}
+		if !found {
+			return repo.Payment{}, false, &orphanAbacateCheckoutError{url: *payment.CheckoutURL}
+		}
+		key := strings.TrimSpace(checkout.Metadata["checkout_key"])
+		if key == "" || (payment.CheckoutKey != nil && *payment.CheckoutKey != key) || checkout.Amount != payment.AmountCents {
+			return repo.Payment{}, false, &checkoutHTTPError{status: iris.StatusConflict, message: "checkout PIX antigo não pôde ser validado; contate o suporte"}
+		}
+		payment, err = repo.RestoreAbacatePayCheckoutIdentity(payment.Id, payment.CompanyId, *payment.CheckoutURL, checkout.ID, key)
+		if err != nil {
+			return repo.Payment{}, false, &checkoutHTTPError{status: iris.StatusConflict, message: "não foi possível recuperar a identificação do checkout PIX"}
+		}
+		checkoutID = checkout.ID
+	}
+	var checkout payments.AbacateCheckout
+	var err error
+	attempts := 1
+	if ctx.URLParam("reconcile") == "1" {
+		attempts = 3
+	}
+	for attempt := 0; attempt < attempts; attempt++ {
+		if attempt > 0 {
+			timer := time.NewTimer(time.Duration(attempt) * 250 * time.Millisecond)
+			select {
+			case <-ctx.Request().Context().Done():
+				timer.Stop()
+				return repo.Payment{}, false, ctx.Request().Context().Err()
+			case <-timer.C:
+			}
+		}
+		checkout, err = client.GetCheckout(ctx.Request().Context(), checkoutID)
+		if err != nil {
+			break
+		}
+		mappedStatus, mapErr := repo.MapAbacatePayPaymentStatus(checkout.Status)
+		if mapErr == nil && mappedStatus != repo.PaymentStatusPending {
+			break
+		}
+	}
 	if err != nil {
 		return repo.Payment{}, false, &checkoutHTTPError{status: iris.StatusBadGateway, message: "não foi possível atualizar o checkout PIX"}
 	}
@@ -647,12 +817,20 @@ func reconcileAbacatePayPayment(ctx iris.Context, payment repo.Payment) (repo.Pa
 	return updated, mappedStatus == repo.PaymentStatusPaid, nil
 }
 
+func abacatePayCheckoutIdentityComplete(payment repo.Payment) bool {
+	if payment.CheckoutKey == nil || strings.TrimSpace(*payment.CheckoutKey) == "" {
+		return false
+	}
+	return payment.ProviderPreferenceId != nil && strings.TrimSpace(*payment.ProviderPreferenceId) != "" ||
+		payment.ProviderPaymentId != nil && strings.TrimSpace(*payment.ProviderPaymentId) != ""
+}
+
 func reconcileOpenAbacatePayPayments(ctx iris.Context, companyPayments []repo.Payment) (bool, error) {
 	changed := false
 	for _, payment := range companyPayments {
 		if payment.Provider != repo.PaymentProviderAbacatePay ||
 			(payment.Status != repo.PaymentStatusPending && payment.Status != repo.PaymentStatusProcessing) ||
-			payment.CheckoutURL == nil || strings.TrimSpace(*payment.CheckoutURL) == "" {
+			!abacatePayCheckoutIdentityComplete(payment) {
 			continue
 		}
 		if strings.TrimSpace(env.Backend["ABACATEPAY_API_KEY"]) == "" {
@@ -738,7 +916,9 @@ func MercadoPagoWebhook(ctx iris.Context) {
 		webhookSecret,
 		strings.TrimSpace(env.Backend["MERCADO_PAGO_BASE_URL"]),
 	)
-	if !client.VerifyWebhookSignature(dataID, ctx.GetHeader("x-request-id"), ctx.GetHeader("x-signature")) {
+	signatureHeader := ctx.GetHeader("x-signature")
+	if !payments.MercadoPagoWebhookTimestampFresh(signatureHeader, time.Now(), 5*time.Minute) ||
+		!client.VerifyWebhookSignature(dataID, ctx.GetHeader("x-request-id"), signatureHeader) {
 		writeJSONError(ctx, iris.StatusUnauthorized, "assinatura do webhook inválida")
 		return
 	}
@@ -812,6 +992,18 @@ func MercadoPagoWebhook(ctx iris.Context) {
 		providerPayment.Status,
 		providerPayment.DateApproved,
 	)
+	if errors.Is(err, repo.ErrManuallyConfirmedPayment) {
+		mapped, mapErr := repo.MapMercadoPagoPaymentStatus(providerPayment.Status)
+		if mapErr == nil && (mapped == repo.PaymentStatusPaid || mapped == repo.PaymentStatusRefunded) {
+			if auditErr := repo.RecordSurplusCheckoutEvent(internalPayment.CompanyId, internalPaymentID, repo.PaymentProviderMercadoPago,
+				"mp:"+providerPayment.ID+":"+mapped, providerPayment.ID, mapped); auditErr != nil {
+				writeJSONError(ctx, iris.StatusInternalServerError, "não foi possível registrar o pagamento excedente")
+				return
+			}
+		}
+		ctx.StatusCode(iris.StatusNoContent)
+		return
+	}
 	if errors.Is(err, repo.ErrUnknownMercadoPagoStatus) || errors.Is(err, sql.ErrNoRows) {
 		ctx.StatusCode(iris.StatusNoContent)
 		return
@@ -834,7 +1026,11 @@ func AbacatePayWebhook(ctx iris.Context) {
 		writeJSONError(ctx, iris.StatusServiceUnavailable, "webhook PIX não configurado")
 		return
 	}
-	if subtle.ConstantTimeCompare([]byte(ctx.URLParam("webhookSecret")), []byte(webhookSecret)) != 1 {
+	providedSecret := strings.TrimSpace(ctx.GetHeader("X-Webhook-Secret"))
+	if providedSecret == "" {
+		providedSecret = strings.TrimSpace(ctx.URLParam("webhookSecret"))
+	}
+	if subtle.ConstantTimeCompare([]byte(providedSecret), []byte(webhookSecret)) != 1 {
 		writeJSONError(ctx, iris.StatusUnauthorized, "secret do webhook inválido")
 		return
 	}
@@ -853,35 +1049,45 @@ func AbacatePayWebhook(ctx iris.Context) {
 		Event string          `json:"event"`
 		Data  json.RawMessage `json:"data"`
 	}
-	if err := json.Unmarshal(rawBody, &event); err != nil || strings.TrimSpace(event.ID) == "" {
+	if err := json.Unmarshal(rawBody, &event); err != nil {
 		writeJSONError(ctx, iris.StatusBadRequest, "evento do webhook inválido")
 		return
 	}
-	event.ID = strings.TrimSpace(event.ID)
 	event.Event = strings.ToLower(strings.TrimSpace(event.Event))
 	if event.Event != "checkout.completed" && event.Event != "checkout.refunded" &&
 		event.Event != "checkout.disputed" && event.Event != "checkout.lost" {
 		ctx.StatusCode(iris.StatusOK)
 		return
 	}
-	checkoutID := abacatePayWebhookCheckoutID(event.Data)
+	eventCheckout, checkoutFromEvent := abacatePayWebhookCheckout(event.Data)
+	checkoutID := strings.TrimSpace(eventCheckout.ID)
 	if checkoutID == "" {
 		writeJSONError(ctx, iris.StatusBadRequest, "identificador do checkout ausente")
 		return
 	}
 	client := payments.NewAbacatePayClient(
-		&http.Client{Timeout: paymentProviderRequestTimeout},
+		&http.Client{Timeout: webhookProviderRequestTimeout},
 		apiKey,
 		strings.TrimSpace(env.Backend["ABACATEPAY_BASE_URL"]),
 	)
 	checkout, err := client.GetCheckout(ctx.Request().Context(), checkoutID)
 	if err != nil {
-		writeJSONError(ctx, iris.StatusBadGateway, "não foi possível consultar o checkout PIX")
+		log.Printf("AbacatePay webhook confirmation failed: checkout=%s error=%v", checkoutID, err)
+		writeJSONError(ctx, iris.StatusServiceUnavailable, "não foi possível confirmar o checkout PIX na AbacatePay; tente novamente")
 		return
 	}
 	providerMappedStatus, err := repo.MapAbacatePayPaymentStatus(checkout.Status)
-	if err != nil || (providerMappedStatus != repo.PaymentStatusPaid && providerMappedStatus != repo.PaymentStatusRefunded) {
-		writeJSONError(ctx, iris.StatusBadGateway, "status do checkout ainda não corresponde ao evento")
+	if err != nil {
+		writeJSONError(ctx, iris.StatusBadGateway, "a AbacatePay retornou um status desconhecido")
+		return
+	}
+	if checkoutFromEvent && !abacatePayCheckoutsMatch(eventCheckout, checkout) {
+		writeJSONError(ctx, iris.StatusUnprocessableEntity, "checkout confirmado não confere com o evento recebido")
+		return
+	}
+	if providerMappedStatus != repo.PaymentStatusPaid && providerMappedStatus != repo.PaymentStatusRefunded {
+		log.Printf("AbacatePay webhook confirmation pending: checkout=%s status=%s", checkoutID, checkout.Status)
+		writeJSONError(ctx, iris.StatusServiceUnavailable, "pagamento ainda não confirmado pela API da AbacatePay; tente novamente")
 		return
 	}
 	if event.Event == "checkout.refunded" && providerMappedStatus != repo.PaymentStatusRefunded {
@@ -935,8 +1141,27 @@ func AbacatePayWebhook(ctx iris.Context) {
 	if value := strings.TrimSpace(checkout.ReceiptURL); value != "" {
 		receiptURL = &value
 	}
+	event.ID = strings.TrimSpace(event.ID)
+	if event.ID == "" {
+		digest := sha256.Sum256(rawBody)
+		event.ID = "payload:" + hex.EncodeToString(digest[:])
+	}
 	_, _, err = repo.ApplyProviderPaymentEvent(event.ID, internalPaymentID, repo.PaymentProviderAbacatePay,
 		checkout.ID, mappedStatus, paidAt, receiptURL)
+	if errors.Is(err, repo.ErrDiscardedPayment) || errors.Is(err, repo.ErrManuallyConfirmedPayment) {
+		log.Printf("discarded AbacatePay checkout received event: payment=%d checkout=%s status=%s", internalPaymentID, checkout.ID, checkout.Status)
+		creditStatus := providerMappedStatus
+		if event.Event == "checkout.disputed" || event.Event == "checkout.lost" {
+			creditStatus = repo.PaymentStatusRefunded
+		}
+		if auditErr := repo.RecordSurplusCheckoutEvent(internalPayment.CompanyId, internalPaymentID, repo.PaymentProviderAbacatePay, event.ID, checkout.ID, creditStatus); auditErr != nil {
+			log.Printf("discarded payment audit failed: payment=%d: %v", internalPaymentID, auditErr)
+			writeJSONError(ctx, iris.StatusInternalServerError, "não foi possível registrar o pagamento descartado")
+			return
+		}
+		ctx.StatusCode(iris.StatusOK)
+		return
+	}
 	if errors.Is(err, repo.ErrProviderPaymentMismatch) {
 		writeJSONError(ctx, iris.StatusUnprocessableEntity, "checkout do provedor não confere com a cobrança")
 		return
@@ -953,25 +1178,43 @@ func AbacatePayWebhook(ctx iris.Context) {
 }
 
 func abacatePayWebhookCheckoutID(raw json.RawMessage) string {
+	checkout, _ := abacatePayWebhookCheckout(raw)
+	return strings.TrimSpace(checkout.ID)
+}
+
+func abacatePayWebhookCheckout(raw json.RawMessage) (payments.AbacateCheckout, bool) {
 	var data struct {
-		ID      string `json:"id"`
-		Billing *struct {
-			ID string `json:"id"`
-		} `json:"billing"`
-		Checkout *struct {
-			ID string `json:"id"`
-		} `json:"checkout"`
+		ID       string                    `json:"id"`
+		Billing  *payments.AbacateCheckout `json:"billing"`
+		Checkout *payments.AbacateCheckout `json:"checkout"`
 	}
 	if json.Unmarshal(raw, &data) != nil {
-		return ""
+		return payments.AbacateCheckout{}, false
 	}
 	if data.Billing != nil && strings.TrimSpace(data.Billing.ID) != "" {
-		return strings.TrimSpace(data.Billing.ID)
+		return *data.Billing, true
 	}
 	if data.Checkout != nil && strings.TrimSpace(data.Checkout.ID) != "" {
-		return strings.TrimSpace(data.Checkout.ID)
+		return *data.Checkout, true
 	}
-	return strings.TrimSpace(data.ID)
+	return payments.AbacateCheckout{ID: strings.TrimSpace(data.ID)}, false
+}
+
+func abacatePayCheckoutsMatch(eventCheckout, providerCheckout payments.AbacateCheckout) bool {
+	if strings.TrimSpace(eventCheckout.ID) != strings.TrimSpace(providerCheckout.ID) {
+		return false
+	}
+	if value := strings.TrimSpace(eventCheckout.ExternalID); value != "" && value != strings.TrimSpace(providerCheckout.ExternalID) {
+		return false
+	}
+	if eventCheckout.Amount > 0 && eventCheckout.Amount != providerCheckout.Amount {
+		return false
+	}
+	if value := strings.TrimSpace(eventCheckout.Metadata["checkout_key"]); value != "" &&
+		subtle.ConstantTimeCompare([]byte(value), []byte(providerCheckout.Metadata["checkout_key"])) != 1 {
+		return false
+	}
+	return true
 }
 
 func decimalNumberToCents(number json.Number) (int64, error) {
@@ -1056,6 +1299,9 @@ func isMercadoPagoPaymentEvent(eventType, action string) bool {
 }
 
 func checkoutRepositoryError(err error, fallback string) error {
+	if errors.Is(err, repo.ErrRenewalNotDue) {
+		return &checkoutHTTPError{status: iris.StatusConflict, message: "a próxima fatura estará disponível 10 dias antes do vencimento do plano"}
+	}
 	if errors.Is(err, sql.ErrNoRows) {
 		return &checkoutHTTPError{status: iris.StatusNotFound, message: "empresa, assinatura ou plano não encontrado"}
 	}

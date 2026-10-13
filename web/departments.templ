@@ -2,8 +2,8 @@ package web
 
 templ DepartmentSettings() {
 @base("departments") {
-<main class="flex-1 bg-stone-50 rounded-2xl shadow-sm overflow-y-auto p-6">
-    <div class="max-w-5xl mx-auto">
+<main class="min-h-0 min-w-0 flex-1 overflow-y-auto rounded-2xl bg-stone-50 p-4 shadow-sm sm:p-6">
+    <div class="max-w-[1280px] mx-auto">
         <div class="flex items-center justify-between mb-6">
             <div>
                 <h1 class="text-2xl font-bold text-gray-900">Setores</h1>
@@ -14,8 +14,13 @@ templ DepartmentSettings() {
 
         <section class="bg-white rounded-2xl border border-stone-200 p-5 mb-6">
             <h2 class="font-semibold text-gray-900 mb-3">Novo setor</h2>
-            <form id="department-form" class="flex gap-3">
-                <input id="department-name" required maxlength="80" placeholder="Ex: Suporte" class="flex-1 px-4 py-2.5 border border-stone-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-purple-400"/>
+            <form id="department-form" class="flex flex-col gap-3 sm:flex-row">
+                <input id="department-name" required maxlength="80" placeholder="Ex: Suporte" class="min-w-0 flex-1 px-4 py-2.5 border border-stone-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-purple-400"/>
+                <label class="flex items-center gap-2 rounded-xl border border-stone-200 bg-white px-2.5 py-1.5">
+                    <span class="text-xs font-medium text-gray-500">Cor</span>
+                    <input id="department-color" type="color" value="#6123CC" class="h-8 w-10 cursor-pointer rounded-lg border-0 bg-transparent p-0" aria-label="Cor do novo setor"/>
+                    <code id="department-color-value" class="w-[4.5rem] text-[10px] font-semibold text-gray-500">#6123CC</code>
+                </label>
                 <button class="px-5 py-2.5 rounded-xl bg-purple-600 text-white font-medium hover:bg-purple-700">Adicionar</button>
             </form>
         </section>
@@ -36,11 +41,17 @@ templ DepartmentSettings() {
 let departmentState = { departments: [], agents: [] };
 
 async function departmentAPI(method, url, body) {
-    const response = await fetch(url, {
-        method: method,
-        headers: { 'Content-Type': 'application/json' },
-        body: body === undefined ? undefined : JSON.stringify(body)
-    });
+    const options = { method: method, credentials: 'same-origin', headers: { Accept: 'application/json' } };
+    if (body !== undefined) {
+        const form = new URLSearchParams();
+        Object.entries(body).forEach(([key, value]) => {
+            if (Array.isArray(value)) value.forEach(item => form.append(key, String(item)));
+            else form.set(key, String(value));
+        });
+        options.headers['Content-Type'] = 'application/x-www-form-urlencoded;charset=UTF-8';
+        options.body = form.toString();
+    }
+    const response = await fetch(url, options);
     if (!response.ok) {
         const data = await response.json().catch(() => ({}));
         throw new Error(data.error || ('Erro ' + response.status));
@@ -60,19 +71,74 @@ function renderDepartmentSettings() {
     departmentList.innerHTML = '';
     departmentState.departments.forEach(department => {
         const row = document.createElement('div');
-        row.className = 'flex items-center justify-between p-3 bg-stone-50 rounded-xl';
+        row.className = 'flex flex-wrap items-center justify-between gap-3 rounded-xl border bg-stone-50 p-3';
+        row.style.borderColor = department.color;
+        const identity = document.createElement('div');
+        identity.className = 'flex min-w-0 items-center gap-2.5';
+        const dot = document.createElement('span');
+        dot.className = 'h-3 w-3 shrink-0 rounded-full';
+        dot.style.backgroundColor = department.color;
         const name = document.createElement('span');
         name.className = 'text-sm font-medium text-gray-800';
         name.textContent = department.name;
+        const controls = document.createElement('div');
+        controls.className = 'flex items-center gap-2';
+        const color = document.createElement('input');
+        color.type = 'color';
+        color.value = department.color;
+        color.className = 'h-8 w-9 cursor-pointer rounded-lg border-0 bg-transparent p-0';
+        color.setAttribute('aria-label', 'Cor de ' + department.name);
+        const colorValue = document.createElement('code');
+        colorValue.className = 'w-[4.5rem] text-[10px] font-semibold text-gray-500';
+        colorValue.textContent = department.color;
+        color.addEventListener('input', () => {
+            colorValue.textContent = color.value.toUpperCase();
+            row.style.borderColor = color.value;
+            dot.style.backgroundColor = color.value;
+        });
+        const save = document.createElement('button');
+        save.className = 'grid h-8 w-8 place-items-center rounded-lg bg-purple-100 text-purple-700 hover:bg-purple-200';
+        save.title = 'Salvar cor';
+        save.setAttribute('aria-label', 'Salvar cor de ' + department.name);
+        save.innerHTML = '<i class="fas fa-check"><\/i>';
+        save.onclick = async event => {
+            event.preventDefault();
+            save.disabled = true;
+            save.innerHTML = '<i class="fas fa-circle-notch fa-spin"><\/i>';
+            try {
+                const response = await departmentAPI('PUT', '/api/departments/' + department.id, { name: department.name, color: color.value });
+                department.color = response.data.color;
+                color.value = response.data.color;
+                colorValue.textContent = response.data.color;
+                row.style.borderColor = response.data.color;
+                dot.style.backgroundColor = response.data.color;
+                save.className = 'grid h-8 w-8 place-items-center rounded-lg bg-emerald-100 text-emerald-700';
+                save.innerHTML = '<i class="fas fa-check"><\/i>';
+            } catch (error) {
+                save.className = 'grid h-8 w-8 place-items-center rounded-lg bg-red-100 text-red-700';
+                save.innerHTML = '<i class="fas fa-exclamation"><\/i>';
+                alert(error.message);
+            } finally {
+                save.disabled = false;
+                setTimeout(() => {
+                    save.className = 'grid h-8 w-8 place-items-center rounded-lg bg-purple-100 text-purple-700 hover:bg-purple-200';
+                    save.innerHTML = '<i class="fas fa-check"><\/i>';
+                }, 1200);
+            }
+        };
         const remove = document.createElement('button');
-        remove.className = 'text-red-600 hover:bg-red-50 px-3 py-1.5 rounded-lg text-sm';
-        remove.textContent = 'Excluir';
+        remove.className = 'grid h-8 w-8 place-items-center rounded-lg text-red-600 hover:bg-red-50';
+        remove.title = 'Excluir setor';
+        remove.setAttribute('aria-label', 'Excluir ' + department.name);
+        remove.innerHTML = '<i class="fas fa-trash-alt text-xs"><\/i>';
         remove.onclick = async () => {
             if (!confirm('Excluir este setor? As conversas ficarão sem setor.')) return;
             await departmentAPI('DELETE', '/api/departments/' + department.id);
             await loadDepartmentSettings();
         };
-        row.append(name, remove);
+        identity.append(dot, name);
+        controls.append(color, colorValue, save, remove);
+        row.append(identity, controls);
         departmentList.appendChild(row);
     });
     if (!departmentState.departments.length) departmentList.textContent = 'Nenhum setor cadastrado.';
@@ -87,13 +153,23 @@ function renderDepartmentSettings() {
         title.textContent = agent.name;
         card.appendChild(title);
         departmentState.departments.forEach(department => {
-            const label = document.createElement('label');
-            label.className = 'flex items-center gap-2 py-1.5 text-sm text-gray-700';
-            const checkbox = document.createElement('input');
-            checkbox.type = 'checkbox';
-            checkbox.value = String(department.id);
-            checkbox.checked = agent.departmentIds.includes(department.id);
-            label.append(checkbox, document.createTextNode(department.name));
+			const label = document.createElement('label');
+			label.className = 'flex cursor-pointer items-center gap-3 rounded-xl px-3 py-2 text-sm text-gray-700 transition hover:bg-purple-50';
+			const checkbox = document.createElement('input');
+			checkbox.type = 'checkbox';
+			checkbox.className = 'peer sr-only';
+			checkbox.value = String(department.id);
+			checkbox.checked = agent.departmentIds.includes(department.id);
+			const control = document.createElement('span');
+			control.className = 'grid h-5 w-5 shrink-0 place-items-center rounded-md border border-stone-300 bg-white text-[10px] text-transparent transition peer-checked:border-purple-600 peer-checked:bg-purple-600 peer-checked:text-white peer-focus-visible:ring-2 peer-focus-visible:ring-purple-200 peer-focus-visible:ring-offset-2';
+			control.innerHTML = '<i class="fas fa-check"><\/i>';
+			const departmentName = document.createElement('span');
+			departmentName.className = 'font-medium';
+			departmentName.textContent = department.name;
+			const departmentColor = document.createElement('span');
+			departmentColor.className = 'h-2.5 w-2.5 shrink-0 rounded-full';
+			departmentColor.style.backgroundColor = department.color;
+			label.append(checkbox, control, departmentColor, departmentName);
             card.appendChild(label);
         });
         const save = document.createElement('button');
@@ -113,13 +189,18 @@ function renderDepartmentSettings() {
 document.getElementById('department-form').addEventListener('submit', async event => {
     event.preventDefault();
     const input = document.getElementById('department-name');
+    const color = document.getElementById('department-color');
     try {
-        await departmentAPI('POST', '/api/departments', { name: input.value });
+        await departmentAPI('POST', '/api/departments', { name: input.value, color: color.value });
         input.value = '';
         await loadDepartmentSettings();
     } catch (error) {
         alert(error.message);
     }
+});
+
+document.getElementById('department-color').addEventListener('input', event => {
+    document.getElementById('department-color-value').textContent = event.target.value.toUpperCase();
 });
 
 loadDepartmentSettings().catch(error => alert(error.message));

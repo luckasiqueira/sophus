@@ -4,6 +4,7 @@ import (
 	"crypto/sha256"
 	"database/sql"
 	"errors"
+	"log"
 	"net/http"
 	"net/url"
 	"strings"
@@ -48,21 +49,21 @@ func DoLogin(ctx iris.Context) {
 	email := normalizeEmail(ctx.FormValue("email"))
 	password := ctx.FormValue("password")
 	if !validEmail(email) || password == "" {
-		ctx.StopWithStatus(iris.StatusUnauthorized)
+		recordLoginAttempt(ctx, email, nil, nil, "unknown", false)
+		ctx.StopWithJSON(iris.StatusUnauthorized, iris.Map{"error": "Email ou senha incorretos."})
 		return
 	}
 	admin, err := repo.GetPlatformAdminByEmail(email)
 	if err == nil {
 		if bcrypt.CompareHashAndPassword([]byte(admin.Password), []byte(password)) != nil || !admin.IsActive {
-			ctx.StopWithStatus(iris.StatusUnauthorized)
+			recordLoginAttempt(ctx, email, nil, &admin.Id, "platform", false)
+			ctx.StopWithJSON(iris.StatusUnauthorized, iris.Map{"error": "Email ou senha incorretos."})
 			return
 		}
-		if err := setPlatformSession(ctx, admin); err != nil {
+		if err := beginPlatformSecondFactor(ctx, admin); err != nil {
 			ctx.StopWithStatus(iris.StatusInternalServerError)
 			return
 		}
-		ctx.RemoveCookie("token", iris.CookiePath("/"))
-		ctx.Header("HX-Redirect", "/")
 		return
 	}
 	if !errors.Is(err, sql.ErrNoRows) {
@@ -72,15 +73,42 @@ func DoLogin(ctx iris.Context) {
 
 	agent, status, err := checkCredentials(ctx)
 	if err != nil {
-		ctx.StopWithStatus(status)
+		if status == iris.StatusUnauthorized {
+			var companyID, actorID *int
+			if known, lookupErr := repo.GetAgentByEmail(email); lookupErr == nil {
+				companyID, actorID = &known.CompanyId, &known.Id
+			}
+			recordLoginAttempt(ctx, email, companyID, actorID, "agent", false)
+			ctx.StopWithJSON(status, iris.Map{"error": "Email ou senha incorretos."})
+		} else {
+			ctx.StopWithStatus(status)
+		}
 		return
 	}
 	if err := setAgentSession(ctx, agent); err != nil {
 		ctx.StopWithStatus(iris.StatusInternalServerError)
 		return
 	}
+	if err := clearSupportSessionForLogin(ctx); err != nil {
+		ctx.StopWithStatus(iris.StatusInternalServerError)
+		return
+	}
 	ctx.RemoveCookie(platformCookieName, iris.CookiePath("/"))
+	recordLoginAttempt(ctx, email, &agent.CompanyId, &agent.Id, "agent", true)
 	ctx.Header("HX-Redirect", "/")
+	ctx.StatusCode(iris.StatusNoContent)
+}
+
+func recordLoginAttempt(ctx iris.Context, email string, companyID, actorID *int, actorType string, success bool) {
+	action := "login_failed"
+	if success {
+		action = "login"
+	}
+	if err := repo.RecordAuditEvent(repo.AuditEvent{CompanyID: companyID, ActorID: actorID,
+		ActorEmail: email, ActorType: actorType, Action: action, TargetType: "session", IPAddress: ctx.RemoteAddr(),
+	}); err != nil {
+		log.Printf("login audit failed: %v", err)
+	}
 }
 
 func setAgentSession(ctx iris.Context, agent repo.Agent) error {
@@ -115,8 +143,18 @@ func Logout(ctx iris.Context) {
 		ctx.StopWithStatus(iris.StatusForbidden)
 		return
 	}
+	if middlewares.HasSupportCookie(ctx) {
+		if admin, err := middlewares.SupportSessionOwner(ctx); err == nil {
+			if err := repo.EndPlatformSupportSession(admin, ctx.GetCookie(middlewares.SupportCookieName), ctx.RemoteAddr()); err != nil {
+				ctx.StopWithStatus(iris.StatusInternalServerError)
+				return
+			}
+		}
+		ctx.RemoveCookie(middlewares.SupportCookieName, iris.CookiePath("/"))
+	}
 	ctx.RemoveCookie("token", iris.CookiePath("/"))
 	ctx.RemoveCookie(platformCookieName, iris.CookiePath("/"))
+	ctx.RemoveCookie(platformChallengeCookieName, iris.CookiePath("/login/2fa"))
 	redirectRequest(ctx, "/login")
 }
 
@@ -148,9 +186,10 @@ func setPlatformSession(ctx iris.Context, admin repo.PlatformAdmin) error {
 	platformSecret := sha256.Sum256([]byte(secret + ":platform"))
 	signer := jwt.NewSigner(jwt.HS256, platformSecret[:], lifetime)
 	token, err := signer.Sign(struct {
-		Id      int `json:"id"`
-		Version int `json:"version"`
-	}{Id: admin.Id, Version: admin.SessionVersion})
+		Id      int  `json:"id"`
+		Version int  `json:"version"`
+		TOTP    bool `json:"totp"`
+	}{Id: admin.Id, Version: admin.SessionVersion, TOTP: true})
 	if err != nil {
 		return err
 	}

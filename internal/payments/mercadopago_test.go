@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -119,6 +120,60 @@ func TestFindPreference(t *testing.T) {
 	}
 }
 
+func TestUpdateAndExpirePreference(t *testing.T) {
+	for _, operation := range []string{"update", "expire"} {
+		t.Run(operation, func(t *testing.T) {
+			var state map[string]any
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				if r.URL.Path != "/checkout/preferences/preference-42" {
+					t.Errorf("path = %q", r.URL.Path)
+					http.NotFound(w, r)
+					return
+				}
+				if r.Method == http.MethodPut {
+					if err := json.NewDecoder(r.Body).Decode(&state); err != nil {
+						t.Errorf("decode: %v", err)
+					}
+					fmt.Fprint(w, `{}`)
+					return
+				}
+				if r.Method != http.MethodGet {
+					t.Errorf("method = %q", r.Method)
+				}
+				if state == nil {
+					fmt.Fprint(w, `{"id":"preference-42","init_point":"https://pay.example/42","external_reference":"42","metadata":{"checkout_key":"secret"}}`)
+					return
+				}
+				price := "10.00"
+				if operation == "update" {
+					price = "12.34"
+				}
+				fmt.Fprintf(w, `{"id":"preference-42","external_reference":"42","metadata":{"checkout_key":"secret"},"expires":true,"expiration_date_to":%q,"items":[{"unit_price":%s}]}`, state["expiration_date_to"], price)
+			}))
+			defer server.Close()
+			client := NewMercadoPagoClient(server.Client(), "access-token", "", server.URL)
+			var err error
+			if operation == "update" {
+				err = client.UpdatePreferenceAmount(context.Background(), "preference-42", "42", "secret", "Plano", 1234, time.Now().Add(24*time.Hour))
+			} else {
+				err = client.ExpirePreference(context.Background(), "preference-42", "42", "secret")
+			}
+			if err != nil {
+				t.Fatalf("%s preference: %v", operation, err)
+			}
+			if state == nil || state["expires"] != true {
+				t.Fatalf("request = %#v", state)
+			}
+			if operation == "update" {
+				items := state["items"].([]any)
+				if items[0].(map[string]any)["unit_price"] != float64(12.34) {
+					t.Fatalf("items = %#v", items)
+				}
+			}
+		})
+	}
+}
+
 func TestGetPayment(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodGet || r.URL.Path != "/v1/payments/987654" {
@@ -198,5 +253,21 @@ func TestVerifyWebhookSignature(t *testing.T) {
 	clientWithoutSecret := NewMercadoPagoClient(http.DefaultClient, "access-token", "", "")
 	if clientWithoutSecret.VerifyWebhookSignature(dataID, requestID, header) {
 		t.Fatal("signature must not validate without a configured secret")
+	}
+}
+
+func TestMercadoPagoWebhookTimestampFresh(t *testing.T) {
+	now := time.Date(2026, time.August, 28, 12, 0, 0, 0, time.UTC)
+	if !MercadoPagoWebhookTimestampFresh("ts="+strconv.FormatInt(now.Unix(), 10)+",v1=abc", now, 5*time.Minute) {
+		t.Fatal("current timestamp was rejected")
+	}
+	if !MercadoPagoWebhookTimestampFresh("ts="+strconv.FormatInt(now.UnixMilli(), 10)+",v1=abc", now, 5*time.Minute) {
+		t.Fatal("current millisecond timestamp was rejected")
+	}
+	if MercadoPagoWebhookTimestampFresh("ts="+strconv.FormatInt(now.Add(-6*time.Minute).Unix(), 10)+",v1=abc", now, 5*time.Minute) {
+		t.Fatal("stale timestamp was accepted")
+	}
+	if MercadoPagoWebhookTimestampFresh("ts=invalid,v1=abc", now, 5*time.Minute) {
+		t.Fatal("invalid timestamp was accepted")
 	}
 }

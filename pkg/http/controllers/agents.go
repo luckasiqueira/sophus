@@ -3,9 +3,11 @@ package controllers
 import (
 	"database/sql"
 	"errors"
+	"strconv"
 	"strings"
 
 	"sophus/internal/repo"
+	"sophus/pkg/http/middlewares/sse"
 	"sophus/web"
 
 	"github.com/kataras/iris/v12"
@@ -70,6 +72,7 @@ func CreateCompanyAgent(ctx iris.Context) {
 		writeAgentRepositoryError(ctx, err, "não foi possível criar o agente")
 		return
 	}
+	recordCompanyAction(ctx, currentAgent, "create", "agent", strconv.Itoa(agent.Id))
 	ctx.StatusCode(iris.StatusCreated)
 	ctx.JSON(iris.Map{"data": agent})
 }
@@ -128,6 +131,27 @@ func UpdateCompanyAgent(ctx iris.Context) {
 	ctx.JSON(iris.Map{"data": agent})
 }
 
+func DeleteCompanyAgent(ctx iris.Context) {
+	actor, ok := requireAdmin(ctx)
+	if !ok {
+		return
+	}
+	id, ok := routeID(ctx)
+	if !ok {
+		return
+	}
+	if id == actor.Id {
+		writeJSONError(ctx, iris.StatusConflict, "não é possível excluir sua própria conta; peça a outro administrador")
+		return
+	}
+	if err := repo.DeleteCompanyAgent(id, actor.CompanyId); err != nil {
+		writeAgentRepositoryError(ctx, err, "não foi possível excluir o agente")
+		return
+	}
+	sse.NotifyConversations(actor.CompanyId)
+	ctx.StatusCode(iris.StatusNoContent)
+}
+
 func normalizeAndValidateAgent(body *companyAgentRequest, passwordRequired bool) string {
 	body.Name = strings.TrimSpace(body.Name)
 	body.Email = normalizeEmail(body.Email)
@@ -163,6 +187,8 @@ func writeAgentRepositoryError(ctx iris.Context, err error, fallback string) {
 		writeJSONError(ctx, iris.StatusBadRequest, "papel deve ser admin ou agent")
 	case errors.Is(err, repo.ErrLastActiveCompanyAdmin):
 		writeJSONError(ctx, iris.StatusConflict, "não é possível remover o último administrador ativo")
+	case errors.Is(err, repo.ErrOriginalCompanyAdmin):
+		writeJSONError(ctx, iris.StatusConflict, "o administrador original da empresa não pode ser excluído")
 	case errors.Is(err, repo.ErrAgentLimitReached):
 		writeJSONError(ctx, iris.StatusConflict, "o limite de agentes do plano foi atingido")
 	default:

@@ -54,16 +54,30 @@ func List(companyID int) ([]Item, error) {
 			if err != nil || !info.Mode().IsRegular() {
 				continue
 			}
-			mimeType := mime.TypeByExtension(strings.ToLower(filepath.Ext(entry.Name())))
-			items = append(items, Item{
-				Name: entry.Name(), Scope: scope, Kind: kindForMime(mimeType), MimeType: mimeType,
-				SizeBytes: info.Size(), CreatedAt: info.ModTime(),
-				PreviewURL: "/medias/" + strconv.Itoa(companyID) + "/" + scopePath(scope, entry.Name()),
-			})
+			mimeType := catalogMimeType(entry.Name())
+			items = append(items, Item{Name: entry.Name(), Scope: scope, Kind: kindForMime(mimeType), MimeType: mimeType,
+				SizeBytes: info.Size(), CreatedAt: info.ModTime(), PreviewURL: "/management/api/media/" + scope + "/" + entry.Name() + "/content"})
 		}
 	}
 	sort.Slice(items, func(i, j int) bool { return items[i].CreatedAt.After(items[j].CreatedAt) })
 	return items, nil
+}
+
+func Inspect(companyID int, scope, name string) (Item, error) {
+	path, err := ScopedPath(companyID, scope, name)
+	if err != nil {
+		return Item{}, err
+	}
+	info, err := os.Lstat(path)
+	if err != nil {
+		return Item{}, err
+	}
+	if !info.Mode().IsRegular() || info.Mode()&os.ModeSymlink != 0 {
+		return Item{}, errors.New("arquivo de mídia inválido")
+	}
+	mimeType := catalogMimeType(name)
+	return Item{Name: name, Scope: scope, Kind: kindForMime(mimeType), MimeType: mimeType,
+		SizeBytes: info.Size(), CreatedAt: info.ModTime(), PreviewURL: "/management/api/media/" + scope + "/" + name + "/content"}, nil
 }
 
 func ScanCompany(companyID int) (int64, int, error) {
@@ -123,13 +137,6 @@ func scopeDirectory(companyID int, scope string) (string, error) {
 	}
 }
 
-func scopePath(scope, name string) string {
-	if scope == ScopeFlows {
-		return "flows/" + name
-	}
-	return name
-}
-
 func kindForMime(mimeType string) string {
 	switch {
 	case strings.HasPrefix(mimeType, "image/"):
@@ -140,5 +147,16 @@ func kindForMime(mimeType string) string {
 		return "audio"
 	default:
 		return "document"
+	}
+}
+
+func catalogMimeType(name string) string {
+	switch strings.ToLower(filepath.Ext(name)) {
+	case ".weba":
+		return "audio/webm"
+	case ".ogg":
+		return "audio/ogg"
+	default:
+		return mime.TypeByExtension(strings.ToLower(filepath.Ext(name)))
 	}
 }

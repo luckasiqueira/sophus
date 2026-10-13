@@ -16,19 +16,22 @@ var (
 	ErrInvalidAgentRole       = errors.New("invalid agent role")
 	ErrLastActiveCompanyAdmin = errors.New("company must have at least one active admin")
 	ErrAgentLimitReached      = errors.New("plan agent limit reached")
+	ErrOriginalCompanyAdmin   = errors.New("original company administrator cannot be removed")
 )
 
 type Agent struct {
-	Id             int       `json:"id"`
-	Name           string    `json:"name"`
-	Email          string    `json:"email"`
-	Password       string    `json:"-"`
-	Role           string    `json:"role"`
-	IsActive       bool      `json:"isActive"`
-	CompanyId      int       `json:"companyId"`
-	SessionVersion int       `json:"-"`
-	CreatedAt      time.Time `json:"createdAt"`
-	UpdatedAt      time.Time `json:"updatedAt"`
+	Id              int       `json:"id"`
+	Name            string    `json:"name"`
+	Email           string    `json:"email"`
+	Password        string    `json:"-"`
+	Role            string    `json:"role"`
+	IsActive        bool      `json:"isActive"`
+	CompanyId       int       `json:"companyId"`
+	SessionVersion  int       `json:"-"`
+	IsOriginalAdmin bool      `json:"isOriginalAdmin"`
+	IsSupport       bool      `json:"isSupport,omitempty"`
+	CreatedAt       time.Time `json:"createdAt"`
+	UpdatedAt       time.Time `json:"updatedAt"`
 }
 
 type CreateAgentInput struct {
@@ -65,6 +68,10 @@ func GetAgentById(id int) (Agent, error) {
 }
 
 func ListAgentsByCompany(companyID int) ([]Agent, error) {
+	var originalAdminID sql.NullInt64
+	if err := db.QueryRow(`SELECT "originalAdminId" FROM companies WHERE id = $1`, companyID).Scan(&originalAdminID); err != nil {
+		return nil, err
+	}
 	rows, err := db.Query(`SELECT id, name, email, password, role, "isActive", "companyId", "sessionVersion", "createdAt", "updatedAt"
 		FROM agents WHERE "companyId" = $1 ORDER BY name, id`, companyID)
 	if err != nil {
@@ -78,6 +85,7 @@ func ListAgentsByCompany(companyID int) ([]Agent, error) {
 		if err != nil {
 			return nil, err
 		}
+		agent.IsOriginalAdmin = originalAdminID.Valid && int(originalAdminID.Int64) == agent.Id
 		agents = append(agents, agent)
 	}
 	return agents, rows.Err()
@@ -108,12 +116,12 @@ func CreateAgent(companyID int, input CreateAgentInput) (Agent, error) {
 		return Agent{}, err
 	}
 	var agentLimit, agentCount int
-	if err := tx.QueryRow(`SELECT p."agentLimit", COUNT(a.id)
+	if err := tx.QueryRow(`SELECT limits."agentLimit", COUNT(a.id)
 		FROM subscriptions s
-		JOIN plans p ON p.id = s."planId"
+		JOIN subscription_effective_limits limits ON limits."subscriptionId"=s.id
 		LEFT JOIN agents a ON a."companyId" = s."companyId"
 		WHERE s."companyId" = $1 AND s.status IN ('trialing', 'active', 'past_due')
-		GROUP BY p."agentLimit"`, companyID).Scan(&agentLimit, &agentCount); err != nil {
+		GROUP BY limits."agentLimit"`, companyID).Scan(&agentLimit, &agentCount); err != nil {
 		return Agent{}, err
 	}
 	if agentCount >= agentLimit {
@@ -135,6 +143,7 @@ func CreateAgent(companyID int, input CreateAgentInput) (Agent, error) {
 }
 
 func UpdateAgent(id, companyID int, input UpdateAgentInput) (bool, error) {
+	defer invalidateSessionCache()
 	if !validAgentRole(input.Role) {
 		return false, ErrInvalidAgentRole
 	}
@@ -186,6 +195,7 @@ func UpdateAgent(id, companyID int, input UpdateAgentInput) (bool, error) {
 }
 
 func SetAgentActive(id, companyID int, active bool) (bool, error) {
+	defer invalidateSessionCache()
 	tx, err := db.Begin()
 	if err != nil {
 		return false, err
@@ -226,6 +236,45 @@ func SetAgentActive(id, companyID int, active bool) (bool, error) {
 	return true, nil
 }
 
+func DeleteCompanyAgent(id, companyID int) error {
+	defer invalidateSessionCache()
+	tx, err := db.Begin()
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+	if err := lockCompanyForAgentChange(tx, companyID); err != nil {
+		return err
+	}
+	var originalAdminID sql.NullInt64
+	if err := tx.QueryRow(`SELECT "originalAdminId" FROM companies WHERE id = $1`, companyID).Scan(&originalAdminID); err != nil {
+		return err
+	}
+	if originalAdminID.Valid && int(originalAdminID.Int64) == id {
+		return ErrOriginalCompanyAdmin
+	}
+	agent, err := scanAgent(tx.QueryRow(`SELECT id, name, email, password, role, "isActive", "companyId", "sessionVersion", "createdAt", "updatedAt"
+		FROM agents WHERE id = $1 AND "companyId" = $2 FOR UPDATE`, id, companyID))
+	if err != nil {
+		return err
+	}
+	if agent.IsActive && agent.IsAdmin() {
+		if err := ensureAnotherActiveAdmin(tx, id, companyID); err != nil {
+			return err
+		}
+	}
+	if _, err := tx.Exec(`UPDATE conversations SET "agentId" = NULL,
+		status = CASE WHEN status IN ('closed', 'running') THEN status ELSE 'pending' END,
+		"updatedAt" = now() WHERE "agentId" = $1 AND "contactId" IN
+		(SELECT id FROM contacts WHERE "companyId" = $2)`, id, companyID); err != nil {
+		return err
+	}
+	if _, err := tx.Exec(`DELETE FROM agents WHERE id = $1 AND "companyId" = $2`, id, companyID); err != nil {
+		return err
+	}
+	return tx.Commit()
+}
+
 func GetAgentByMessage(message string) (Agent, error) {
 	query := `SELECT a.id, a.name, a.email, a.password, a.role, a."isActive", a."companyId", a."sessionVersion", a."createdAt", a."updatedAt"
 	FROM messages m
@@ -238,12 +287,7 @@ func GetAgentByMessage(message string) (Agent, error) {
 }
 
 func getAgent(query string, args ...interface{}) (Agent, error) {
-	stmt, err := db.Prepare(query)
-	if err != nil {
-		return Agent{}, err
-	}
-	defer stmt.Close()
-	return scanAgent(stmt.QueryRow(args...))
+	return scanAgent(db.QueryRow(query, args...))
 }
 
 func scanAgent(scanner rowScanner) (Agent, error) {

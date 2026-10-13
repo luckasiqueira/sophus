@@ -4,10 +4,15 @@ import (
 	"crypto/subtle"
 	"database/sql"
 	"errors"
+	"fmt"
+	"log"
+	"net/http"
 	"net/mail"
+	"strconv"
 	"strings"
 	"time"
 
+	"sophus/internal/payments"
 	"sophus/internal/repo"
 	"sophus/pkg/http/middlewares"
 	"sophus/utils/env"
@@ -107,7 +112,12 @@ func SaaSOverview(ctx iris.Context) {
 		writeJSONError(ctx, iris.StatusInternalServerError, "não foi possível consultar as configurações da plataforma")
 		return
 	}
-	ctx.JSON(iris.Map{"data": iris.Map{"companies": companies, "plans": plans, "settings": settings}})
+	addonPrices, err := repo.GetAddonPrices()
+	if err != nil {
+		writeJSONError(ctx, iris.StatusInternalServerError, "não foi possível consultar os preços dos adicionais")
+		return
+	}
+	ctx.JSON(iris.Map{"data": iris.Map{"companies": companies, "plans": plans, "settings": settings, "addonPrices": addonPrices}})
 }
 
 func CreateSaaSPlan(ctx iris.Context) {
@@ -155,6 +165,10 @@ func UpdateSaaSPlan(ctx iris.Context) {
 	}
 	updated, err := repo.UpdatePlan(id, input)
 	if err != nil {
+		if errors.Is(err, repo.ErrAddonsNotAllowed) {
+			writeJSONError(ctx, 409, "este plano possui empresas com adicionais contratados; remova os adicionais antes de desabilitar a contratação")
+			return
+		}
 		if errors.Is(err, repo.ErrPlanLimitBelowUsage) {
 			writeJSONError(ctx, iris.StatusConflict, "os limites informados são menores que o uso atual das empresas")
 			return
@@ -251,6 +265,8 @@ func CreateSaaSCompany(ctx iris.Context) {
 			writeJSONError(ctx, iris.StatusNotFound, "plano não encontrado ou inativo")
 		case errors.Is(err, repo.ErrAgentEmailInUse):
 			writeJSONError(ctx, iris.StatusConflict, "o email do administrador já está em uso")
+		case errors.Is(err, repo.ErrInvalidTrialDays):
+			writeJSONError(ctx, iris.StatusBadRequest, "o período de teste deve ser menor que o ciclo contratado")
 		case isUniqueViolation(err):
 			writeJSONError(ctx, iris.StatusConflict, "o email da empresa ou do administrador já está cadastrado")
 		default:
@@ -368,7 +384,12 @@ func ChangeSaaSCompanyPlan(ctx iris.Context) {
 		writeCheckoutError(ctx, err)
 		return
 	}
-	subscription, err := repo.ChangeCompanyPlan(id, body.PlanId, body.BillingCycle)
+	provider, err := repo.ResolveCompanyPaymentProvider(id)
+	if err != nil {
+		writeJSONError(ctx, iris.StatusInternalServerError, "não foi possível determinar o provedor de pagamento")
+		return
+	}
+	payment, err := repo.RequestCompanyPlanChange(id, body.PlanId, body.BillingCycle, provider)
 	if err != nil {
 		if errors.Is(err, repo.ErrOpenPayments) {
 			writeJSONError(ctx, iris.StatusConflict, "cancele ou aguarde o vencimento da cobrança aberta antes de trocar o plano")
@@ -376,6 +397,10 @@ func ChangeSaaSCompanyPlan(ctx iris.Context) {
 		}
 		if errors.Is(err, repo.ErrPlanLimitBelowUsage) {
 			writeJSONError(ctx, iris.StatusConflict, "o novo plano não comporta os agentes ou conexões atuais")
+			return
+		}
+		if errors.Is(err, repo.ErrNoSubscriptionChange) {
+			writeJSONError(ctx, iris.StatusConflict, "este plano e ciclo já estão contratados")
 			return
 		}
 		if errors.Is(err, sql.ErrNoRows) {
@@ -389,7 +414,14 @@ func ChangeSaaSCompanyPlan(ctx iris.Context) {
 		writeJSONError(ctx, iris.StatusInternalServerError, "não foi possível alterar o plano da empresa")
 		return
 	}
-	ctx.JSON(iris.Map{"data": subscription})
+	if payment.Status != repo.PaymentStatusPaid {
+		payment, err = createPaymentCheckout(ctx, id, "/")
+		if err != nil {
+			writeCheckoutError(ctx, err)
+			return
+		}
+	}
+	ctx.JSON(iris.Map{"data": payment})
 }
 
 func UpdateSaaSCompanyDueDate(ctx iris.Context) {
@@ -453,6 +485,71 @@ func UpdateSaaSCompanyDueDate(ctx iris.Context) {
 	ctx.JSON(iris.Map{"data": subscription})
 }
 
+func ReactivateSaaSCompanySubscription(ctx iris.Context) {
+	admin, ok := requirePlatformAdmin(ctx)
+	if !ok {
+		return
+	}
+	id, ok := routeID(ctx)
+	if !ok {
+		return
+	}
+	var body struct {
+		Days   int    `json:"days"`
+		Reason string `json:"reason"`
+	}
+	if err := ctx.ReadJSON(&body); err != nil {
+		writeJSONError(ctx, iris.StatusBadRequest, "JSON inválido")
+		return
+	}
+	subscription, err := repo.ReactivateCompanySubscription(id, admin.Id, body.Days, strings.TrimSpace(body.Reason))
+	if err != nil {
+		writeSubscriptionAdjustmentError(ctx, err, "não foi possível reativar a assinatura")
+		return
+	}
+	ctx.JSON(iris.Map{"data": subscription})
+}
+
+func GrantSaaSCompanySubscriptionRedemption(ctx iris.Context) {
+	admin, ok := requirePlatformAdmin(ctx)
+	if !ok {
+		return
+	}
+	id, ok := routeID(ctx)
+	if !ok {
+		return
+	}
+	var body struct {
+		Days   int    `json:"days"`
+		Reason string `json:"reason"`
+	}
+	if err := ctx.ReadJSON(&body); err != nil {
+		writeJSONError(ctx, iris.StatusBadRequest, "JSON inválido")
+		return
+	}
+	subscription, redemptionEndsAt, err := repo.GrantCompanySubscriptionRedemption(id, admin.Id, body.Days, strings.TrimSpace(body.Reason))
+	if err != nil {
+		writeSubscriptionAdjustmentError(ctx, err, "não foi possível conceder a janela de resgate")
+		return
+	}
+	ctx.JSON(iris.Map{"data": iris.Map{"subscription": subscription, "redemptionEndsAt": redemptionEndsAt}})
+}
+
+func writeSubscriptionAdjustmentError(ctx iris.Context, err error, fallback string) {
+	switch {
+	case errors.Is(err, repo.ErrInvalidSubscriptionAdjustment):
+		writeJSONError(ctx, iris.StatusBadRequest, "informe uma quantidade válida de dias e uma justificativa de 3 a 500 caracteres")
+	case errors.Is(err, repo.ErrOpenPayments):
+		writeJSONError(ctx, iris.StatusConflict, "existe uma cobrança aberta para esta assinatura")
+	case errors.Is(err, sql.ErrNoRows):
+		writeJSONError(ctx, iris.StatusNotFound, "assinatura não encontrada")
+	case isUniqueViolation(err):
+		writeJSONError(ctx, iris.StatusConflict, "já existe outra assinatura ativa para esta empresa")
+	default:
+		writeJSONError(ctx, iris.StatusInternalServerError, fallback)
+	}
+}
+
 func ListSaaSCompanyPayments(ctx iris.Context) {
 	if _, ok := requirePlatformAdmin(ctx); !ok {
 		return
@@ -475,6 +572,364 @@ func ListSaaSCompanyPayments(ctx iris.Context) {
 		return
 	}
 	ctx.JSON(iris.Map{"data": payments})
+}
+
+func ListSaaSPayments(ctx iris.Context) {
+	if _, ok := requirePlatformAdmin(ctx); !ok {
+		return
+	}
+	payments, err := repo.GetPayments()
+	if err != nil {
+		writeJSONError(ctx, iris.StatusInternalServerError, "não foi possível listar as cobranças")
+		return
+	}
+	companies, err := repo.ListCompanies()
+	if err != nil {
+		writeJSONError(ctx, iris.StatusInternalServerError, "não foi possível consultar as empresas")
+		return
+	}
+	companyNames := make(map[int]string, len(companies))
+	for _, company := range companies {
+		companyNames[company.Id] = company.Name
+	}
+	result := make([]iris.Map, 0, len(payments))
+	for _, payment := range payments {
+		result = append(result, iris.Map{"payment": payment, "companyName": companyNames[payment.CompanyId]})
+	}
+	ctx.JSON(iris.Map{"data": result})
+}
+
+func UpdateSaaSCompanyPayment(ctx iris.Context) {
+	admin, ok := requirePlatformAdmin(ctx)
+	if !ok {
+		return
+	}
+	companyID, ok := routeID(ctx)
+	if !ok {
+		return
+	}
+	paymentID, err := ctx.Params().GetInt("paymentId")
+	if err != nil || paymentID <= 0 {
+		writeJSONError(ctx, iris.StatusBadRequest, "cobrança inválida")
+		return
+	}
+	var body struct {
+		Action      string `json:"action"`
+		DueDate     string `json:"dueDate"`
+		AmountCents *int64 `json:"amountCents"`
+		Reason      string `json:"reason"`
+	}
+	if err := ctx.ReadJSON(&body); err != nil {
+		writeJSONError(ctx, iris.StatusBadRequest, "JSON inválido")
+		return
+	}
+	company, err := repo.GetCompanyById(companyID)
+	if errors.Is(err, sql.ErrNoRows) {
+		writeJSONError(ctx, iris.StatusNotFound, "empresa não encontrada")
+		return
+	}
+	if err != nil {
+		writeJSONError(ctx, iris.StatusInternalServerError, "não foi possível consultar a empresa")
+		return
+	}
+	current, err := repo.GetPaymentByIdAndCompany(paymentID, companyID)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			writeJSONError(ctx, iris.StatusNotFound, "cobrança não encontrada")
+		} else {
+			writeJSONError(ctx, iris.StatusInternalServerError, "não foi possível consultar a cobrança")
+		}
+		return
+	}
+	if !canManagePendingCompanyPayment(current) {
+		writeJSONError(ctx, iris.StatusConflict, "apenas cobranças pendentes e sem pagamento registrado podem ser alteradas")
+		return
+	}
+	issued := current.CheckoutURL != nil && strings.TrimSpace(*current.CheckoutURL) != ""
+	if body.Action == "confirm_paid" {
+		reason := strings.TrimSpace(body.Reason)
+		if reason == "" || len(reason) > 500 {
+			writeJSONError(ctx, iris.StatusBadRequest, "informe o motivo da confirmação (até 500 caracteres)")
+			return
+		}
+		if issued {
+			switch current.Provider {
+			case repo.PaymentProviderAbacatePay:
+				if strings.TrimSpace(env.Backend["ABACATEPAY_API_KEY"]) == "" {
+					writeJSONError(ctx, iris.StatusServiceUnavailable, "PIX não configurado")
+					return
+				}
+				verified, pending, verifyErr := reconcileAbacatePayPayment(ctx, current)
+				if verifyErr != nil {
+					writeCheckoutError(ctx, verifyErr)
+					return
+				}
+				if !pending || verified.Status != repo.PaymentStatusPending {
+					writeJSONError(ctx, iris.StatusConflict, "o checkout já mudou de status no provedor; atualize a fatura")
+					return
+				}
+			case repo.PaymentProviderMercadoPago:
+				if current.ProviderPreferenceId == nil || current.CheckoutKey == nil {
+					writeJSONError(ctx, iris.StatusConflict, "checkout sem identificação verificável")
+					return
+				}
+				if strings.TrimSpace(env.Backend["MERCADO_PAGO_ACCESS_TOKEN"]) == "" {
+					writeJSONError(ctx, iris.StatusServiceUnavailable, "Mercado Pago não configurado")
+					return
+				}
+				client := payments.NewMercadoPagoClient(&http.Client{Timeout: paymentProviderRequestTimeout}, env.Backend["MERCADO_PAGO_ACCESS_TOKEN"], env.Backend["MERCADO_PAGO_WEBHOOK_SECRET"], env.Backend["MERCADO_PAGO_BASE_URL"])
+				if err := client.ExpirePreference(ctx.Request().Context(), *current.ProviderPreferenceId, strconv.Itoa(paymentID), *current.CheckoutKey); err != nil {
+					writeJSONError(ctx, iris.StatusBadGateway, "não foi possível desativar o link no Mercado Pago")
+					return
+				}
+			default:
+				writeJSONError(ctx, iris.StatusBadRequest, "provedor da cobrança inválido")
+				return
+			}
+		} else if current.CheckoutKey != nil && strings.TrimSpace(*current.CheckoutKey) != "" {
+			if err := clearUnlinkedInvoiceCheckout(ctx, current); err != nil {
+				writeCheckoutError(ctx, err)
+				return
+			}
+		} else if err := repo.ReleaseStaleUnlinkedPaymentCheckout(paymentID, companyID); err != nil {
+			writeJSONError(ctx, iris.StatusInternalServerError, "não foi possível liberar o checkout anterior")
+			return
+		}
+		payment, confirmErr := repo.ConfirmPendingPaymentManually(paymentID, companyID, admin.Id, reason)
+		if confirmErr != nil {
+			if errors.Is(confirmErr, sql.ErrNoRows) {
+				writeJSONError(ctx, iris.StatusConflict, "a fatura mudou de estado; atualize a página")
+			} else {
+				log.Printf("manual payment confirmation failed: payment=%d error=%v", paymentID, confirmErr)
+				writeJSONError(ctx, iris.StatusInternalServerError, "não foi possível confirmar o pagamento")
+			}
+			return
+		}
+		if auditErr := repo.RecordAuditEvent(repo.AuditEvent{CompanyID: &companyID, ActorID: &admin.Id, ActorEmail: admin.Email,
+			ActorType: "platform", Action: "confirm_paid", TargetType: "payment", TargetID: strconv.Itoa(paymentID), IPAddress: ctx.RemoteAddr()}); auditErr != nil {
+			log.Printf("manual payment audit failed: payment=%d: %v", paymentID, auditErr)
+		}
+		ctx.JSON(iris.Map{"data": payment})
+		return
+	}
+	if body.Action == "discard" {
+		if !issued || current.Provider != repo.PaymentProviderAbacatePay {
+			writeJSONError(ctx, iris.StatusBadRequest, "descarte disponível apenas para checkout PIX emitido")
+			return
+		}
+		if strings.TrimSpace(env.Backend["ABACATEPAY_API_KEY"]) == "" {
+			writeJSONError(ctx, iris.StatusServiceUnavailable, "PIX não configurado")
+			return
+		}
+		verified, pending, reconcileErr := reconcileAbacatePayPayment(ctx, current)
+		if reconcileErr != nil {
+			writeCheckoutError(ctx, reconcileErr)
+			return
+		}
+		if !pending || verified.Status != repo.PaymentStatusPending || verified.ProviderPreferenceId == nil || verified.CheckoutKey == nil {
+			writeJSONError(ctx, iris.StatusConflict, "a cobrança já mudou de status no provedor; atualize a página")
+			return
+		}
+		payment, discardErr := repo.DiscardPendingAbacatePayPayment(paymentID, companyID, *verified.ProviderPreferenceId, *verified.CheckoutKey)
+		if discardErr != nil {
+			if errors.Is(discardErr, sql.ErrNoRows) {
+				writeJSONError(ctx, iris.StatusConflict, "a cobrança mudou de estado; atualize a página")
+			} else {
+				writeJSONError(ctx, iris.StatusInternalServerError, "não foi possível descartar a cobrança")
+			}
+			return
+		}
+		if auditErr := repo.RecordAuditEvent(repo.AuditEvent{CompanyID: &companyID, ActorID: &admin.Id,
+			ActorEmail: admin.Email, ActorType: "platform", Action: "discard", TargetType: "payment", TargetID: strconv.Itoa(paymentID), IPAddress: ctx.RemoteAddr()}); auditErr != nil {
+			log.Printf("payment discard audit failed: payment=%d: %v", paymentID, auditErr)
+		}
+		ctx.JSON(iris.Map{"data": payment})
+		return
+	}
+	if issued && current.Provider != repo.PaymentProviderMercadoPago {
+		writeJSONError(ctx, iris.StatusConflict, "o provedor PIX não permite alterar ou cancelar um checkout emitido; este link ainda pode ser pago")
+		return
+	}
+	if !issued && current.CheckoutKey != nil && strings.TrimSpace(*current.CheckoutKey) != "" {
+		if err := clearUnlinkedInvoiceCheckout(ctx, current); err != nil {
+			writeCheckoutError(ctx, err)
+			return
+		}
+		current.CheckoutKey = nil
+	}
+	if !issued && current.CheckoutKey == nil {
+		if err := repo.ReleaseStaleUnlinkedPaymentCheckout(paymentID, companyID); err != nil {
+			writeJSONError(ctx, iris.StatusInternalServerError, "não foi possível liberar o checkout anterior")
+			return
+		}
+	}
+	var preferenceID, checkoutKey string
+	var client *payments.MercadoPagoClient
+	if issued {
+		if current.ProviderPreferenceId == nil || current.CheckoutKey == nil || strings.TrimSpace(*current.ProviderPreferenceId) == "" || strings.TrimSpace(*current.CheckoutKey) == "" {
+			writeJSONError(ctx, iris.StatusConflict, "checkout sem identificação verificável no provedor")
+			return
+		}
+		preferenceID, checkoutKey = *current.ProviderPreferenceId, *current.CheckoutKey
+		if strings.TrimSpace(env.Backend["MERCADO_PAGO_ACCESS_TOKEN"]) == "" {
+			writeJSONError(ctx, iris.StatusServiceUnavailable, "Mercado Pago não configurado")
+			return
+		}
+		client = payments.NewMercadoPagoClient(&http.Client{Timeout: paymentProviderRequestTimeout},
+			env.Backend["MERCADO_PAGO_ACCESS_TOKEN"], env.Backend["MERCADO_PAGO_WEBHOOK_SECRET"], env.Backend["MERCADO_PAGO_BASE_URL"])
+	}
+	var payment repo.Payment
+	providerUpdated := false
+	switch strings.TrimSpace(body.Action) {
+	case "update_due_date", "update":
+		location, locationErr := time.LoadLocation(company.Timezone)
+		if locationErr != nil {
+			writeJSONError(ctx, iris.StatusInternalServerError, "fuso horário da empresa inválido")
+			return
+		}
+		date, parseErr := time.ParseInLocation("2006-01-02", strings.TrimSpace(body.DueDate), location)
+		if parseErr != nil {
+			writeJSONError(ctx, iris.StatusBadRequest, "data de vencimento inválida")
+			return
+		}
+		dueDate := date.AddDate(0, 0, 1).Add(-time.Microsecond)
+		if !dueDate.After(time.Now()) {
+			writeJSONError(ctx, iris.StatusBadRequest, "escolha um vencimento futuro")
+			return
+		}
+		amount := current.AmountCents
+		if body.AmountCents != nil {
+			amount = *body.AmountCents
+		}
+		if amount < 1 || amount > 1000000000 {
+			writeJSONError(ctx, iris.StatusBadRequest, "informe um valor entre R$ 0,01 e R$ 10.000.000,00")
+			return
+		}
+		if issued {
+			planID, planErr := repo.GetPaymentPlanID(paymentID)
+			if planErr != nil {
+				writeJSONError(ctx, iris.StatusInternalServerError, "não foi possível consultar o plano da cobrança")
+				return
+			}
+			plan, planErr := repo.GetPlanById(planID)
+			if planErr != nil {
+				writeJSONError(ctx, iris.StatusInternalServerError, "não foi possível consultar o plano")
+				return
+			}
+			if err = client.UpdatePreferenceAmount(ctx.Request().Context(), preferenceID, strconv.Itoa(paymentID), checkoutKey,
+				fmt.Sprintf("Plano %s - %s", plan.Name, company.Name), amount, dueDate); err != nil {
+				log.Printf("payment preference update failed: payment=%d: %v", paymentID, err)
+				writeJSONError(ctx, iris.StatusBadGateway, "não foi possível confirmar a atualização do link no Mercado Pago; atualize a fatura antes de tentar novamente")
+				return
+			}
+			providerUpdated = true
+		}
+		payment, err = repo.UpdatePendingPaymentDetails(paymentID, companyID, amount, dueDate, preferenceID)
+	case "cancel":
+		if issued {
+			if err = client.ExpirePreference(ctx.Request().Context(), preferenceID, strconv.Itoa(paymentID), checkoutKey); err != nil {
+				log.Printf("payment preference expiry failed: payment=%d: %v", paymentID, err)
+				writeJSONError(ctx, iris.StatusBadGateway, "não foi possível desativar o link no Mercado Pago; a fatura continua pendente")
+				return
+			}
+			providerUpdated = true
+			payment, err = repo.CancelPendingMercadoPagoPayment(paymentID, companyID, preferenceID)
+		} else {
+			payment, err = repo.CancelPendingPayment(paymentID, companyID)
+		}
+	default:
+		writeJSONError(ctx, iris.StatusBadRequest, "ação de cobrança inválida")
+		return
+	}
+	if err != nil {
+		if providerUpdated {
+			log.Printf("payment provider updated but database update failed: company=%d payment=%d action=%s: %v", companyID, paymentID, body.Action, err)
+			writeJSONError(ctx, iris.StatusConflict, "o link foi alterado no provedor, mas a fatura não pôde ser salva; contate o suporte antes de reutilizá-la")
+			return
+		}
+		if errors.Is(err, sql.ErrNoRows) {
+			writeJSONError(ctx, iris.StatusConflict, "a cobrança mudou de estado; atualize a página e tente novamente")
+			return
+		}
+		writeJSONError(ctx, iris.StatusInternalServerError, "não foi possível atualizar a cobrança")
+		return
+	}
+	if auditErr := repo.RecordAuditEvent(repo.AuditEvent{CompanyID: &companyID, ActorID: &admin.Id,
+		ActorEmail: admin.Email, ActorType: "platform", Action: body.Action, TargetType: "payment", TargetID: strconv.Itoa(paymentID), IPAddress: ctx.RemoteAddr()}); auditErr != nil {
+		log.Printf("payment audit failed: payment=%d: %v", paymentID, auditErr)
+	}
+	ctx.JSON(iris.Map{"data": payment})
+}
+
+func canManagePendingCompanyPayment(payment repo.Payment) bool {
+	if payment.Status != repo.PaymentStatusPending {
+		return false
+	}
+	if payment.ProviderPaymentId == nil {
+		return true
+	}
+	return payment.Provider == repo.PaymentProviderAbacatePay && payment.ProviderPreferenceId != nil &&
+		*payment.ProviderPaymentId == *payment.ProviderPreferenceId
+}
+
+func GetSaaSCompanyCredits(ctx iris.Context) {
+	if _, ok := requirePlatformAdmin(ctx); !ok {
+		return
+	}
+	id, ok := routeID(ctx)
+	if !ok {
+		return
+	}
+	credits, err := repo.GetCompanyCreditSummary(id)
+	if err != nil {
+		writeJSONError(ctx, iris.StatusInternalServerError, "não foi possível consultar os créditos")
+		return
+	}
+	ctx.JSON(iris.Map{"data": credits})
+}
+
+func clearUnlinkedInvoiceCheckout(ctx iris.Context, payment repo.Payment) error {
+	if payment.CheckoutKey == nil || payment.CheckoutURL != nil || payment.ProviderPreferenceId != nil || payment.ProviderPaymentId != nil {
+		return &checkoutHTTPError{status: iris.StatusConflict, message: "checkout em preparação; atualize a fatura"}
+	}
+	if time.Since(payment.UpdatedAt) < 5*time.Minute {
+		return &checkoutHTTPError{status: iris.StatusConflict, message: "checkout em preparação; tente novamente em alguns minutos"}
+	}
+	key := *payment.CheckoutKey
+	switch payment.Provider {
+	case repo.PaymentProviderMercadoPago:
+		if strings.TrimSpace(env.Backend["MERCADO_PAGO_ACCESS_TOKEN"]) == "" {
+			return &checkoutHTTPError{status: iris.StatusServiceUnavailable, message: "Mercado Pago não configurado"}
+		}
+		client := payments.NewMercadoPagoClient(&http.Client{Timeout: paymentProviderRequestTimeout}, env.Backend["MERCADO_PAGO_ACCESS_TOKEN"], env.Backend["MERCADO_PAGO_WEBHOOK_SECRET"], env.Backend["MERCADO_PAGO_BASE_URL"])
+		preference, found, err := client.FindPreference(ctx.Request().Context(), strconv.Itoa(payment.Id), key)
+		if err != nil {
+			return &checkoutHTTPError{status: iris.StatusBadGateway, message: "não foi possível verificar o link antigo no Mercado Pago"}
+		}
+		if found {
+			if err := client.ExpirePreference(ctx.Request().Context(), preference.ID, strconv.Itoa(payment.Id), key); err != nil {
+				return &checkoutHTTPError{status: iris.StatusBadGateway, message: "não foi possível desativar o link antigo no Mercado Pago"}
+			}
+		}
+	case repo.PaymentProviderAbacatePay:
+		if strings.TrimSpace(env.Backend["ABACATEPAY_API_KEY"]) == "" {
+			return &checkoutHTTPError{status: iris.StatusServiceUnavailable, message: "PIX não configurado"}
+		}
+		client := payments.NewAbacatePayClient(&http.Client{Timeout: paymentProviderRequestTimeout}, env.Backend["ABACATEPAY_API_KEY"], env.Backend["ABACATEPAY_BASE_URL"])
+		_, found, err := client.FindCheckout(ctx.Request().Context(), strconv.Itoa(payment.Id), key)
+		if err != nil {
+			return &checkoutHTTPError{status: iris.StatusBadGateway, message: "não foi possível verificar o checkout PIX antigo"}
+		}
+		if found {
+			return &checkoutHTTPError{status: iris.StatusConflict, message: "o checkout PIX antigo ainda pode ser pago e não pode ser cancelado pelo provedor"}
+		}
+	default:
+		return &checkoutHTTPError{status: iris.StatusUnprocessableEntity, message: "provedor de pagamento inválido"}
+	}
+	if err := repo.ClearUnlinkedPaymentCheckout(payment.Id, payment.CompanyId, key); err != nil {
+		return checkoutRepositoryError(err, "não foi possível liberar o checkout antigo")
+	}
+	return nil
 }
 
 func CreateSaaSCompanyCheckout(ctx iris.Context) {
@@ -525,6 +980,9 @@ func normalizeAndValidatePlan(input *repo.PlanInput) string {
 	}
 	if input.TrialDays < 0 || input.TrialDays > 90 {
 		return "o período de avaliação deve ter entre 0 e 90 dias"
+	}
+	if input.MonthlyPriceCents > 0 && input.TrialDays >= 30 {
+		return "o período de avaliação deve ser menor que os 30 dias do ciclo mensal"
 	}
 	if input.StorageLimitGB < 1 || input.StorageLimitGB > 100000 {
 		return "o armazenamento deve ter entre 1 e 100000 GB"

@@ -2,6 +2,7 @@ package media
 
 import (
 	"bytes"
+	"errors"
 	"os"
 	"path/filepath"
 	"strings"
@@ -82,5 +83,51 @@ func TestSaveDocument(t *testing.T) {
 	}
 	if filepath.Ext(stored.Path) != ".pdf" || stored.Name != "contrato.pdf" {
 		t.Fatalf("unexpected stored document: %#v", stored)
+	}
+}
+
+func TestSaveScopedStoresConversationMediaOutsideFlowDirectory(t *testing.T) {
+	original := env.Backend["MEDIA_DIRECTORY"]
+	env.Backend["MEDIA_DIRECTORY"] = t.TempDir()
+	defer func() { env.Backend["MEDIA_DIRECTORY"] = original }()
+
+	png := []byte{0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a}
+	stored, err := SaveScoped(9, ScopeMessages, "image", "anexo.png", "image/png", bytes.NewReader(png))
+	if err != nil {
+		t.Fatalf("save scoped media: %v", err)
+	}
+	if !strings.HasPrefix(stored.URL, "/management/api/media/messages/") {
+		t.Fatalf("unexpected scoped URL: %s", stored.URL)
+	}
+	if _, err := os.Stat(filepath.Join(env.Backend["MEDIA_DIRECTORY"], "9", stored.Path)); err != nil {
+		t.Fatalf("conversation media not found: %v", err)
+	}
+	if _, err := os.Stat(filepath.Join(env.Backend["MEDIA_DIRECTORY"], "9", "flows", stored.Path)); !errors.Is(err, os.ErrNotExist) {
+		t.Fatal("conversation media was stored in flow directory")
+	}
+}
+
+func TestRecordedWebMAudioKeepsAudioKindAfterStorage(t *testing.T) {
+	original := env.Backend["MEDIA_DIRECTORY"]
+	env.Backend["MEDIA_DIRECTORY"] = t.TempDir()
+	defer func() { env.Backend["MEDIA_DIRECTORY"] = original }()
+	webm := []byte{0x1a, 0x45, 0xdf, 0xa3, 0x9f, 0x42, 0x86, 0x81, 0x01}
+	stored, err := SaveScoped(9, ScopeMessages, "audio", "gravacao.webm", "audio/webm;codecs=opus", bytes.NewReader(webm))
+	if err != nil {
+		t.Fatal(err)
+	}
+	item, err := Inspect(9, ScopeMessages, stored.Path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if item.Kind != "audio" || item.MimeType != "audio/webm" {
+		t.Fatalf("recording reclassified: %+v", item)
+	}
+	items, err := List(9)
+	if err != nil || len(items) != 1 || items[0].Kind != "audio" {
+		t.Fatalf("recording reclassified in gallery: %+v, %v", items, err)
+	}
+	if got := catalogMimeType("video.webm"); got != "video/webm" {
+		t.Fatalf("video MIME changed: %s", got)
 	}
 }

@@ -6,6 +6,7 @@ import (
 	"log"
 	"net/http"
 	"net/url"
+	"strconv"
 	"strings"
 	"time"
 
@@ -55,6 +56,145 @@ func InstanceList(ctx iris.Context) {
 
 func InstancePopup(ctx iris.Context) {
 	ctx.RenderComponent(web.InstanceCreatePopup())
+}
+
+func ImportInstanceContacts(ctx iris.Context) {
+	agent, err := middlewares.AgentIdentifier(ctx)
+	if err != nil {
+		return
+	}
+	connectionID, err := ctx.Params().GetInt("id")
+	if err != nil || connectionID <= 0 {
+		writeJSONError(ctx, iris.StatusBadRequest, "instância inválida")
+		return
+	}
+	connection, err := repo.GetConnectionById(connectionID)
+	if err != nil {
+		log.Printf("contact import failed loading connection: connection=%d company=%d error=%v", connectionID, agent.CompanyId, err)
+		writeJSONError(ctx, iris.StatusNotFound, "instância não encontrada")
+		return
+	}
+	if connection.CompanyID != agent.CompanyId {
+		writeJSONError(ctx, iris.StatusNotFound, "instância não encontrada")
+		return
+	}
+	if connection.Status != repo.ConnectionStatusConnected {
+		writeJSONError(ctx, iris.StatusConflict, "a instância precisa estar conectada para importar contatos")
+		return
+	}
+	upstream := instances.InstanceEVO{APIToken: connection.EvolutionAPIKey()}
+	contacts, err := upstream.GetContacts()
+	if err != nil {
+		log.Printf("contact import failed upstream: connection=%d company=%d error=%v", connectionID, agent.CompanyId, err)
+		writeJSONError(ctx, iris.StatusBadGateway, "não foi possível obter os contatos do WhatsApp")
+		return
+	}
+	const maxImportedContacts = 20000
+	overLimit := 0
+	if len(contacts) > maxImportedContacts {
+		overLimit = len(contacts) - maxImportedContacts
+		contacts = contacts[:maxImportedContacts]
+	}
+	unique := make(map[string]repo.ContactImport, len(contacts))
+	invalid := overLimit
+	duplicates := 0
+	excluded := 0
+	for _, contact := range contacts {
+		item, valid := repo.NormalizeImportedContact(contact.PreferredName(), contact.BusinessName, contact.JID)
+		if !valid {
+			invalid++
+			continue
+		}
+		if !contact.IsAddressBookContact() {
+			excluded++
+			continue
+		}
+		if _, duplicated := unique[item.Number]; duplicated {
+			duplicates++
+			continue
+		}
+		unique[item.Number] = item
+	}
+	items := make([]repo.ContactImport, 0, len(unique))
+	for _, contact := range unique {
+		items = append(items, contact)
+	}
+	result, err := repo.ImportConnectionContacts(agent.CompanyId, connectionID, items, invalid)
+	if err != nil {
+		log.Printf("contact import failed saving contacts: connection=%d company=%d received=%d valid=%d invalid=%d error=%v", connectionID, agent.CompanyId, len(contacts)+overLimit, len(items), invalid, err)
+		writeJSONError(ctx, iris.StatusInternalServerError, "não foi possível importar os contatos")
+		return
+	}
+	result.Received = len(contacts) + overLimit
+	result.Skipped += duplicates
+	result.Excluded = excluded
+	ctx.JSON(iris.Map{"data": result})
+}
+
+func RenameInstance(ctx iris.Context) {
+	agent, err := middlewares.AgentIdentifier(ctx)
+	if err != nil {
+		ctx.StopWithStatus(iris.StatusUnauthorized)
+		return
+	}
+	id, err := ctx.Params().GetInt("id")
+	name := strings.TrimSpace(ctx.FormValue("name"))
+	if err != nil || id <= 0 || name == "" || len(name) > 120 {
+		ctx.StopWithJSON(iris.StatusBadRequest, iris.Map{"error": "informe um nome de até 120 caracteres"})
+		return
+	}
+	updated, err := repo.RenameConnection(agent.CompanyId, id, name)
+	if err != nil {
+		ctx.StopWithStatus(iris.StatusInternalServerError)
+		return
+	}
+	if !updated {
+		ctx.StopWithStatus(iris.StatusNotFound)
+		return
+	}
+	sse.NotifyInstances(agent.CompanyId)
+	ctx.StatusCode(iris.StatusNoContent)
+}
+
+func DeleteInstance(ctx iris.Context) {
+	agent, err := middlewares.AgentIdentifier(ctx)
+	if err != nil {
+		ctx.StopWithStatus(iris.StatusUnauthorized)
+		return
+	}
+	id, err := ctx.Params().GetInt("id")
+	if err != nil || id <= 0 {
+		ctx.StopWithStatus(iris.StatusBadRequest)
+		return
+	}
+	connection, err := repo.GetConnectionByID(agent.CompanyId, id)
+	if err != nil {
+		ctx.StopWithStatus(iris.StatusNotFound)
+		return
+	}
+	history := ctx.URLParamDefault("history", "keep")
+	if history != "keep" && history != "delete" {
+		ctx.StopWithJSON(iris.StatusBadRequest, iris.Map{"error": "escolha como tratar o histórico da conexão"})
+		return
+	}
+	remote := instances.InstanceEVO{InstanceID: connection.InstanceID}
+	if err := remote.Delete(); err != nil {
+		log.Printf("Evolution GO instance deletion failed: connection=%d instance=%s error=%v", connection.Id, connection.InstanceID, err)
+		ctx.StopWithJSON(iris.StatusBadGateway, iris.Map{"error": "não foi possível remover a instância no WhatsApp"})
+		return
+	}
+	deleted, err := repo.DeleteConnection(agent.CompanyId, id, history == "delete")
+	if err != nil {
+		ctx.StopWithStatus(iris.StatusInternalServerError)
+		return
+	}
+	if !deleted {
+		ctx.StopWithStatus(iris.StatusNotFound)
+		return
+	}
+	sse.NotifyInstances(agent.CompanyId)
+	sse.NotifyConversations(agent.CompanyId)
+	ctx.StatusCode(iris.StatusNoContent)
 }
 
 func NewInstance(ctx iris.Context) {
@@ -130,6 +270,7 @@ func NewInstance(ctx iris.Context) {
 		return
 	}
 	log.Printf("Evolution GO instance connected to webhook configuration: connection=%d", connectionID)
+	recordCompanyAction(ctx, agent, "create", "instance", strconv.Itoa(connectionID))
 	go awaitInitialQRCode(connectionID, i)
 	ctx.RenderComponent(web.InstanceQRCodePanel(connectionID, i.Name))
 }
@@ -166,15 +307,26 @@ func ReconnectInstance(ctx iris.Context) {
 		ConnectionKey: connection.ConnectionKey,
 		APIToken:      connection.EvolutionAPIKey(),
 	}
-	if err := repo.UpdateConnectionStatus(connectionID, repo.ConnectionStatusConnecting); err != nil {
-		ctx.StopWithStatus(iris.StatusInternalServerError)
-		return
-	}
-	sse.NotifyInstances(agent.CompanyId)
-	if err := instance.Connect(); err != nil {
+	var startErr error
+	if err := instance.ReconnectWithStart(func() error {
+		startErr = repo.UpdateConnectionStatus(connectionID, repo.ConnectionStatusConnecting)
+		if startErr == nil {
+			sse.NotifyInstances(agent.CompanyId)
+		}
+		return startErr
+	}); err != nil {
+		if errors.Is(err, instances.ErrReconnectInProgress) {
+			ctx.StopWithJSON(iris.StatusConflict, iris.Map{"error": err.Error()})
+			return
+		}
+		if startErr != nil {
+			ctx.StopWithStatus(iris.StatusInternalServerError)
+			return
+		}
+		log.Printf("manual Evolution GO reconnect failed: connection=%d error=%v", connectionID, err)
 		_ = repo.UpdateConnectionStatus(connectionID, repo.ConnectionStatusDisconnected)
 		sse.NotifyInstances(agent.CompanyId)
-		ctx.StopWithJSON(iris.StatusBadGateway, iris.Map{"error": err.Error()})
+		ctx.StopWithJSON(iris.StatusBadGateway, iris.Map{"error": "não foi possível restabelecer a conexão no WhatsApp; tente novamente em alguns instantes"})
 		return
 	}
 	go awaitInitialQRCode(connectionID, instance)

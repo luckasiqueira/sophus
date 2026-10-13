@@ -1,0 +1,91 @@
+package web
+
+templ AgentPreferencesRuntime() {
+	<script>
+		window.agentPreferences = { scrollAfterSend: true, scrollAfterSendMode: 'always', messageSignatureEnabled: true, messageSignatureTemplate: '{agentName}', notifications: { toast: true, sound: true, browser: true, preview: true, groups: true } };
+		window.applyAgentPreferences = function (preferences) { window.agentPreferences = preferences; window.dispatchEvent(new CustomEvent('agent-preferences-changed')); };
+		window.agentPreferencesReady = fetch('/management/api/preferences', { credentials: 'same-origin', cache: 'no-store', headers: { Accept: 'application/json' } })
+			.then(async response => { const payload = await response.json(); if (!response.ok || !payload.data || !payload.data.notifications) throw new Error(payload.error || 'Não foi possível carregar suas preferências.'); window.agentOnboardingAdmin = Boolean(payload.isAdmin); window.applyAgentPreferences(payload.data); return payload.data; })
+			.catch(error => { window.agentPreferencesError = error; return null; });
+	</script>
+}
+
+templ AgentPreferencesPage() {
+	@base("preferences") {
+		<main class="min-w-0 flex-1 overflow-y-auto rounded-2xl bg-stone-50 shadow-sm">
+			<div class="mx-auto max-w-5xl space-y-6 p-4 sm:p-6 lg:p-8">
+				<header><p class="text-xs font-bold uppercase tracking-[.2em] text-purple-600">Minha conta</p><h1 class="mt-2 text-2xl font-black text-gray-950 sm:text-3xl">Preferências</h1><p class="mt-2 text-sm text-gray-500">Personalize sua experiência. Estas escolhas são individuais e acompanham sua conta em outros navegadores.</p></header>
+				<div id="agent-preferences-error" role="alert" class="hidden rounded-2xl border border-red-200 bg-red-50 p-4 text-sm text-red-700"></div>
+				<form id="agent-preferences-form" class="space-y-6">
+					<fieldset id="agent-preferences-fields" disabled class="space-y-6">
+						<section class="overflow-hidden rounded-3xl border border-stone-200 bg-white shadow-sm">
+							@companySettingsPanelHeader("fa-comments", "Atendimento", "Mensagens", "Escolha como o chat se comporta e como suas mensagens são identificadas.")
+							<div class="grid gap-6 p-5 sm:p-7 lg:grid-cols-2">
+								<div class="space-y-4">
+									@companySettingToggle("message-scroll-after-send", "Rolar ao fim após enviar", "Ao desativar, o chat mantém a posição atual quando você envia uma mensagem.")
+									<div><label for="message-scroll-after-send-mode" class="mb-2 block text-sm font-bold text-gray-700">Comportamento da rolagem</label><select id="message-scroll-after-send-mode" data-admin-portal="true" aria-describedby="message-scroll-after-send-mode-help" class="w-full rounded-xl border border-stone-200 bg-white px-4 py-3 text-sm"><option value="always">Sempre rolar para baixo</option><option value="except_quotes">Exceto em citações</option></select><p id="message-scroll-after-send-mode-help" class="mt-2 text-xs leading-relaxed text-gray-500">Em “Exceto em citações”, mantém a posição enquanto você responde uma mensagem e após enviar a resposta citada.</p></div>
+								</div>
+								<div class="space-y-4">
+									@companySettingToggle("agent-signature-enabled", "Adicionar assinatura do atendente", "Inclui sua identificação no começo das mensagens que você envia.")
+									<label class="block text-sm font-bold text-gray-700">Texto da assinatura<input id="agent-signature-template" maxlength="160" placeholder="{agentName}" class="mt-2 w-full rounded-xl border border-stone-200 px-4 py-3 text-sm outline-none focus:border-purple-400"/><span class="mt-2 block text-xs font-normal text-gray-500">Use <code class="text-purple-700">{ "{agentName}" }</code> para inserir seu nome automaticamente.</span></label>
+								</div>
+							</div>
+						</section>
+						<section id="notifications" class="overflow-hidden rounded-3xl border border-stone-200 bg-white shadow-sm">
+							@companySettingsPanelHeader("fa-bell", "Alertas individuais", "Notificações", "Escolha como novas mensagens chamam sua atenção.")
+							<div class="grid gap-6 p-5 sm:p-7 lg:grid-cols-[1.2fr_.8fr]">
+								<div class="grid gap-4 sm:grid-cols-2">
+									@browserNotificationToggle("toast", "fa-window-maximize", "Avisos na tela", "Exibe um aviso dentro da plataforma quando uma nova mensagem chegar.")
+									@browserNotificationToggle("sound", "fa-volume-high", "Som de nova mensagem", "Reproduz um alerta sonoro curto para mensagens recebidas.")
+									@browserNotificationToggle("browser", "fa-bell", "Notificações do navegador", "Permite alertas do sistema quando a aba estiver em segundo plano.")
+									@browserNotificationToggle("preview", "fa-message", "Mostrar prévia da mensagem", "Inclui parte do conteúdo nos avisos e na central de notificações.")
+									@browserNotificationToggle("groups", "fa-users", "Notificações de grupos", "Inclui mensagens recebidas em conversas de grupos do WhatsApp.")
+								</div>
+								<aside class="space-y-4">
+									<div class="rounded-2xl border border-stone-200 bg-stone-50 p-5"><h3 class="text-sm font-black">Permissão do navegador</h3><p class="mt-2 text-xs text-gray-500">Autorize os alertas em cada navegador que você utiliza.</p><button id="app-notification-permission" type="button" class="mt-4 flex w-full items-center justify-center gap-2 rounded-xl border border-stone-200 bg-white px-3 py-2.5 text-xs font-bold text-gray-700"><span data-permission-dot class="h-2 w-2 rounded-full bg-amber-400"></span><span data-permission-label>Ativar notificações do navegador</span></button></div>
+									<div class="rounded-2xl border border-stone-200 bg-stone-50 p-5"><h3 class="text-sm font-black">Alerta sonoro</h3><p class="mt-2 text-xs text-gray-500">Confira o volume antes de aguardar novas mensagens.</p><button id="app-notification-sound-test" type="button" class="mt-4 flex w-full items-center justify-center gap-2 rounded-xl bg-gray-950 px-3 py-2.5 text-xs font-bold text-white"><i class="fas fa-play"></i> Testar som</button></div>
+								</aside>
+							</div>
+						</section>
+						<div class="mobile-action-bar flex flex-wrap items-center justify-between gap-3"><p class="text-xs text-gray-500">As alterações entram em vigor depois de salvar.</p><button id="agent-preferences-submit" type="submit" class="rounded-xl bg-purple-600 px-5 py-3 text-sm font-bold text-white hover:bg-purple-700 disabled:opacity-60"><i class="fas fa-floppy-disk mr-2"></i>Salvar preferências</button></div>
+					</fieldset>
+					<p id="agent-preferences-status" role="status" class="text-sm text-gray-500">Carregando suas preferências...</p>
+				</form>
+			</div>
+		</main>
+		@AdminControls()
+		<script>
+			(function () {
+				const form = document.getElementById('agent-preferences-form');
+				const fields = document.getElementById('agent-preferences-fields');
+				const errorBox = document.getElementById('agent-preferences-error');
+				const status = document.getElementById('agent-preferences-status');
+				const messageScrollAfterSend = document.getElementById('message-scroll-after-send');
+				const mode = document.getElementById('message-scroll-after-send-mode');
+				function showError(error) { errorBox.textContent = error.message; errorBox.classList.remove('hidden'); status.textContent = ''; }
+				window.refreshAdminSelects(form);
+				messageScrollAfterSend.addEventListener('change', () => { mode.disabled = !messageScrollAfterSend.checked; mode._refreshAdminSelect(); });
+				window.agentPreferencesReady.then(preferences => {
+					if (!preferences) { showError(window.agentPreferencesError); return; }
+					fields.disabled = false; messageScrollAfterSend.checked = preferences.scrollAfterSend;
+					mode.value = preferences.scrollAfterSendMode; mode.disabled = !preferences.scrollAfterSend;
+					mode._refreshAdminSelect();
+					document.getElementById('agent-signature-enabled').checked = preferences.messageSignatureEnabled;
+					document.getElementById('agent-signature-template').value = preferences.messageSignatureTemplate;
+					document.querySelectorAll('[data-notification-setting]').forEach(input => { input.checked = preferences.notifications[input.dataset.notificationSetting]; });
+					status.textContent = '';
+				});
+				form.addEventListener('submit', async event => {
+					event.preventDefault(); errorBox.classList.add('hidden');
+					const button = document.getElementById('agent-preferences-submit'); button.disabled = true;
+					const notifications = {}; document.querySelectorAll('[data-notification-setting]').forEach(input => { notifications[input.dataset.notificationSetting] = input.checked; });
+					try {
+						const response = await fetch('/management/api/preferences', { method: 'PUT', credentials: 'same-origin', headers: { Accept: 'application/json', 'Content-Type': 'application/json' }, body: JSON.stringify({ scrollAfterSend: messageScrollAfterSend.checked, scrollAfterSendMode: mode.value, messageSignatureEnabled: document.getElementById('agent-signature-enabled').checked, messageSignatureTemplate: document.getElementById('agent-signature-template').value.trim(), notifications }) });
+						const payload = await response.json(); if (!response.ok) throw new Error(payload.error || 'Não foi possível salvar suas preferências.');
+						window.applyAgentPreferences(payload.data); status.textContent = ''; window.showAppToast?.('Preferências salvas.');
+					} catch (error) { showError(error); } finally { button.disabled = false; }
+				});
+			})();
+		</script>
+	}
+}

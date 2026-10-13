@@ -12,7 +12,7 @@ func menuIsActive(activeMenus []string, menu string) bool {
 	return len(activeMenus) > 0 && activeMenus[0] == menu
 }
 
-func base(activeMenus ...string) templ.Component {
+func appSidebar(activeMenus ...string) templ.Component {
 	return templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
 		templ_7745c5c3_W, ctx := templ_7745c5c3_Input.Writer, templ_7745c5c3_Input.Context
 		if templ_7745c5c3_CtxErr := ctx.Err(); templ_7745c5c3_CtxErr != nil {
@@ -33,16 +33,24 @@ func base(activeMenus ...string) templ.Component {
 			templ_7745c5c3_Var1 = templ.NopComponent
 		}
 		ctx = templ.ClearChildren(ctx)
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 1, "<!doctype html><html lang=\"pt-BR\"><head><meta charset=\"UTF-8\"><meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0\"><title>PÁGINA</title><script src=\"https://cdn.tailwindcss.com\"></script><link rel=\"stylesheet\" href=\"https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css\"><script src=\"https://cdn.jsdelivr.net/npm/htmx.org@2.0.10/dist/htmx.min.js\" integrity=\"sha384-H5SrcfygHmAuTDZphMHqBJLc3FhssKjG7w/CeCpFReSfwBWDTKpkzPP8c+cLsK+V\" crossorigin=\"anonymous\"></script><script src=\"https://cdn.jsdelivr.net/npm/htmx-ext-sse@2.2.4\" integrity=\"sha384-A986SAtodyH8eg8x8irJnYUk7i9inVQqYigD6qZ9evobksGNIXfeFvDwLSHcp31N\" crossorigin=\"anonymous\"></script></head><body class=\"bg-stone-100 h-screen overflow-hidden\"><div class=\"flex h-screen p-3 gap-3\"><div class=\"w-16 rounded-2xl shadow-sm flex flex-col items-center py-4 gap-4\" style=\"background: #6123cc;\"><!-- Logo --><button class=\"p-2 hover:bg-opacity-80 hover:bg-purple-700 rounded-xl transition-colors\"><i class=\"fas fa-paper-plane text-2xl text-white\"></i></button><!-- Navigation Icons --><div class=\"flex flex-col gap-3 items-center\">")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 1, "<nav id=\"app-navigation\" aria-label=\"Navegação principal\" class=\"relative z-40 flex w-full shrink-0 items-center gap-2 rounded-xl px-2 py-1.5 shadow-sm lg:z-auto lg:w-16 lg:flex-col lg:gap-4 lg:overflow-y-auto lg:rounded-2xl lg:px-0 lg:py-4\" style=\"background: #6123cc;\"><button id=\"app-menu-button\" type=\"button\" aria-label=\"Abrir menu\" aria-controls=\"app-menu-links\" aria-expanded=\"false\" class=\"grid h-10 w-10 shrink-0 place-items-center rounded-full border border-white/20 bg-white/15 text-white shadow-sm transition hover:bg-white/25 active:scale-95 lg:hidden\"><i class=\"fas fa-bars\"></i></button> <a href=\"/messages\" aria-label=\"Sophus, início\" class=\"absolute left-1/2 flex -translate-x-1/2 items-center px-1 lg:hidden\"><img src=\"/logos/Sophus_logo_horizontal_branco.svg\" alt=\"Sophus\" width=\"1120\" height=\"256\" class=\"h-7 w-auto\"></a><div id=\"app-sidebar-header\" class=\"hidden w-full shrink-0 flex-col items-center gap-2 lg:flex\"><a href=\"/messages\" aria-label=\"Início\" class=\"flex shrink-0 items-center rounded-xl p-2 text-white transition-colors hover:bg-purple-700\">")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		var templ_7745c5c3_Var2 = []any{"p-3 rounded-2xl transition-all hover:bg-white hover:bg-opacity-20", templ.KV("shadow-md bg-white bg-opacity-20 hover:bg-opacity-30", menuIsActive(activeMenus, "messages"))}
+		templ_7745c5c3_Err = BrandSymbol(true, "app-sidebar-collapsed-only h-8 w-8").Render(ctx, templ_7745c5c3_Buffer)
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 2, "<img src=\"/logos/Sophus_logo_horizontal_branco.svg\" alt=\"Sophus\" width=\"1120\" height=\"256\" class=\"app-sidebar-expanded-only hidden h-7 w-auto\"></a><button id=\"app-sidebar-toggle\" type=\"button\" aria-label=\"Expandir menu lateral\" title=\"Expandir menu lateral\" aria-controls=\"app-menu-links\" aria-expanded=\"false\" class=\"grid h-9 w-9 shrink-0 place-items-center rounded-xl border border-white/20 bg-white/10 text-white transition hover:bg-white/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white\"><i class=\"fas fa-angles-right\" aria-hidden=\"true\"></i></button></div><div id=\"app-menu-links\" class=\"absolute left-0 right-0 top-[calc(100%+0.5rem)] hidden max-h-[calc(100dvh-5rem)] flex flex-col gap-1 overflow-y-auto rounded-2xl border border-white/20 bg-[#4c1d95] p-2 shadow-2xl ring-1 ring-black/10 lg:static lg:flex lg:max-h-none lg:w-full lg:gap-3 lg:overflow-visible lg:rounded-none lg:border-0 lg:bg-transparent lg:p-0 lg:shadow-none lg:ring-0\"><div class=\"flex items-center justify-between px-3 py-2 text-[10px] font-black uppercase tracking-[.18em] text-white/60 lg:hidden\"><span>Navegação</span><i class=\"fas fa-compass text-white/70\"></i></div>")
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		var templ_7745c5c3_Var2 = []any{"relative flex items-center gap-3 rounded-xl p-3 text-white transition-all hover:bg-white/20 lg:justify-center lg:rounded-2xl", templ.KV("bg-white/20 shadow-md", menuIsActive(activeMenus, "messages"))}
 		templ_7745c5c3_Err = templ.RenderCSSItems(ctx, templ_7745c5c3_Buffer, templ_7745c5c3_Var2...)
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 2, "<a href=\"/messages\" title=\"Conversas\" class=\"")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 3, "<a id=\"app-conversations-link\" href=\"/messages\" title=\"Conversas\" class=\"")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -55,16 +63,16 @@ func base(activeMenus ...string) templ.Component {
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 3, "\"><i class=\"fas fa-comment-dots text-white\"></i></a> ")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 4, "\"><i class=\"fas fa-comment-dots w-5 text-center\"></i><span class=\"lg:hidden\">Conversas</span><span id=\"app-conversations-badge\" class=\"absolute right-2 top-1/2 hidden min-w-5 -translate-y-1/2 rounded-full bg-[#25D366] px-1.5 py-0.5 text-center text-[9px] font-black text-white ring-2 ring-purple-800 lg:-right-1 lg:-top-1 lg:translate-y-0\"></span></a> ")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		var templ_7745c5c3_Var4 = []any{"p-3 rounded-2xl transition-all hover:bg-white hover:bg-opacity-20", templ.KV("shadow-md bg-white bg-opacity-20 hover:bg-opacity-30", menuIsActive(activeMenus, "departments"))}
+		var templ_7745c5c3_Var4 = []any{"flex items-center gap-3 rounded-xl p-3 text-white transition-all hover:bg-white/20 lg:justify-center lg:rounded-2xl", templ.KV("bg-white/20 shadow-md", menuIsActive(activeMenus, "contacts"))}
 		templ_7745c5c3_Err = templ.RenderCSSItems(ctx, templ_7745c5c3_Buffer, templ_7745c5c3_Var4...)
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 4, "<a href=\"/departments\" title=\"Setores\" class=\"")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 5, "<a href=\"/contacts\" title=\"Contatos\" class=\"")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -77,16 +85,16 @@ func base(activeMenus ...string) templ.Component {
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 5, "\"><i class=\"fas fa-layer-group text-white\"></i></a> ")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 6, "\"><i class=\"fas fa-address-book w-5 text-center\"></i><span class=\"lg:hidden\">Contatos</span></a> ")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		var templ_7745c5c3_Var6 = []any{"p-3 rounded-2xl transition-all hover:bg-white hover:bg-opacity-20", templ.KV("shadow-md bg-white bg-opacity-20 hover:bg-opacity-30", menuIsActive(activeMenus, "agents"))}
+		var templ_7745c5c3_Var6 = []any{"flex items-center gap-3 rounded-xl p-3 text-white transition-all hover:bg-white/20 lg:justify-center lg:rounded-2xl", templ.KV("bg-white/20 shadow-md", menuIsActive(activeMenus, "flows"))}
 		templ_7745c5c3_Err = templ.RenderCSSItems(ctx, templ_7745c5c3_Buffer, templ_7745c5c3_Var6...)
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 6, "<a href=\"/agents\" title=\"Agentes\" class=\"")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 7, "<a href=\"/flows/\" title=\"Flows\" class=\"")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -99,16 +107,16 @@ func base(activeMenus ...string) templ.Component {
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 7, "\"><i class=\"fas fa-user text-white\"></i></a> ")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 8, "\"><i class=\"fas fa-diagram-project w-5 text-center\"></i><span class=\"lg:hidden\">Flows</span></a> ")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		var templ_7745c5c3_Var8 = []any{"p-3 rounded-2xl relative transition-colors hover:bg-white hover:bg-opacity-20", templ.KV("shadow-md bg-white bg-opacity-20 hover:bg-opacity-30", menuIsActive(activeMenus, "instances"))}
+		var templ_7745c5c3_Var8 = []any{"flex items-center gap-3 rounded-xl p-3 text-white transition-all hover:bg-white/20 lg:justify-center lg:rounded-2xl", templ.KV("bg-white/20 shadow-md", menuIsActive(activeMenus, "ai-agents"))}
 		templ_7745c5c3_Err = templ.RenderCSSItems(ctx, templ_7745c5c3_Buffer, templ_7745c5c3_Var8...)
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 8, "<a href=\"/instances/\" title=\"Instâncias\" class=\"")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 9, "<a href=\"/ai-agents\" title=\"Agentes de IA\" class=\"")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -121,16 +129,16 @@ func base(activeMenus ...string) templ.Component {
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 9, "\"><i class=\"fas fa-circle-notch text-white\"></i> <span class=\"absolute top-2 right-2 w-2 h-2 bg-blue-400 rounded-full border-2\" style=\"border-color: #6123cc;\"></span></a> ")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 10, "\"><i class=\"fas fa-brain w-5 text-center\"></i><span class=\"lg:hidden\">Agentes de IA</span></a> ")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		var templ_7745c5c3_Var10 = []any{"p-3 rounded-2xl transition-all hover:bg-white hover:bg-opacity-20", templ.KV("shadow-md bg-white bg-opacity-20 hover:bg-opacity-30", menuIsActive(activeMenus, "billing"))}
+		var templ_7745c5c3_Var10 = []any{"flex items-center gap-3 rounded-xl p-3 text-white transition-all hover:bg-white/20 lg:justify-center lg:rounded-2xl", templ.KV("bg-white/20 shadow-md", menuIsActive(activeMenus, "departments"))}
 		templ_7745c5c3_Err = templ.RenderCSSItems(ctx, templ_7745c5c3_Buffer, templ_7745c5c3_Var10...)
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 10, "<a href=\"/billing\" title=\"Plano e pagamentos\" class=\"")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 11, "<a href=\"/departments\" title=\"Setores\" class=\"")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -143,16 +151,16 @@ func base(activeMenus ...string) templ.Component {
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 11, "\"><i class=\"fas fa-credit-card text-white\"></i></a> ")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 12, "\"><i class=\"fas fa-layer-group w-5 text-center\"></i><span class=\"lg:hidden\">Setores</span></a> ")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		var templ_7745c5c3_Var12 = []any{"p-3 rounded-2xl transition-all hover:bg-white hover:bg-opacity-20", templ.KV("shadow-md bg-white bg-opacity-20 hover:bg-opacity-30", menuIsActive(activeMenus, "settings"))}
+		var templ_7745c5c3_Var12 = []any{"flex items-center gap-3 rounded-xl p-3 text-white transition-all hover:bg-white/20 lg:justify-center lg:rounded-2xl", templ.KV("bg-white/20 shadow-md", menuIsActive(activeMenus, "agents"))}
 		templ_7745c5c3_Err = templ.RenderCSSItems(ctx, templ_7745c5c3_Buffer, templ_7745c5c3_Var12...)
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 12, "<a href=\"/settings\" title=\"Configurações da empresa\" class=\"")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 13, "<a href=\"/agents\" title=\"Agentes\" class=\"")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -165,16 +173,16 @@ func base(activeMenus ...string) templ.Component {
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 13, "\"><i class=\"fas fa-gear text-white\"></i></a> ")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 14, "\"><i class=\"fas fa-user w-5 text-center\"></i><span class=\"lg:hidden\">Agentes</span></a> ")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		var templ_7745c5c3_Var14 = []any{"p-3 rounded-2xl transition-all hover:bg-white hover:bg-opacity-20", templ.KV("shadow-md bg-white bg-opacity-20 hover:bg-opacity-30", menuIsActive(activeMenus, "media"))}
+		var templ_7745c5c3_Var14 = []any{"relative flex items-center gap-3 rounded-xl p-3 text-white transition-all hover:bg-white/20 lg:justify-center lg:rounded-2xl", templ.KV("bg-white/20 shadow-md", menuIsActive(activeMenus, "instances"))}
 		templ_7745c5c3_Err = templ.RenderCSSItems(ctx, templ_7745c5c3_Buffer, templ_7745c5c3_Var14...)
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 14, "<a href=\"/media\" title=\"Biblioteca de mídia\" class=\"")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 15, "<a href=\"/instances/\" title=\"Instâncias\" class=\"")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -187,15 +195,212 @@ func base(activeMenus ...string) templ.Component {
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 15, "\"><i class=\"fas fa-photo-film text-white\"></i></a></div><!-- Spacer --><div class=\"flex-1\"></div><!-- Bottom Icons --><div class=\"flex flex-col gap-3 items-center\"><button class=\"p-3 hover:bg-white hover:bg-opacity-20 rounded-2xl transition-colors\"><i class=\"fas fa-moon text-white\"></i></button> <img src=\"https://i.pravatar.cc/40?img=5\" alt=\"User\" class=\"w-10 h-10 rounded-full border-2 border-white shadow-sm\"></div></div>")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 16, "\"><i class=\"fas fa-circle-notch w-5 text-center\"></i><span class=\"lg:hidden\">Instâncias</span><span class=\"absolute right-2 top-2 h-2 w-2 rounded-full border-2 bg-blue-400 lg:right-2 lg:top-2\" style=\"border-color: #6123cc;\"></span></a> ")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templ_7745c5c3_Var1.Render(ctx, templ_7745c5c3_Buffer)
+		var templ_7745c5c3_Var16 = []any{"flex items-center gap-3 rounded-xl p-3 text-white transition-all hover:bg-white/20 lg:justify-center lg:rounded-2xl", templ.KV("bg-white/20 shadow-md", menuIsActive(activeMenus, "quick-replies"))}
+		templ_7745c5c3_Err = templ.RenderCSSItems(ctx, templ_7745c5c3_Buffer, templ_7745c5c3_Var16...)
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 16, "</div></body></html>")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 17, "<a href=\"/quick-replies\" title=\"Respostas rápidas\" class=\"")
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		var templ_7745c5c3_Var17 string
+		templ_7745c5c3_Var17, templ_7745c5c3_Err = templ.ResolveAttributeValue(templ.CSSClasses(templ_7745c5c3_Var16).String())
+		if templ_7745c5c3_Err != nil {
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/base.templ`, Line: 1, Col: 0}
+		}
+		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var17)
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 18, "\"><i class=\"fas fa-bolt w-5 text-center\"></i><span class=\"lg:hidden\">Respostas rápidas</span></a> ")
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		var templ_7745c5c3_Var18 = []any{"flex items-center gap-3 rounded-xl p-3 text-white transition-all hover:bg-white/20 lg:justify-center lg:rounded-2xl", templ.KV("bg-white/20 shadow-md", menuIsActive(activeMenus, "media"))}
+		templ_7745c5c3_Err = templ.RenderCSSItems(ctx, templ_7745c5c3_Buffer, templ_7745c5c3_Var18...)
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 19, "<a href=\"/media\" title=\"Biblioteca de mídia\" class=\"")
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		var templ_7745c5c3_Var19 string
+		templ_7745c5c3_Var19, templ_7745c5c3_Err = templ.ResolveAttributeValue(templ.CSSClasses(templ_7745c5c3_Var18).String())
+		if templ_7745c5c3_Err != nil {
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/base.templ`, Line: 1, Col: 0}
+		}
+		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var19)
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 20, "\"><i class=\"fas fa-photo-film w-5 text-center\"></i><span class=\"lg:hidden\">Biblioteca de mídia</span></a> ")
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		var templ_7745c5c3_Var20 = []any{"flex items-center gap-3 rounded-xl p-3 text-white transition-all hover:bg-white/20 lg:justify-center lg:rounded-2xl", templ.KV("bg-white/20 shadow-md", menuIsActive(activeMenus, "reports"))}
+		templ_7745c5c3_Err = templ.RenderCSSItems(ctx, templ_7745c5c3_Buffer, templ_7745c5c3_Var20...)
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 21, "<a href=\"/reports\" title=\"Relatórios\" class=\"")
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		var templ_7745c5c3_Var21 string
+		templ_7745c5c3_Var21, templ_7745c5c3_Err = templ.ResolveAttributeValue(templ.CSSClasses(templ_7745c5c3_Var20).String())
+		if templ_7745c5c3_Err != nil {
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/base.templ`, Line: 1, Col: 0}
+		}
+		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var21)
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 22, "\"><i class=\"fas fa-chart-column w-5 text-center\"></i><span class=\"lg:hidden\">Relatórios</span></a> ")
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		var templ_7745c5c3_Var22 = []any{"flex items-center gap-3 rounded-xl p-3 text-white transition-all hover:bg-white/20 lg:justify-center lg:rounded-2xl", templ.KV("bg-white/20 shadow-md", menuIsActive(activeMenus, "settings"))}
+		templ_7745c5c3_Err = templ.RenderCSSItems(ctx, templ_7745c5c3_Buffer, templ_7745c5c3_Var22...)
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 23, "<a href=\"/settings\" title=\"Configurações da empresa\" class=\"")
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		var templ_7745c5c3_Var23 string
+		templ_7745c5c3_Var23, templ_7745c5c3_Err = templ.ResolveAttributeValue(templ.CSSClasses(templ_7745c5c3_Var22).String())
+		if templ_7745c5c3_Err != nil {
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/base.templ`, Line: 1, Col: 0}
+		}
+		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var23)
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 24, "\"><i class=\"fas fa-gear w-5 text-center\"></i><span class=\"lg:hidden\">Configurações</span></a></div><div class=\"hidden flex-1 lg:block\"></div><div id=\"app-sidebar-footer\" class=\"ml-auto flex shrink-0 items-center lg:ml-0 lg:flex-col lg:gap-3\"><button id=\"app-notification-center-button\" type=\"button\" title=\"Central de notificações\" aria-label=\"Abrir central de notificações\" aria-expanded=\"false\" class=\"relative flex items-center gap-3 rounded-xl p-3 transition-colors hover:bg-white hover:bg-opacity-20 lg:rounded-2xl\"><i class=\"fas fa-bell text-white\"></i><span class=\"app-sidebar-expanded-only hidden text-sm text-white\">Notificações</span><span id=\"app-notification-center-badge\" class=\"absolute -right-1 -top-1 hidden min-w-5 rounded-full bg-[#25D366] px-1.5 py-0.5 text-center text-[9px] font-black text-white ring-2 ring-purple-800\"></span></button>")
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		templ_7745c5c3_Err = AvatarMenu().Render(ctx, templ_7745c5c3_Buffer)
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 25, "</div></nav>")
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		return nil
+	})
+}
+
+func base(activeMenus ...string) templ.Component {
+	return templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
+		templ_7745c5c3_W, ctx := templ_7745c5c3_Input.Writer, templ_7745c5c3_Input.Context
+		if templ_7745c5c3_CtxErr := ctx.Err(); templ_7745c5c3_CtxErr != nil {
+			return templ_7745c5c3_CtxErr
+		}
+		templ_7745c5c3_Buffer, templ_7745c5c3_IsBuffer := templruntime.GetBuffer(templ_7745c5c3_W)
+		if !templ_7745c5c3_IsBuffer {
+			defer func() {
+				templ_7745c5c3_BufErr := templruntime.ReleaseBuffer(templ_7745c5c3_Buffer)
+				if templ_7745c5c3_Err == nil {
+					templ_7745c5c3_Err = templ_7745c5c3_BufErr
+				}
+			}()
+		}
+		ctx = templ.InitializeContext(ctx)
+		templ_7745c5c3_Var24 := templ.GetChildren(ctx)
+		if templ_7745c5c3_Var24 == nil {
+			templ_7745c5c3_Var24 = templ.NopComponent
+		}
+		ctx = templ.ClearChildren(ctx)
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 26, "<!doctype html><html lang=\"pt-BR\"><head>")
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		templ_7745c5c3_Err = AgentPreferencesRuntime().Render(ctx, templ_7745c5c3_Buffer)
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		templ_7745c5c3_Err = MessagePreferences().Render(ctx, templ_7745c5c3_Buffer)
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 27, "<script>\n\t\ttry { document.documentElement.dataset.sidebarExpanded = localStorage.getItem('sophus-sidebar-expanded') === 'true' ? 'true' : 'false'; }\n\t\tcatch (_) { document.documentElement.dataset.sidebarExpanded = 'false'; }\n\t</script><meta charset=\"UTF-8\"><meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0\"><title>Sophus | Workspace de atendimento</title>")
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		templ_7745c5c3_Err = BrandIcons().Render(ctx, templ_7745c5c3_Buffer)
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		templ_7745c5c3_Err = MobileActionStyles().Render(ctx, templ_7745c5c3_Buffer)
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 28, "<script src=\"https://cdn.tailwindcss.com\"></script><link rel=\"stylesheet\" href=\"https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css\"><script src=\"https://cdn.jsdelivr.net/npm/htmx.org@2.0.10/dist/htmx.min.js\" integrity=\"sha384-H5SrcfygHmAuTDZphMHqBJLc3FhssKjG7w/CeCpFReSfwBWDTKpkzPP8c+cLsK+V\" crossorigin=\"anonymous\"></script><script src=\"https://cdn.jsdelivr.net/npm/htmx-ext-sse@2.2.4\" integrity=\"sha384-A986SAtodyH8eg8x8irJnYUk7i9inVQqYigD6qZ9evobksGNIXfeFvDwLSHcp31N\" crossorigin=\"anonymous\"></script><style>\n\t\t@media (min-width: 1024px) {\n\t\t\thtml { --app-sidebar-width: 4rem; }\n\t\t\thtml[data-sidebar-expanded=\"true\"] { --app-sidebar-width: 15rem; }\n\t\t\t#app-navigation { width: var(--app-sidebar-width); transition: width .2s ease; }\n\t\t\t#app-notification-panel, #app-user-menu > div { left: calc(var(--app-sidebar-width) + 2rem); }\n\t\t\thtml[data-sidebar-expanded=\"true\"] #app-sidebar-header { flex-direction: row; justify-content: space-between; padding: 0 .75rem; }\n\t\t\thtml[data-sidebar-expanded=\"true\"] .app-sidebar-expanded-only { display: inline; }\n\t\t\thtml[data-sidebar-expanded=\"true\"] .app-sidebar-collapsed-only { display: none; }\n\t\t\thtml[data-sidebar-expanded=\"true\"] #app-menu-links { padding: 0 .5rem; gap: .25rem; }\n\t\t\thtml[data-sidebar-expanded=\"true\"] #app-menu-links > a { justify-content: flex-start; border-radius: .75rem; min-height: 2.75rem; }\n\t\t\thtml[data-sidebar-expanded=\"true\"] #app-menu-links > a > span.lg\\:hidden { display: inline; font-size: .875rem; white-space: nowrap; }\n\t\t\thtml[data-sidebar-expanded=\"true\"] #app-menu-links > a > i { flex-shrink: 0; }\n\t\t\thtml[data-sidebar-expanded=\"true\"] #app-conversations-badge { position: static; margin-left: auto; transform: none; }\n\t\t\thtml[data-sidebar-expanded=\"true\"] #app-sidebar-footer { width: 100%; flex-direction: row; justify-content: space-between; padding: 0 .75rem; }\n\t\t}\n\t\t@media (prefers-reduced-motion: reduce) { #app-navigation { transition: none; } }\n\t\t@media (max-width: 1023px) {\n\t\t\t.app-shell { height: 100dvh; flex-direction: column; padding: max(0.5rem, env(safe-area-inset-top)) 0.5rem max(0.5rem, env(safe-area-inset-bottom)); gap: 0.5rem; }\n\t\t\t.app-shell > :not(nav) { min-width: 0; }\n\t\t}\n\t</style></head><body class=\"fixed inset-0 flex flex-col overflow-hidden bg-stone-100\">")
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		templ_7745c5c3_Err = SupportSessionBanner().Render(ctx, templ_7745c5c3_Buffer)
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 29, "<div class=\"app-shell flex flex-1 min-h-0 min-w-0 gap-3 p-3\">")
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		templ_7745c5c3_Err = appSidebar(activeMenus...).Render(ctx, templ_7745c5c3_Buffer)
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		templ_7745c5c3_Err = templ_7745c5c3_Var24.Render(ctx, templ_7745c5c3_Buffer)
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 30, "</div><div id=\"app-notification-stack\" class=\"pointer-events-none fixed bottom-5 right-5 z-[120] flex w-[min(24rem,calc(100vw-2rem))] flex-col gap-3\" aria-live=\"polite\"></div><aside id=\"app-notification-panel\" class=\"fixed left-2 right-2 top-16 z-[125] hidden max-h-[calc(100dvh-5rem)] overflow-hidden rounded-2xl border border-stone-200 bg-white shadow-2xl sm:left-auto sm:right-4 sm:w-[22rem] lg:bottom-4 lg:left-24 lg:right-auto lg:top-auto lg:max-h-[calc(100vh-2rem)]\" aria-label=\"Central de notificações\"><header class=\"flex items-center justify-between border-b border-stone-100 bg-stone-50 px-4 py-3\"><div><p class=\"text-[10px] font-black uppercase tracking-[.18em] text-purple-600\">Tempo real</p><h2 class=\"text-sm font-black text-gray-950\">Notificações</h2></div><div class=\"flex items-center gap-1\"><a href=\"/preferences#notifications\" class=\"grid h-8 w-8 place-items-center rounded-lg text-gray-400 hover:bg-stone-200 hover:text-purple-600\" aria-label=\"Configurar notificações\"><i class=\"fas fa-sliders\"></i></a><button id=\"app-notification-panel-close\" type=\"button\" class=\"grid h-8 w-8 place-items-center rounded-lg text-gray-400 hover:bg-stone-200\" aria-label=\"Fechar notificações\"><i class=\"fas fa-xmark\"></i></button></div></header><div id=\"app-notification-panel-empty\" class=\"px-5 py-8 text-center\"><span class=\"mx-auto grid h-11 w-11 place-items-center rounded-2xl bg-purple-50 text-purple-500\"><i class=\"far fa-bell\"></i></span><p class=\"mt-3 text-xs font-bold text-gray-700\">Nenhuma notificação recente</p></div><div id=\"app-notification-panel-list\" class=\"max-h-80 divide-y divide-stone-100 overflow-y-auto\"></div></aside>")
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		templ_7745c5c3_Err = RemovalConfirmation().Render(ctx, templ_7745c5c3_Buffer)
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		templ_7745c5c3_Err = AppNotice().Render(ctx, templ_7745c5c3_Buffer)
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		templ_7745c5c3_Err = AppToast().Render(ctx, templ_7745c5c3_Buffer)
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 31, "<script>\n\t\t(function () {\n\t\t\tif (window.appConversationEvents) window.appConversationEvents.close();\n\t\t\tconst events = new EventSource('/sse/conversations');\r\n\t\t\tconst badge = document.getElementById('app-conversations-badge');\n\t\t\tconst menuButton = document.getElementById('app-menu-button');\n\t\t\tconst menu = document.getElementById('app-menu-links');\n\t\t\tconst navigation = document.getElementById('app-navigation');\n\t\t\tconst sidebarToggle = document.getElementById('app-sidebar-toggle');\n\t\t\tfunction updateSidebarToggle() {\n\t\t\t\tconst expanded = document.documentElement.dataset.sidebarExpanded === 'true';\n\t\t\t\tconst label = expanded ? 'Retrair menu lateral' : 'Expandir menu lateral';\n\t\t\t\tsidebarToggle.setAttribute('aria-expanded', String(expanded)); sidebarToggle.setAttribute('aria-label', label); sidebarToggle.title = label;\n\t\t\t\tsidebarToggle.querySelector('i').className = expanded ? 'fas fa-angles-left' : 'fas fa-angles-right';\n\t\t\t}\n\t\t\tsidebarToggle.addEventListener('click', () => {\n\t\t\t\tconst expanded = document.documentElement.dataset.sidebarExpanded !== 'true';\n\t\t\t\tdocument.documentElement.dataset.sidebarExpanded = String(expanded);\n\t\t\t\ttry { localStorage.setItem('sophus-sidebar-expanded', String(expanded)); } catch (_) {}\n\t\t\t\tupdateSidebarToggle();\n\t\t\t});\n\t\t\tupdateSidebarToggle();\n\t\t\tconst centerButton = document.getElementById('app-notification-center-button');\n\t\t\tconst centerBadge = document.getElementById('app-notification-center-badge');\r\n\t\t\tconst panel = document.getElementById('app-notification-panel');\r\n\t\t\tconst panelList = document.getElementById('app-notification-panel-list');\r\n\t\t\tconst panelEmpty = document.getElementById('app-notification-panel-empty');\r\n\t\t\tconst permissionButton = document.getElementById('app-notification-permission');\r\n\t\t\tconst defaultSettings = { toast: true, sound: true, browser: true, preview: true, groups: true };\n\t\t\tlet notificationSettings = { ...defaultSettings, ...window.agentPreferences.notifications };\n\t\t\tconst baseTitle = document.title;\r\n\t\t\tlet refreshTimer;\r\n\t\t\tconst unseenConversations = new Set();\r\n\t\t\tconst conversationSequences = new Map();\r\n\t\t\tlet notificationSequence = 0;\r\n\t\t\tlet latestToastSequence = 0;\r\n\t\t\tfunction refreshSidebar() { clearTimeout(refreshTimer); refreshTimer = setTimeout(function () { const sidebar = document.getElementById('conversation-sidebar'); if (sidebar && window.htmx) htmx.ajax('GET', sidebar.dataset.refreshUrl, { source: sidebar, target: '#conversation-sidebar', swap: 'outerHTML' }); }, 100); }\n\t\t\twindow.refreshConversationSidebar = refreshSidebar;\n\t\t\tfunction notificationColor(data) { return /^#[0-9a-f]{6}$/i.test(data.departmentColor || '') ? data.departmentColor : '#7e22ce'; }\r\n\t\t\tfunction updatePermissionButton() { if (!permissionButton) return; const dot = permissionButton.querySelector('[data-permission-dot]'); const label = permissionButton.querySelector('[data-permission-label]'); const supported = 'Notification' in window; const granted = supported && Notification.permission === 'granted'; const denied = supported && Notification.permission === 'denied'; dot.className = 'h-2 w-2 rounded-full ' + (granted && notificationSettings.browser ? 'bg-emerald-500' : denied ? 'bg-red-500' : 'bg-amber-400'); label.textContent = !notificationSettings.browser ? 'Notificações do navegador desativadas' : granted ? 'Notificações do navegador ativadas' : denied ? 'Permissão bloqueada no navegador' : supported ? 'Ativar notificações do navegador' : 'Navegador sem suporte'; permissionButton.disabled = !supported || !notificationSettings.browser || denied; }\r\n\t\t\tfunction loadNotificationPreferences() {\n\t\t\t\tnotificationSettings = { ...defaultSettings, ...window.agentPreferences.notifications };\n\t\t\t\tsyncNotificationSettings();\n\t\t\t\tpanelList.querySelectorAll('[data-notification-preview]').forEach(item => { item.textContent = notificationSettings.preview ? item.dataset.messagePreview : 'Nova mensagem'; });\n\t\t\t\tif (!notificationSettings.groups) { panelList.querySelectorAll('[data-group=\"true\"]').forEach(item => item.remove()); panelEmpty.classList.toggle('hidden', panelList.children.length > 0); clearUnseenConversations(); }\n\t\t\t}\n\t\t\twindow.addEventListener('agent-preferences-changed', loadNotificationPreferences);\n\t\t\twindow.agentPreferencesReady.then(loadNotificationPreferences);\n\t\t\tfunction syncNotificationSettings() { document.querySelectorAll('[data-notification-setting]').forEach(input => { input.checked = Boolean(notificationSettings[input.dataset.notificationSetting]); }); updatePermissionButton(); }\r\n\t\t\tfunction displayNotificationData(data) { return notificationSettings.preview ? data : { ...data, preview: 'Nova mensagem' }; }\r\n\t\t\tlet audioContext;\r\n\t\t\tfunction notificationAudioContext() { if (!audioContext) { const AudioContext = window.AudioContext || window.webkitAudioContext; if (AudioContext) audioContext = new AudioContext(); } return audioContext; }\r\n\t\t\tfunction playNotificationSound(force) { if (!force && !notificationSettings.sound) return; const context = notificationAudioContext(); if (!context) return; if (context.state === 'suspended') context.resume().catch(() => {}); const start = context.currentTime; [[880, start], [1174, start + 0.11]].forEach(([frequency, time]) => { const oscillator = context.createOscillator(); const gain = context.createGain(); oscillator.type = 'sine'; oscillator.frequency.setValueAtTime(frequency, time); gain.gain.setValueAtTime(0.0001, time); gain.gain.exponentialRampToValueAtTime(0.12, time + 0.012); gain.gain.exponentialRampToValueAtTime(0.0001, time + 0.1); oscillator.connect(gain).connect(context.destination); oscillator.start(time); oscillator.stop(time + 0.11); }); }\r\n\t\t\tfunction markConversationUnseen(conversation) { unseenConversations.add(conversation); const count = unseenConversations.size; const label = count > 99 ? '99+' : String(count); badge.textContent = label; centerBadge.textContent = label; badge.classList.remove('hidden'); centerBadge.classList.remove('hidden'); document.title = '(' + count + ') ' + baseTitle; }\r\n\t\t\tfunction clearUnseenConversations() { unseenConversations.clear(); centerBadge.classList.add('hidden'); badge.classList.add('hidden'); document.title = baseTitle; }\r\n\t\t\tfunction showToast(data) { const color = notificationColor(data); const link = document.createElement('a'); link.href = '/messages/' + encodeURIComponent(data.conversation); link.className = 'pointer-events-auto flex items-start gap-3 rounded-2xl border border-stone-200 border-l-[6px] bg-white p-4 text-left shadow-2xl transition hover:-translate-y-0.5 hover:shadow-xl'; link.style.borderLeftColor = color; const icon = document.createElement('span'); icon.className = 'grid h-10 w-10 shrink-0 place-items-center rounded-xl'; icon.style.color = color; icon.style.backgroundColor = color + '18'; icon.innerHTML = '<i class=\"fas fa-comment-dots\"><\\/i>'; const content = document.createElement('span'); content.className = 'min-w-0 flex-1'; const meta = document.createElement('span'); meta.className = 'mb-0.5 block truncate text-[10px] font-black uppercase tracking-wide'; meta.style.color = color; meta.textContent = data.department || 'Sem setor'; const title = document.createElement('strong'); title.className = 'block truncate text-sm text-gray-950'; title.textContent = data.contact || 'Nova mensagem'; const preview = document.createElement('span'); preview.className = 'mt-1 block truncate text-xs text-gray-500'; preview.textContent = data.preview || 'Nova mensagem'; content.append(meta, title, preview); link.append(icon, content); document.getElementById('app-notification-stack').replaceChildren(link); setTimeout(() => link.remove(), 7000); }\r\n\t\t\tfunction addPanelItem(data, sequence) { const color = notificationColor(data); const link = document.createElement('a'); link.href = '/messages/' + encodeURIComponent(data.conversation); link.dataset.conversation = data.conversation; link.dataset.sequence = String(sequence); link.dataset.group = String(Boolean(data.isGroup)); link.className = 'flex items-start gap-3 px-4 py-3 transition hover:bg-stone-50'; const dot = document.createElement('span'); dot.className = 'mt-1.5 h-2.5 w-2.5 shrink-0 rounded-full'; dot.style.backgroundColor = color; const content = document.createElement('span'); content.className = 'min-w-0 flex-1'; const row = document.createElement('span'); row.className = 'flex items-center justify-between gap-2'; const title = document.createElement('strong'); title.className = 'truncate text-xs text-gray-900'; title.textContent = data.contact || 'Nova mensagem'; const department = document.createElement('span'); department.className = 'shrink-0 text-[9px] font-bold'; department.style.color = color; department.textContent = data.department || 'Sem setor'; const preview = document.createElement('span'); preview.className = 'mt-1 block truncate text-[11px] text-gray-500'; preview.dataset.notificationPreview = ''; preview.dataset.messagePreview = data.preview || 'Nova mensagem'; preview.textContent = notificationSettings.preview ? preview.dataset.messagePreview : 'Nova mensagem'; row.append(title, department); content.append(row, preview); link.append(dot, content); const existing = Array.from(panelList.children).find(item => item.dataset.conversation === data.conversation); if (existing) existing.remove(); const nextItem = Array.from(panelList.children).find(item => Number(item.dataset.sequence) < sequence); panelList.insertBefore(link, nextItem || null); panelEmpty.classList.add('hidden'); while (panelList.children.length > 10) panelList.lastElementChild.remove(); }\r\n\t\t\tfunction setMenuOpen(open) { menu.classList.toggle('hidden', !open); menuButton.setAttribute('aria-expanded', String(open)); menuButton.setAttribute('aria-label', open ? 'Fechar menu' : 'Abrir menu'); menuButton.querySelector('i').className = open ? 'fas fa-xmark' : 'fas fa-bars'; }\n\t\t\tfunction setPanelVisible(visible) { panel.classList.toggle('hidden', !visible); centerButton.setAttribute('aria-expanded', visible ? 'true' : 'false'); if (visible) clearUnseenConversations(); }\n\t\t\tevents.addEventListener('conversation', refreshSidebar);\r\n\t\t\tevents.addEventListener('incoming-message', async function (event) {\n\t\t\t\tif (!await window.agentPreferencesReady) return;\n\t\t\t\tlet signal; try { signal = JSON.parse(event.data); } catch (_) { return; }\n\t\t\t\tconst current = location.pathname === '/messages/' + signal.conversation;\n\t\t\t\tif (current && document.visibilityState === 'visible' && document.hasFocus()) return;\n\t\t\t\tconst dedupeKey = 'sophus-notification-' + signal.messageId;\n\t\t\t\tconst seen = Number(localStorage.getItem(dedupeKey) || 0);\n\t\t\t\tif (Date.now() - seen < 10000) return;\n\t\t\t\tlocalStorage.setItem(dedupeKey, String(Date.now()));\n\t\t\t\tconst sequence = ++notificationSequence; conversationSequences.set(signal.conversation, sequence);\n\t\t\t\ttry {\n\t\t\t\t\tconst response = await fetch('/messages/' + encodeURIComponent(signal.conversation) + '/notification?message=' + encodeURIComponent(signal.messageId), { credentials: 'same-origin', headers: { Accept: 'application/json' } });\n\t\t\t\t\tif (!response.ok) return;\n\t\t\t\t\tconst payload = await response.json(); const data = payload.data || {};\n\t\t\t\t\tif (conversationSequences.get(signal.conversation) !== sequence || (data.isGroup && !notificationSettings.groups)) return;\n\t\t\t\t\tconst displayData = displayNotificationData(data);\n\t\t\t\t\tif (sequence > latestToastSequence) { latestToastSequence = sequence; if (notificationSettings.toast) showToast(displayData); }\n\t\t\t\t\taddPanelItem(data, sequence); playNotificationSound();\n\t\t\t\t\tif (panel.classList.contains('hidden')) markConversationUnseen(data.conversation);\n\t\t\t\t\tif (notificationSettings.browser && 'Notification' in window && Notification.permission === 'granted' && (document.visibilityState !== 'visible' || !document.hasFocus())) {\n\t\t\t\t\t\tconst browserNotification = new window.Notification(data.contact || 'Nova mensagem', { body: (data.department ? data.department + ' · ' : '') + (displayData.preview || 'Nova mensagem'), tag: 'conversation-' + data.conversation });\n\t\t\t\t\t\tbrowserNotification.onclick = function () { window.focus(); location.href = '/messages/' + data.conversation; browserNotification.close(); };\n\t\t\t\t\t}\n\t\t\t\t} catch (_) {}\n\t\t\t});\n\t\t\tif (permissionButton) permissionButton.addEventListener('click', async function () { if ('Notification' in window && Notification.permission === 'default') await Notification.requestPermission(); updatePermissionButton(); });\r\n\t\t\tconst soundTestButton = document.getElementById('app-notification-sound-test');\r\n\t\t\tif (soundTestButton) soundTestButton.addEventListener('click', function () { playNotificationSound(true); });\r\n\t\t\tmenuButton.addEventListener('click', function () { const open = menu.classList.contains('hidden'); if (open) setPanelVisible(false); setMenuOpen(open); });\n\t\t\tmenu.addEventListener('click', function (event) { if (event.target.closest('a')) setMenuOpen(false); });\n\t\t\tcenterButton.addEventListener('click', function () { setMenuOpen(false); setPanelVisible(panel.classList.contains('hidden')); });\n\t\t\tdocument.getElementById('app-notification-panel-close').addEventListener('click', function () { setPanelVisible(false); });\n\t\t\tdocument.addEventListener('click', function (event) { if (!menu.classList.contains('hidden') && !navigation.contains(event.target)) setMenuOpen(false); if (!panel.classList.contains('hidden') && !panel.contains(event.target) && !centerButton.contains(event.target)) setPanelVisible(false); });\n\t\t\tdocument.addEventListener('keydown', function (event) { if (event.key === 'Escape') { if (!menu.classList.contains('hidden')) { setMenuOpen(false); menuButton.focus(); } setPanelVisible(false); } });\n\t\t\twindow.addEventListener('resize', function () { if (window.innerWidth >= 1024 && !menu.classList.contains('hidden')) setMenuOpen(false); });\n\t\t\tdocument.getElementById('app-conversations-link').addEventListener('click', clearUnseenConversations);\r\n\t\t\tdocument.addEventListener('pointerdown', function () { const context = notificationAudioContext(); if (context && context.state === 'suspended') context.resume().catch(() => {}); }, { once: true });\r\n\t\t\tsyncNotificationSettings();\r\n\t\t\twindow.appConversationEvents = events;\n\t\t})();\n\t</script>")
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		templ_7745c5c3_Err = ContactAvatarRuntime().Render(ctx, templ_7745c5c3_Buffer)
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		templ_7745c5c3_Err = AdminControls().Render(ctx, templ_7745c5c3_Buffer)
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		templ_7745c5c3_Err = ReportCalendars("").Render(ctx, templ_7745c5c3_Buffer)
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		templ_7745c5c3_Err = GuidedOnboarding().Render(ctx, templ_7745c5c3_Buffer)
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 32, "</body></html>")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}

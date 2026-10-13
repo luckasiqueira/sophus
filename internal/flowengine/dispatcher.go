@@ -2,6 +2,7 @@ package flowengine
 
 import (
 	"context"
+	"database/sql"
 	"errors"
 	"log"
 	"strings"
@@ -148,7 +149,22 @@ func CancelTimeout(executionID int) {
 	}
 }
 
-func HandleIncomingMessage(conversation repo.Conversation, connection repo.ConnectionEVO, messageText, senderName, messageType string) {
+func HandleIncomingMessage(conversation repo.Conversation, connection repo.ConnectionEVO, messageText, senderName, messageType string, incomingKeys ...string) {
+	handleIncomingMessage(conversation, connection, messageText, senderName, messageType, true, incomingKeys...)
+}
+
+func HandleIncomingMessageWithFlowMatching(conversation repo.Conversation, connection repo.ConnectionEVO, messageText, senderName, messageType string, allowFlowMatching bool, incomingKeys ...string) {
+	handleIncomingMessage(conversation, connection, messageText, senderName, messageType, allowFlowMatching, incomingKeys...)
+}
+
+func handleIncomingMessage(conversation repo.Conversation, connection repo.ConnectionEVO, messageText, senderName, messageType string, allowFlowMatching bool, incomingKeys ...string) {
+	if !shouldDispatchIncomingAutomation(conversation) {
+		return
+	}
+	incomingKey := ""
+	if len(incomingKeys) > 0 {
+		incomingKey = incomingKeys[0]
+	}
 	waiting, err := repo.GetWaitingExecutionByConversation(conversation.Id)
 	if err == nil && waiting.Id > 0 {
 		if conversation.Status == repo.ConversationStatusClosed {
@@ -170,6 +186,7 @@ func HandleIncomingMessage(conversation repo.Conversation, connection repo.Conne
 				"message":            messageText,
 				"senderName":         senderName,
 				"messageType":        messageType,
+				"messageId":          incomingKey,
 				"userReplied":        true,
 			}
 			if err := engine.ExecuteFlow(waiting.FlowId, conversation.Id, connection.CompanyID, ctx); err != nil {
@@ -197,8 +214,37 @@ func HandleIncomingMessage(conversation repo.Conversation, connection repo.Conne
 			return
 		}
 	}
+	if session, sessionErr := repo.GetActiveAIAgentSession(conversation.Id, connection.CompanyID); sessionErr == nil && session.Id > 0 {
+		log.Printf("AI agent session dispatch: conversation=%d connection=%d agent=%d", conversation.Id, connection.Id, session.Agent.Id)
+		go processAIAgentMessage(session, conversation, connection, aiAgentInput(messageText, messageType), incomingKey)
+		return
+	} else if sessionErr != nil && !errors.Is(sessionErr, sql.ErrNoRows) {
+		log.Printf("AI agent session lookup failed: conversation=%d connection=%d error=%v", conversation.Id, connection.Id, sessionErr)
+	}
+	if directAgent, directErr := repo.GetDirectAIAgent(connection.Id, connection.CompanyID); directErr == nil && directAgent.Id > 0 {
+		log.Printf("direct AI agent dispatch: conversation=%d connection=%d agent=%d previous_agent=%v", conversation.Id, connection.Id, directAgent.Id, conversation.AgentID)
+		session, activateErr := repo.ActivateDirectAIAgentSession(conversation.Id, directAgent.Id, connection.CompanyID)
+		if errors.Is(activateErr, sql.ErrNoRows) {
+			log.Printf("direct AI agent dispatch skipped after human takeover: agent=%d conversation=%d", directAgent.Id, conversation.Id)
+			return
+		}
+		if activateErr != nil {
+			log.Printf("ai agent session could not start: agent=%d conversation=%d error=%v", directAgent.Id, conversation.Id, activateErr)
+			return
+		}
+		sse.NotifyConversations(connection.CompanyID)
+		session.Agent = directAgent
+		session.SafeMode = directAgent.SafeMode
+		go processAIAgentMessage(session, conversation, connection, aiAgentInput(messageText, messageType), incomingKey)
+		return
+	} else if directErr != nil && !errors.Is(directErr, sql.ErrNoRows) {
+		log.Printf("direct AI agent lookup failed: conversation=%d connection=%d error=%v", conversation.Id, connection.Id, directErr)
+	}
 	if conversation.Status != repo.ConversationStatusOpen {
 		log.Printf("flow dispatch skipped: conversation=%d status=%s", conversation.Id, conversation.Status)
+		return
+	}
+	if !allowFlowMatching {
 		return
 	}
 
@@ -225,6 +271,7 @@ func HandleIncomingMessage(conversation repo.Conversation, connection repo.Conne
 				"response":    messageText,
 				"senderName":  senderName,
 				"messageType": messageType,
+				"messageId":   incomingKey,
 			}
 			if err := engine.ExecuteFlow(flowID, conversation.Id, connection.CompanyID, ctx); err != nil {
 				log.Printf("erro ao executar flow %d: %v", flowID, err)
@@ -233,6 +280,28 @@ func HandleIncomingMessage(conversation repo.Conversation, connection repo.Conne
 		break
 	}
 	log.Printf("flow dispatch finished: conversation=%d candidates=%d", conversation.Id, len(flows))
+}
+
+func shouldDispatchIncomingAutomation(conversation repo.Conversation) bool {
+	return conversation.AgentID == nil
+}
+
+func aiAgentInput(messageText, messageType string) string {
+	if text := strings.TrimSpace(messageText); text != "" {
+		return text
+	}
+	switch messageType {
+	case "image":
+		return "[O cliente enviou uma imagem sem legenda.]"
+	case "video":
+		return "[O cliente enviou um vídeo sem legenda.]"
+	case "audio":
+		return "[O cliente enviou um áudio que não foi transcrito.]"
+	case "document":
+		return "[O cliente enviou um documento sem descrição.]"
+	default:
+		return "[O cliente enviou uma mensagem sem conteúdo de texto.]"
+	}
 }
 
 func matchesTrigger(flow repo.ChatbotFlow, messageText string) bool {

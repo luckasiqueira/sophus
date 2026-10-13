@@ -52,6 +52,7 @@ var (
 	ErrInvalidSubscriptionGraceDays     = errors.New("subscription grace days must be between 0 and 90")
 	ErrInvalidBillingCycle              = errors.New("invalid billing cycle")
 	ErrInvalidSubscriptionDueDate       = errors.New("invalid subscription due date")
+	ErrInvalidSubscriptionAdjustment    = errors.New("subscription adjustment is invalid")
 	ErrInvalidTrialDays                 = errors.New("trial days must be between 0 and 90")
 	ErrStorageLimitReached              = errors.New("storage limit reached")
 	ErrInvalidStorageLimit              = errors.New("storage limit must be between 1 and 100000 GB")
@@ -76,9 +77,8 @@ type CreatePlatformAdminInput struct {
 }
 
 type UpdatePlatformAdminProfileInput struct {
-	Name         string `json:"name"`
-	Email        string `json:"email"`
-	PasswordHash string `json:"-"`
+	Name  string `json:"name"`
+	Email string `json:"email"`
 }
 
 type PlatformSettings struct {
@@ -108,6 +108,7 @@ type Plan struct {
 	ConnectionLimit   int       `json:"connectionLimit"`
 	TrialDays         int       `json:"trialDays"`
 	StorageLimitGB    int       `json:"storageLimitGB"`
+	AllowAddons       bool      `json:"allowAddons"`
 	IsActive          bool      `json:"isActive"`
 	CreatedAt         time.Time `json:"createdAt"`
 	UpdatedAt         time.Time `json:"updatedAt"`
@@ -122,6 +123,7 @@ type PlanInput struct {
 	ConnectionLimit   int    `json:"connectionLimit"`
 	TrialDays         int    `json:"trialDays"`
 	StorageLimitGB    int    `json:"storageLimitGB"`
+	AllowAddons       bool   `json:"allowAddons"`
 	IsActive          bool   `json:"isActive"`
 }
 
@@ -154,6 +156,7 @@ type CompanySummary struct {
 	BillingCycle          *string    `json:"billingCycle"`
 	CurrentPeriodStart    *time.Time `json:"currentPeriodStart"`
 	CurrentPeriodEnd      *time.Time `json:"currentPeriodEnd"`
+	RedemptionEndsAt      *time.Time `json:"redemptionEndsAt"`
 }
 
 type CreateCompanyInput struct {
@@ -176,28 +179,61 @@ type UpdateCompanyInput struct {
 }
 
 type CompanySettings struct {
-	Id                          int       `json:"id"`
-	Name                        string    `json:"name"`
-	Email                       string    `json:"email"`
-	IsActive                    bool      `json:"isActive"`
-	Timezone                    string    `json:"timezone"`
-	PaymentProviderOverride     *string   `json:"paymentProviderOverride"`
-	PaymentProvider             string    `json:"paymentProvider"`
-	AllowCompanyPaymentOverride bool      `json:"allowCompanyPaymentOverride"`
-	DefaultTimezone             string    `json:"defaultTimezone"`
-	SubscriptionGraceDays       int       `json:"subscriptionGraceDays"`
-	EffectivePaymentProvider    string    `json:"effectivePaymentProvider"`
-	MediaRetentionDays          *int      `json:"mediaRetentionDays"`
-	CreatedAt                   time.Time `json:"createdAt"`
-	UpdatedAt                   time.Time `json:"updatedAt"`
+	Id                          int                      `json:"id"`
+	Name                        string                   `json:"name"`
+	Email                       string                   `json:"email"`
+	IsActive                    bool                     `json:"isActive"`
+	Timezone                    string                   `json:"timezone"`
+	PaymentProviderOverride     *string                  `json:"paymentProviderOverride"`
+	PaymentProvider             string                   `json:"paymentProvider"`
+	AllowCompanyPaymentOverride bool                     `json:"allowCompanyPaymentOverride"`
+	DefaultTimezone             string                   `json:"defaultTimezone"`
+	SubscriptionGraceDays       int                      `json:"subscriptionGraceDays"`
+	EffectivePaymentProvider    string                   `json:"effectivePaymentProvider"`
+	MediaRetentionDays          *int                     `json:"mediaRetentionDays"`
+	Operations                  CompanyOperationSettings `json:"operations"`
+	CreatedAt                   time.Time                `json:"createdAt"`
+	UpdatedAt                   time.Time                `json:"updatedAt"`
 }
 
 type UpdateCompanySettingsInput struct {
-	Name                    string  `json:"name"`
-	Email                   string  `json:"email"`
-	Timezone                string  `json:"timezone"`
-	PaymentProviderOverride *string `json:"paymentProviderOverride"`
-	MediaRetentionDays      *int    `json:"mediaRetentionDays"`
+	Name                    string                   `json:"name"`
+	Email                   string                   `json:"email"`
+	Timezone                string                   `json:"timezone"`
+	PaymentProviderOverride *string                  `json:"paymentProviderOverride"`
+	MediaRetentionDays      *int                     `json:"mediaRetentionDays"`
+	Operations              CompanyOperationSettings `json:"operations"`
+}
+
+type CompanyOperationSettings struct {
+	Timezone                  string   `json:"-"`
+	MessageSignatureEnabled   bool     `json:"messageSignatureEnabled"`
+	MessageSignatureTemplate  string   `json:"messageSignatureTemplate"`
+	MessageEditPolicy         string   `json:"messageEditPolicy"`
+	AcceptCalls               bool     `json:"acceptCalls"`
+	AcceptGroupMessages       bool     `json:"acceptGroupMessages"`
+	FlowsForAllContacts       bool     `json:"flowsForAllContacts"`
+	PlatformContactsOnly      bool     `json:"platformContactsOnly"`
+	BusinessHoursEnabled      bool     `json:"businessHoursEnabled"`
+	BusinessHoursStart        string   `json:"businessHoursStart"`
+	BusinessHoursEnd          string   `json:"businessHoursEnd"`
+	BusinessHoursDays         []int    `json:"businessHoursDays"`
+	BusinessHoursLunchEnabled bool     `json:"businessHoursLunchEnabled"`
+	BusinessHoursLunchStart   string   `json:"businessHoursLunchStart"`
+	BusinessHoursLunchEnd     string   `json:"businessHoursLunchEnd"`
+	OutsideHoursMessage       string   `json:"outsideHoursMessage"`
+	WelcomeMessage            string   `json:"welcomeMessage"`
+	AutoAssignEnabled         bool     `json:"autoAssignEnabled"`
+	AutoAssignStrategy        string   `json:"autoAssignStrategy"`
+	AutoCloseMinutes          int      `json:"autoCloseMinutes"`
+	ConversationRetentionDays int      `json:"conversationRetentionDays"`
+	AllowedAttachmentTypes    []string `json:"allowedAttachmentTypes"`
+	MaxAttachmentMB           int      `json:"maxAttachmentMB"`
+	NotifyNewConversation     bool     `json:"notifyNewConversation"`
+	NotifyMentions            bool     `json:"notifyMentions"`
+	NotifyUnanswered          bool     `json:"notifyUnanswered"`
+	// Retain the persisted/API key to preserve existing company preferences.
+	PhoneConversationCreationEnabled bool `json:"outboundMessagesEnabled"`
 }
 
 type StorageUsage struct {
@@ -215,6 +251,7 @@ type StorageUsage struct {
 type CompanyStoragePolicy struct {
 	CompanyId          int
 	MediaRetentionDays *int
+	Operations         CompanyOperationSettings
 }
 
 type PlanProviderProduct struct {

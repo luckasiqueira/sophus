@@ -11,6 +11,98 @@ import templruntime "github.com/a-h/templ/runtime"
 import "sophus/internal/repo"
 import "sophus/web/components"
 import "fmt"
+import "time"
+import "sort"
+
+func messageStartsNewDay(messages []repo.MessageData, index int) bool {
+	return index == 0 || components.MessageDateKey(messages[index-1]) != components.MessageDateKey(messages[index])
+}
+
+type conversationMessageItem struct {
+	Messages           []repo.MessageData
+	Note               *repo.ConversationEvent
+	StartsNewDay       bool
+	StartsConversation bool
+}
+
+func conversationTimeline(messages []repo.MessageData, events []repo.ConversationEvent) []conversationMessageItem {
+	items := conversationMessageItems(messages)
+	for _, event := range events {
+		if event.EventType == "note" {
+			note := event
+			items = append(items, conversationMessageItem{Note: &note})
+		}
+	}
+	sort.SliceStable(items, func(i, j int) bool { return conversationItemTime(items[i]).Before(conversationItemTime(items[j])) })
+	lastDate := ""
+	lastConversation := -1
+	for index := range items {
+		origin := timelineConversationID(items[index])
+		items[index].StartsConversation = origin != lastConversation
+		lastConversation = origin
+		if items[index].Note != nil {
+			continue
+		}
+		date := components.MessageDateKey(items[index].Messages[0])
+		items[index].StartsNewDay = date != lastDate
+		lastDate = components.MessageDateKey(items[index].Messages[len(items[index].Messages)-1])
+	}
+	return items
+}
+
+func conversationItemTime(item conversationMessageItem) time.Time {
+	if item.Note != nil {
+		return item.Note.CreatedAt
+	}
+	return item.Messages[0].CreatedAt
+}
+
+func messagesTimezone(messages []repo.MessageData) string {
+	if len(messages) > 0 {
+		return messages[0].Timezone
+	}
+	return "America/Sao_Paulo"
+}
+
+func isReceivedGalleryMedia(message repo.MessageData) bool {
+	return !message.IsFromMe && message.MediaPath != "" && (message.MediaType == "image" || message.MediaType == "video")
+}
+
+func receivedGalleryMatches(previous, current repo.MessageData) bool {
+	if previous.ConversationId != current.ConversationId || !isReceivedGalleryMedia(previous) || !isReceivedGalleryMedia(current) || previous.IsGroup != current.IsGroup {
+		return false
+	}
+	if previous.IsGroup && previous.Sender != current.Sender {
+		return false
+	}
+	difference := current.CreatedAt.Sub(previous.CreatedAt)
+	return difference >= 0 && difference <= 10*time.Second
+}
+
+func conversationMessageItems(messages []repo.MessageData) []conversationMessageItem {
+	items := make([]conversationMessageItem, 0, len(messages))
+	for _, message := range messages {
+		if len(items) > 0 {
+			last := &items[len(items)-1]
+			previous := last.Messages[len(last.Messages)-1]
+			if receivedGalleryMatches(previous, message) {
+				last.Messages = append(last.Messages, message)
+				continue
+			}
+		}
+		items = append(items, conversationMessageItem{Messages: []repo.MessageData{message}})
+	}
+	return items
+}
+
+func messageItemStartsNewDay(items []conversationMessageItem, index int) bool {
+	for previous := index - 1; previous >= 0; previous-- {
+		if items[previous].Note == nil {
+			return components.MessageDateKey(items[previous].Messages[len(items[previous].Messages)-1]) != components.MessageDateKey(items[index].Messages[0])
+		}
+	}
+	return true
+}
 
 func messageConversationTab(conversation repo.Conversation) string {
 	if conversation.Status == repo.ConversationStatusClosed {
@@ -29,7 +121,14 @@ func canReplyToConversation(conversation repo.Conversation, agent repo.Agent) bo
 	return agent.IsAdmin() || (conversation.AgentID != nil && *conversation.AgentID == agent.Id)
 }
 
-func MessageSingle(activeConversation repo.Conversation, agent repo.Agent, conversations []repo.Conversation, messages []repo.MessageData, events []repo.ConversationEvent) templ.Component {
+func messageConversationScope(conversation repo.Conversation) string {
+	if conversation.Contact.IsGroup {
+		return "group"
+	}
+	return "individual"
+}
+
+func MessageSingle(activeConversation repo.Conversation, agent repo.Agent, conversations []repo.Conversation, messages []repo.MessageData, events []repo.ConversationEvent, counts repo.ConversationScopeCounts, page ...repo.ConversationMessagePage) templ.Component {
 	return templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
 		templ_7745c5c3_W, ctx := templ_7745c5c3_Input.Writer, templ_7745c5c3_Input.Context
 		if templ_7745c5c3_CtxErr := ctx.Err(); templ_7745c5c3_CtxErr != nil {
@@ -62,314 +161,13 @@ func MessageSingle(activeConversation repo.Conversation, agent repo.Agent, conve
 				}()
 			}
 			ctx = templ.InitializeContext(ctx)
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 1, "<div class=\"flex-1 bg-stone-50 rounded-2xl shadow-sm flex flex-col overflow-hidden\"><!-- Chat Header --><div class=\"p-4 border-b border-stone-200 flex items-center justify-between\"><div class=\"flex items-center gap-3\"><img src=\"https://i.pravatar.cc/40?img=1\" alt=\"Avatar\" class=\"w-10 h-10 rounded-full\"><div><div class=\"text-sm font-medium text-gray-900\">")
-			if templ_7745c5c3_Err != nil {
-				return templ_7745c5c3_Err
-			}
-			var templ_7745c5c3_Var3 string
-			templ_7745c5c3_Var3, templ_7745c5c3_Err = templ.JoinStringErrs(activeConversation.Contact.Name)
-			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/message-single.templ`, Line: 32, Col: 96}
-			}
-			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var3))
-			if templ_7745c5c3_Err != nil {
-				return templ_7745c5c3_Err
-			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 2, "</div><div class=\"text-xs text-gray-500\">")
-			if templ_7745c5c3_Err != nil {
-				return templ_7745c5c3_Err
-			}
-			var templ_7745c5c3_Var4 string
-			templ_7745c5c3_Var4, templ_7745c5c3_Err = templ.JoinStringErrs(activeConversation.Contact.Number)
-			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/message-single.templ`, Line: 33, Col: 75}
-			}
-			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var4))
-			if templ_7745c5c3_Err != nil {
-				return templ_7745c5c3_Err
-			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 3, "</div></div></div><div class=\"flex items-center gap-2\">")
-			if templ_7745c5c3_Err != nil {
-				return templ_7745c5c3_Err
-			}
-			if activeConversation.AgentID == nil && activeConversation.Status != repo.ConversationStatusRunning {
-				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 4, "<button type=\"button\" hx-post=\"")
-				if templ_7745c5c3_Err != nil {
-					return templ_7745c5c3_Err
-				}
-				var templ_7745c5c3_Var5 string
-				templ_7745c5c3_Var5, templ_7745c5c3_Err = templ.ResolveAttributeValue(fmt.Sprintf("/messages/%s/accept", activeConversation.URL.String()))
-				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/message-single.templ`, Line: 38, Col: 113}
-				}
-				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var5)
-				if templ_7745c5c3_Err != nil {
-					return templ_7745c5c3_Err
-				}
-				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 5, "\" hx-swap=\"none\" class=\"px-4 py-2 bg-green-600 text-white hover:bg-green-700 rounded-xl text-sm font-semibold\"><i class=\"fas fa-check mr-1\"></i>Aceitar</button> <button type=\"button\" hx-post=\"")
-				if templ_7745c5c3_Err != nil {
-					return templ_7745c5c3_Err
-				}
-				var templ_7745c5c3_Var6 string
-				templ_7745c5c3_Var6, templ_7745c5c3_Err = templ.ResolveAttributeValue(fmt.Sprintf("/messages/%s/ignore", activeConversation.URL.String()))
-				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/message-single.templ`, Line: 41, Col: 113}
-				}
-				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var6)
-				if templ_7745c5c3_Err != nil {
-					return templ_7745c5c3_Err
-				}
-				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 6, "\" hx-swap=\"none\" hx-confirm=\"Recusar e fechar esta conversa?\" class=\"px-4 py-2 bg-stone-100 text-gray-700 hover:bg-red-50 hover:text-red-700 rounded-xl text-sm font-semibold\">Recusar</button> ")
-				if templ_7745c5c3_Err != nil {
-					return templ_7745c5c3_Err
-				}
-			} else if activeConversation.Status != repo.ConversationStatusClosed && canReplyToConversation(activeConversation, agent) {
-				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 7, "<button type=\"button\" hx-post=\"")
-				if templ_7745c5c3_Err != nil {
-					return templ_7745c5c3_Err
-				}
-				var templ_7745c5c3_Var7 string
-				templ_7745c5c3_Var7, templ_7745c5c3_Err = templ.ResolveAttributeValue(fmt.Sprintf("/messages/%s/close", activeConversation.URL.String()))
-				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/message-single.templ`, Line: 47, Col: 93}
-				}
-				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var7)
-				if templ_7745c5c3_Err != nil {
-					return templ_7745c5c3_Err
-				}
-				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 8, "\" hx-swap=\"none\" hx-confirm=\"Deseja fechar esta conversa? O fluxo em andamento será cancelado.\" class=\"px-4 py-2 bg-red-600 text-white hover:bg-red-700 rounded-xl transition-colors flex items-center gap-2 text-sm font-semibold shadow-sm\" title=\"Fechar conversa\"><i class=\"fas fa-check-circle\"></i> <span>Fechar conversa</span></button> ")
-				if templ_7745c5c3_Err != nil {
-					return templ_7745c5c3_Err
-				}
-			} else if activeConversation.Status == repo.ConversationStatusClosed {
-				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 9, "<span class=\"px-3 py-2 bg-stone-100 text-gray-500 rounded-xl flex items-center gap-2 text-sm font-medium\"><i class=\"fas fa-lock\"></i> <span>Conversa fechada</span></span> ")
-				if templ_7745c5c3_Err != nil {
-					return templ_7745c5c3_Err
-				}
-			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 10, "<button class=\"p-2 hover:bg-stone-200 rounded-xl transition-colors\"><i class=\"fas fa-search text-gray-600\"></i></button> <button class=\"p-2 hover:bg-stone-200 rounded-xl transition-colors\" onclick=\"document.getElementById('contactPanel').classList.toggle('hidden')\"><i class=\"fas fa-ellipsis-v text-gray-600\"></i></button></div></div><!-- Messages Area --><div hx-ext=\"sse\" sse-connect=\"/sse\" sse-swap=\"message\" hx-swap=\"beforeend\" hx-target=\"#chatMessages\" class=\"flex-1 overflow-y-auto p-6 space-y-6\" style=\"background: linear-gradient(to bottom, #f5f5f4, #e7e5e4);\" id=\"chatMessages\">")
-			if templ_7745c5c3_Err != nil {
-				return templ_7745c5c3_Err
-			}
-			for _, msg := range messages {
-				if msg.IsFromMe {
-					templ_7745c5c3_Err = components.MessageSent(msg, agent.CompanyId).Render(ctx, templ_7745c5c3_Buffer)
-					if templ_7745c5c3_Err != nil {
-						return templ_7745c5c3_Err
-					}
-				} else {
-					templ_7745c5c3_Err = components.MessageReceived(msg, agent.CompanyId).Render(ctx, templ_7745c5c3_Buffer)
-					if templ_7745c5c3_Err != nil {
-						return templ_7745c5c3_Err
-					}
-				}
-			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 11, "</div><!-- Input Area -->")
-			if templ_7745c5c3_Err != nil {
-				return templ_7745c5c3_Err
-			}
-			if canReplyToConversation(activeConversation, agent) && activeConversation.AgentID != nil && activeConversation.Status != repo.ConversationStatusClosed && activeConversation.Status != repo.ConversationStatusRunning {
-				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 12, "<div class=\"p-4 border-t border-stone-200 bg-stone-50\"><form class=\"flex items-center gap-3 w-full\" hx-post=\"/api/message/send\" hx-swap=\"beforeend\" hx-target=\"#chatMessages\"><input type=\"hidden\" name=\"conversation\" value=\"")
-				if templ_7745c5c3_Err != nil {
-					return templ_7745c5c3_Err
-				}
-				var templ_7745c5c3_Var8 string
-				templ_7745c5c3_Var8, templ_7745c5c3_Err = templ.ResolveAttributeValue(activeConversation.URL.String())
-				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/message-single.templ`, Line: 83, Col: 96}
-				}
-				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var8)
-				if templ_7745c5c3_Err != nil {
-					return templ_7745c5c3_Err
-				}
-				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 13, "\"> <button class=\"p-2 hover:bg-stone-200 rounded-xl transition-colors\"><i class=\"fas fa-paperclip text-gray-400 text-xl\"></i></button> <input type=\"text\" placeholder=\"Escreva sua mensagem aqui\" name=\"message\" class=\"flex-1 px-4 py-3 bg-white border border-stone-200 rounded-full text-sm focus:outline-none focus:ring-2 focus:ring-purple-400 transition-all\"> <button class=\"p-2 hover:bg-stone-200 rounded-xl transition-colors\"><i class=\"far fa-smile text-gray-400 text-xl\"></i></button> <button class=\"p-2 hover:bg-stone-200 rounded-xl transition-colors\"><i class=\"fas fa-microphone text-gray-400 text-xl\"></i></button> <button type=\"submit\" class=\"p-3 rounded-full hover:shadow-md shadow-sm transition-all\" style=\"background: linear-gradient(to right, #3b82f6, #9333ea);\"><i class=\"fas fa-paper-plane text-white\"></i></button></form></div>")
-				if templ_7745c5c3_Err != nil {
-					return templ_7745c5c3_Err
-				}
-			} else {
-				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 14, "<div class=\"p-4 border-t border-stone-200 bg-stone-50 text-center text-sm text-gray-500\">")
-				if templ_7745c5c3_Err != nil {
-					return templ_7745c5c3_Err
-				}
-				if activeConversation.Status == repo.ConversationStatusClosed {
-					templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 15, "Conversa fechada.")
-					if templ_7745c5c3_Err != nil {
-						return templ_7745c5c3_Err
-					}
-				} else if activeConversation.AgentID == nil && activeConversation.Status != repo.ConversationStatusRunning {
-					templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 16, "Aceite a conversa para responder.")
-					if templ_7745c5c3_Err != nil {
-						return templ_7745c5c3_Err
-					}
-				} else if activeConversation.Status == repo.ConversationStatusRunning {
-					templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 17, "Atendimento automático em andamento.")
-					if templ_7745c5c3_Err != nil {
-						return templ_7745c5c3_Err
-					}
-				} else {
-					templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 18, "Conversa atribuída a outro agente.")
-					if templ_7745c5c3_Err != nil {
-						return templ_7745c5c3_Err
-					}
-				}
-				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 19, "</div>")
-				if templ_7745c5c3_Err != nil {
-					return templ_7745c5c3_Err
-				}
-			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 20, "<script>\r\n          (function () {\r\n             function scrollChatToBottom() {\r\n                requestAnimationFrame(function () {\r\n                   var chat = document.getElementById('chatMessages');\r\n                   if (chat) chat.scrollTop = chat.scrollHeight;\r\n                });\r\n             }\r\n             scrollChatToBottom();\r\n             document.body.addEventListener('htmx:sseMessage', scrollChatToBottom);\r\n             document.body.addEventListener('htmx:afterSwap', function (e) {\r\n                if (e.detail.target && e.detail.target.id === 'chatMessages') {\r\n                   scrollChatToBottom();\r\n                }\r\n             });\r\n          })();\r\n       </script><script>\r\n           window._audioCurrentlyPlaying = null;\r\n\r\n           function initAudioPlayer(player) {\r\n               const audio = player.querySelector('audio');\r\n               const playBtn = player.querySelector('[data-play-btn]');\r\n               const playIcon = playBtn.querySelector('i');\r\n               const progressBar = player.querySelector('[data-progress-bar]');\r\n               const progressTrack = player.querySelector('[data-progress-track]');\r\n               const timeDisplay = player.querySelector('[data-time-display]');\r\n\r\n               function formatTime(secs) {\r\n                   if (isNaN(secs) || secs === Infinity) return '0:00';\r\n                   const m = Math.floor(secs / 60);\r\n                   const s = Math.floor(secs % 60).toString().padStart(2, '0');\r\n                   return `${m}:${s}`;\r\n               }\r\n\r\n               audio.addEventListener('loadedmetadata', () => {\r\n                   timeDisplay.textContent = formatTime(audio.duration);\r\n               });\r\n\r\n               playBtn.addEventListener('click', () => {\r\n                   if (audio.paused) {\r\n                       if (window._audioCurrentlyPlaying && window._audioCurrentlyPlaying !== audio) {\r\n                           window._audioCurrentlyPlaying.pause();\r\n                           const otherPlayer = window._audioCurrentlyPlaying.closest('[data-audio-player]');\r\n                           const otherIcon = otherPlayer.querySelector('[data-play-btn] i');\r\n                           otherIcon.classList.remove('fa-pause');\r\n                           otherIcon.classList.add('fa-play');\r\n                       }\r\n                       audio.load();\r\n                       audio.play().catch(err => console.warn('Audio play error:', err));\r\n                       window._audioCurrentlyPlaying = audio;\r\n                       playIcon.classList.remove('fa-play');\r\n                       playIcon.classList.add('fa-pause');\r\n                   } else {\r\n                       audio.pause();\r\n                       playIcon.classList.remove('fa-pause');\r\n                       playIcon.classList.add('fa-play');\r\n                   }\r\n               });\r\n\r\n               audio.addEventListener('timeupdate', () => {\r\n                   if (!audio.duration) return;\r\n                   progressBar.style.width = (audio.currentTime / audio.duration * 100) + '%';\r\n                   timeDisplay.textContent = formatTime(audio.currentTime);\r\n               });\r\n\r\n               audio.addEventListener('ended', () => {\r\n                   playIcon.classList.remove('fa-pause');\r\n                   playIcon.classList.add('fa-play');\r\n                   progressBar.style.width = '0%';\r\n                   timeDisplay.textContent = formatTime(audio.duration);\r\n                   window._audioCurrentlyPlaying = null;\r\n               });\r\n\r\n               progressTrack.addEventListener('click', (e) => {\r\n                   if (!audio.duration) return;\r\n                   const rect = progressTrack.getBoundingClientRect();\r\n                   audio.currentTime = ((e.clientX - rect.left) / rect.width) * audio.duration;\r\n               });\r\n           }\r\n\r\n           // Inicializa players já presentes no carregamento da página\r\n           document.querySelectorAll('[data-audio-player]').forEach(p => initAudioPlayer(p));\r\n\r\n           // Inicializa players injetados via SSE/HTMX\r\n           document.addEventListener('htmx:afterSettle', (e) => {\r\n               e.target.querySelectorAll('[data-audio-player]').forEach(p => initAudioPlayer(p));\r\n           });\r\n       </script></div><!-- Contact Details Sidebar --> <div id=\"contactPanel\" class=\"hidden w-80 bg-stone-50 rounded-2xl shadow-sm flex flex-col overflow-hidden\"><!-- Header --><div class=\"p-4 border-b border-stone-200 flex items-center justify-between\"><h2 class=\"text-lg font-medium text-gray-800\">Detalhes do Contato</h2><button class=\"p-2 hover:bg-stone-200 rounded-xl transition-colors\" onclick=\"document.getElementById('contactPanel').classList.toggle('hidden')\"><i class=\"fas fa-times text-gray-600\"></i></button></div><!-- Content --><div class=\"flex-1 overflow-y-auto p-6 space-y-6\"><!-- Profile Section --><div class=\"flex flex-col items-center text-center\"><img src=\"/\" alt=\"Avatar\" class=\"w-20 h-20 rounded-full mb-4 shadow-sm\"><h3 class=\"text-lg font-medium text-gray-900\">")
-			if templ_7745c5c3_Err != nil {
-				return templ_7745c5c3_Err
-			}
-			var templ_7745c5c3_Var9 string
-			templ_7745c5c3_Var9, templ_7745c5c3_Err = templ.JoinStringErrs(activeConversation.Contact.Name)
-			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/message-single.templ`, Line: 216, Col: 84}
-			}
-			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var9))
-			if templ_7745c5c3_Err != nil {
-				return templ_7745c5c3_Err
-			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 21, "</h3><p class=\"text-sm text-gray-500\">")
-			if templ_7745c5c3_Err != nil {
-				return templ_7745c5c3_Err
-			}
-			var templ_7745c5c3_Var10 string
-			templ_7745c5c3_Var10, templ_7745c5c3_Err = templ.JoinStringErrs(activeConversation.Contact.Number)
-			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/message-single.templ`, Line: 217, Col: 73}
-			}
-			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var10))
-			if templ_7745c5c3_Err != nil {
-				return templ_7745c5c3_Err
-			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 22, "</p><span class=\"mt-2 inline-block px-3 py-1 bg-purple-100 text-purple-700 text-xs rounded-full\">")
-			if templ_7745c5c3_Err != nil {
-				return templ_7745c5c3_Err
-			}
-			var templ_7745c5c3_Var11 string
-			templ_7745c5c3_Var11, templ_7745c5c3_Err = templ.JoinStringErrs(activeConversation.Status)
-			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/message-single.templ`, Line: 218, Col: 125}
-			}
-			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var11))
-			if templ_7745c5c3_Err != nil {
-				return templ_7745c5c3_Err
-			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 23, "</span></div><!-- Divider --><div class=\"h-px bg-stone-200\"></div><!-- Contact Info --><div class=\"space-y-4\"><div><p class=\"text-xs font-medium text-gray-500 uppercase mb-2\">Telefone</p><div class=\"flex items-center gap-3 p-3 bg-white rounded-xl hover:bg-stone-100 transition-colors cursor-pointer\"><i class=\"fas fa-phone text-purple-600\"></i> <span class=\"text-sm text-gray-800\">")
-			if templ_7745c5c3_Err != nil {
-				return templ_7745c5c3_Err
-			}
-			var templ_7745c5c3_Var12 string
-			templ_7745c5c3_Var12, templ_7745c5c3_Err = templ.JoinStringErrs(activeConversation.Contact.Number)
-			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/message-single.templ`, Line: 228, Col: 76}
-			}
-			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var12))
-			if templ_7745c5c3_Err != nil {
-				return templ_7745c5c3_Err
-			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 24, "</span></div></div><div><p class=\"text-xs font-medium text-gray-500 uppercase mb-2\">Email</p><div class=\"flex items-center gap-3 p-3 bg-white rounded-xl hover:bg-stone-100 transition-colors cursor-pointer\"><i class=\"fas fa-envelope text-purple-600\"></i> <span class=\"text-sm text-gray-800\">")
-			if templ_7745c5c3_Err != nil {
-				return templ_7745c5c3_Err
-			}
-			var templ_7745c5c3_Var13 string
-			templ_7745c5c3_Var13, templ_7745c5c3_Err = templ.JoinStringErrs(activeConversation.Contact.Email)
-			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/message-single.templ`, Line: 235, Col: 75}
-			}
-			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var13))
-			if templ_7745c5c3_Err != nil {
-				return templ_7745c5c3_Err
-			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 25, "</span></div></div></div><!-- Divider --><div class=\"h-px bg-stone-200\"></div><!-- Additional Info --><div class=\"space-y-3\"><div class=\"flex items-center justify-between p-3 bg-white rounded-xl\"><div class=\"flex items-center gap-3\"><i class=\"fas fa-calendar text-purple-600 w-5\"></i><div><p class=\"text-xs text-gray-500\">Atendimento</p><p class=\"text-sm font-medium text-gray-900\">")
-			if templ_7745c5c3_Err != nil {
-				return templ_7745c5c3_Err
-			}
-			var templ_7745c5c3_Var14 string
-			templ_7745c5c3_Var14, templ_7745c5c3_Err = templ.JoinStringErrs(activeConversation.Status)
-			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/message-single.templ`, Line: 248, Col: 80}
-			}
-			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var14))
-			if templ_7745c5c3_Err != nil {
-				return templ_7745c5c3_Err
-			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 26, "</p></div></div></div><div class=\"flex items-center justify-between p-3 bg-white rounded-xl\"><div class=\"flex items-center gap-3\"><i class=\"fas fa-messages text-purple-600 w-5\"></i><div><p class=\"text-xs text-gray-500\">Mensagens</p><p class=\"text-sm font-medium text-gray-900\">")
-			if templ_7745c5c3_Err != nil {
-				return templ_7745c5c3_Err
-			}
-			var templ_7745c5c3_Var15 string
-			templ_7745c5c3_Var15, templ_7745c5c3_Err = templ.JoinStringErrs(fmt.Sprintf("%d", len(messages)))
-			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/message-single.templ`, Line: 257, Col: 87}
-			}
-			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var15))
-			if templ_7745c5c3_Err != nil {
-				return templ_7745c5c3_Err
-			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 27, "</p></div></div></div></div><!-- Divider --><div class=\"h-px bg-stone-200\"></div><div><p class=\"text-xs font-medium text-gray-500 uppercase mb-3\">Histórico interno</p><div class=\"space-y-2\">")
-			if templ_7745c5c3_Err != nil {
-				return templ_7745c5c3_Err
-			}
-			if len(events) == 0 {
-				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 28, "<p class=\"text-xs text-gray-400\">Nenhum registro interno.</p>")
-				if templ_7745c5c3_Err != nil {
-					return templ_7745c5c3_Err
-				}
-			}
-			for _, event := range events {
-				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 29, "<div class=\"rounded-xl border border-stone-200 bg-white p-3\"><div class=\"flex items-center justify-between gap-2\"><span class=\"text-[10px] font-semibold uppercase text-purple-600\">")
-				if templ_7745c5c3_Err != nil {
-					return templ_7745c5c3_Err
-				}
-				var templ_7745c5c3_Var16 string
-				templ_7745c5c3_Var16, templ_7745c5c3_Err = templ.JoinStringErrs(event.EventType)
-				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/message-single.templ`, Line: 273, Col: 91}
-				}
-				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var16))
-				if templ_7745c5c3_Err != nil {
-					return templ_7745c5c3_Err
-				}
-				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 30, "</span> <time class=\"text-[10px] text-gray-400\">")
-				if templ_7745c5c3_Err != nil {
-					return templ_7745c5c3_Err
-				}
-				var templ_7745c5c3_Var17 string
-				templ_7745c5c3_Var17, templ_7745c5c3_Err = templ.JoinStringErrs(event.CreatedAt.Format("02/01/2006 15:04"))
-				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/message-single.templ`, Line: 274, Col: 92}
-				}
-				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var17))
-				if templ_7745c5c3_Err != nil {
-					return templ_7745c5c3_Err
-				}
-				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 31, "</time></div><p class=\"mt-1 text-xs leading-relaxed text-gray-700 whitespace-pre-wrap\">")
-				if templ_7745c5c3_Err != nil {
-					return templ_7745c5c3_Err
-				}
-				var templ_7745c5c3_Var18 string
-				templ_7745c5c3_Var18, templ_7745c5c3_Err = templ.JoinStringErrs(event.Content)
-				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/message-single.templ`, Line: 276, Col: 94}
-				}
-				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var18))
-				if templ_7745c5c3_Err != nil {
-					return templ_7745c5c3_Err
-				}
-				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 32, "</p></div>")
-				if templ_7745c5c3_Err != nil {
-					return templ_7745c5c3_Err
-				}
-			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 33, "</div></div><div class=\"h-px bg-stone-200\"></div><!-- Action Buttons --><div class=\"space-y-2\"><button class=\"w-full px-4 py-3 bg-purple-100 text-purple-700 rounded-xl font-medium hover:bg-purple-200 transition-colors flex items-center justify-center gap-2\"><i class=\"fas fa-video\"></i> Chamada de Vídeo</button> <button class=\"w-full px-4 py-3 bg-purple-100 text-purple-700 rounded-xl font-medium hover:bg-purple-200 transition-colors flex items-center justify-center gap-2\"><i class=\"fas fa-phone\"></i> Chamada de Áudio</button> <button class=\"w-full px-4 py-3 bg-red-100 text-red-700 rounded-xl font-medium hover:bg-red-200 transition-colors flex items-center justify-center gap-2\"><i class=\"fas fa-trash\"></i> Bloquear Contato</button></div></div></div>")
+			templ_7745c5c3_Err = ConversationPanel(activeConversation, agent, messages, events, page...).Render(ctx, templ_7745c5c3_Buffer)
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
 			return nil
 		})
-		templ_7745c5c3_Err = messagesDefault(conversations, messageConversationTab(activeConversation)).Render(templ.WithChildren(ctx, templ_7745c5c3_Var2), templ_7745c5c3_Buffer)
+		templ_7745c5c3_Err = messagesDefault(conversations, messageConversationTab(activeConversation), messageConversationScope(activeConversation), counts, activeConversation.URL.String()).Render(templ.WithChildren(ctx, templ_7745c5c3_Var2), templ_7745c5c3_Buffer)
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -377,7 +175,7 @@ func MessageSingle(activeConversation repo.Conversation, agent repo.Agent, conve
 	})
 }
 
-func Messages(conversations []repo.Conversation, tab string) templ.Component {
+func ConversationPanel(activeConversation repo.Conversation, agent repo.Agent, messages []repo.MessageData, events []repo.ConversationEvent, page ...repo.ConversationMessagePage) templ.Component {
 	return templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
 		templ_7745c5c3_W, ctx := templ_7745c5c3_Input.Writer, templ_7745c5c3_Input.Context
 		if templ_7745c5c3_CtxErr := ctx.Err(); templ_7745c5c3_CtxErr != nil {
@@ -393,12 +191,844 @@ func Messages(conversations []repo.Conversation, tab string) templ.Component {
 			}()
 		}
 		ctx = templ.InitializeContext(ctx)
-		templ_7745c5c3_Var19 := templ.GetChildren(ctx)
-		if templ_7745c5c3_Var19 == nil {
-			templ_7745c5c3_Var19 = templ.NopComponent
+		templ_7745c5c3_Var3 := templ.GetChildren(ctx)
+		if templ_7745c5c3_Var3 == nil {
+			templ_7745c5c3_Var3 = templ.NopComponent
 		}
 		ctx = templ.ClearChildren(ctx)
-		templ_7745c5c3_Var20 := templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 1, "<div id=\"conversation-panel\" hx-history=\"false\" data-conversation-url=\"")
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		var templ_7745c5c3_Var4 string
+		templ_7745c5c3_Var4, templ_7745c5c3_Err = templ.ResolveAttributeValue(activeConversation.URL.String())
+		if templ_7745c5c3_Err != nil {
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/message-single.templ`, Line: 117, Col: 104}
+		}
+		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var4)
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 2, "\" data-conversation-id=\"")
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		var templ_7745c5c3_Var5 string
+		templ_7745c5c3_Var5, templ_7745c5c3_Err = templ.ResolveAttributeValue(fmt.Sprint(activeConversation.Id))
+		if templ_7745c5c3_Err != nil {
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/message-single.templ`, Line: 117, Col: 162}
+		}
+		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var5)
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 3, "\" data-can-edit-messages=\"")
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		var templ_7745c5c3_Var6 string
+		templ_7745c5c3_Var6, templ_7745c5c3_Err = templ.ResolveAttributeValue(fmt.Sprint(activeConversation.CanEditMessages))
+		if templ_7745c5c3_Err != nil {
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/message-single.templ`, Line: 117, Col: 234}
+		}
+		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var6)
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 4, "\" data-conversation-tab=\"")
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		var templ_7745c5c3_Var7 string
+		templ_7745c5c3_Var7, templ_7745c5c3_Err = templ.ResolveAttributeValue(messageConversationTab(activeConversation))
+		if templ_7745c5c3_Err != nil {
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/message-single.templ`, Line: 117, Col: 302}
+		}
+		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var7)
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 5, "\" data-conversation-scope=\"")
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		var templ_7745c5c3_Var8 string
+		templ_7745c5c3_Var8, templ_7745c5c3_Err = templ.ResolveAttributeValue(messageConversationScope(activeConversation))
+		if templ_7745c5c3_Err != nil {
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/message-single.templ`, Line: 117, Col: 375}
+		}
+		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var8)
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 6, "\" class=\"contents\">")
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		templ_7745c5c3_Err = ConversationScope().Render(ctx, templ_7745c5c3_Buffer)
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 7, "<style>\n\t\t\t.audio-volume-control { appearance: none; -webkit-appearance: none; height: 1.25rem; background: transparent; --audio-progress: 100%; }\n\t\t\t.audio-volume-control::-webkit-slider-runnable-track { height: .35rem; border-radius: 9999px; background: linear-gradient(to right, var(--audio-fill) 0 var(--audio-progress), var(--audio-track) var(--audio-progress) 100%); }\n\t\t\t.audio-volume-control::-webkit-slider-thumb { appearance: none; -webkit-appearance: none; width: .9rem; height: .9rem; margin-top: -.275rem; border: 2px solid var(--audio-thumb-border); border-radius: 9999px; background: var(--audio-thumb); box-shadow: 0 2px 5px rgba(0,0,0,.25); transition: transform .15s ease; }\n\t\t\t.audio-volume-control:hover::-webkit-slider-thumb { transform: scale(1.12); }\n\t\t\t.audio-volume-control::-moz-range-track { height: .35rem; border-radius: 9999px; background: var(--audio-track); }\n\t\t\t.audio-volume-control::-moz-range-progress { height: .35rem; border-radius: 9999px; background: var(--audio-fill); }\n\t\t\t.audio-volume-control::-moz-range-thumb { width: .8rem; height: .8rem; border: 2px solid var(--audio-thumb-border); border-radius: 9999px; background: var(--audio-thumb); box-shadow: 0 1px 3px rgba(0,0,0,.2); }\n\t\t\t.audio-volume-control:focus-visible { outline: 2px solid #a78bfa; outline-offset: 3px; border-radius: 9999px; }\n\t\t\t.audio-volume-control-light { --audio-track: #ddd6fe; --audio-fill: #7c3aed; --audio-thumb: #7c3aed; --audio-thumb-border: #ffffff; }\n\t\t\t.audio-volume-control-dark { --audio-track: rgba(255,255,255,.28); --audio-fill: #ffffff; --audio-thumb: #ffffff; --audio-thumb-border: rgba(255,255,255,.45); }\n\t\t\t.message-recording-dot { animation: message-recording-pulse 1s infinite; }\n\t\t\t@keyframes message-recording-pulse { 50% { opacity: .25; } }\n\t\t</style><div class=\"flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden rounded-2xl bg-stone-50 shadow-sm\"><!-- Chat Header --><header id=\"conversation-chat-header\" class=\"relative z-40 flex shrink-0 items-center justify-between gap-2 border-b border-stone-200 bg-white p-3 lg:p-4\"><div class=\"flex min-w-0 flex-1 items-center gap-2 sm:gap-3\"><a href=\"/messages\" hx-get=\"/messages\" hx-target=\"#conversation-panel\" hx-swap=\"outerHTML\" hx-push-url=\"true\" class=\"grid h-9 w-9 shrink-0 place-items-center rounded-xl text-purple-700 hover:bg-purple-50 lg:hidden\" aria-label=\"Voltar para conversas\"><i class=\"fas fa-arrow-left\"></i></a> <img src=\"")
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		var templ_7745c5c3_Var9 string
+		templ_7745c5c3_Var9, templ_7745c5c3_Err = templ.ResolveAttributeValue(fmt.Sprintf("/management/api/contacts/%d/avatar", activeConversation.Contact.Id))
+		if templ_7745c5c3_Err != nil {
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/message-single.templ`, Line: 138, Col: 105}
+		}
+		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var9)
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 8, "\" alt=\"Foto do contato\" class=\"h-10 w-10 shrink-0 rounded-full object-cover ring-1 ring-stone-200\"><div class=\"min-w-0 flex-1\"><div class=\"flex min-w-0 items-baseline gap-1.5\"><span class=\"min-w-0 truncate text-sm font-bold text-gray-900\" title=\"")
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		var templ_7745c5c3_Var10 string
+		templ_7745c5c3_Var10, templ_7745c5c3_Err = templ.ResolveAttributeValue(activeConversation.Contact.Name)
+		if templ_7745c5c3_Err != nil {
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/message-single.templ`, Line: 140, Col: 168}
+		}
+		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var10)
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 9, "\">")
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		var templ_7745c5c3_Var11 string
+		templ_7745c5c3_Var11, templ_7745c5c3_Err = templ.JoinStringErrs(activeConversation.Contact.Name)
+		if templ_7745c5c3_Err != nil {
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/message-single.templ`, Line: 140, Col: 204}
+		}
+		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var11))
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 10, "</span> ")
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		if activeConversation.Protocol > 0 {
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 11, "<span class=\"shrink-0 text-[11px] font-normal tabular-nums text-gray-400\" title=\"")
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+			var templ_7745c5c3_Var12 string
+			templ_7745c5c3_Var12, templ_7745c5c3_Err = templ.ResolveAttributeValue(fmt.Sprintf("Protocolo desta empresa: #%d", activeConversation.Protocol))
+			if templ_7745c5c3_Err != nil {
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/message-single.templ`, Line: 142, Col: 160}
+			}
+			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var12)
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 12, "\" aria-label=\"")
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+			var templ_7745c5c3_Var13 string
+			templ_7745c5c3_Var13, templ_7745c5c3_Err = templ.ResolveAttributeValue(fmt.Sprintf("Protocolo %d", activeConversation.Protocol))
+			if templ_7745c5c3_Err != nil {
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/message-single.templ`, Line: 142, Col: 232}
+			}
+			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var13)
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 13, "\">#")
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+			var templ_7745c5c3_Var14 string
+			templ_7745c5c3_Var14, templ_7745c5c3_Err = templ.JoinStringErrs(fmt.Sprint(activeConversation.Protocol))
+			if templ_7745c5c3_Err != nil {
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/message-single.templ`, Line: 142, Col: 277}
+			}
+			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var14))
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 14, "</span>")
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+		}
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 15, "</div><div class=\"mt-0.5 flex min-w-0 items-center gap-1.5\"><span class=\"truncate text-[11px] text-gray-500\">")
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		var templ_7745c5c3_Var15 string
+		templ_7745c5c3_Var15, templ_7745c5c3_Err = templ.JoinStringErrs(activeConversation.Contact.Number)
+		if templ_7745c5c3_Err != nil {
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/message-single.templ`, Line: 145, Col: 155}
+		}
+		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var15))
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 16, "</span><span class=\"shrink-0 text-[10px] font-semibold text-purple-600 lg:hidden\">· ")
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		var templ_7745c5c3_Var16 string
+		templ_7745c5c3_Var16, templ_7745c5c3_Err = templ.JoinStringErrs(historyStatusLabel(activeConversation.Status))
+		if templ_7745c5c3_Err != nil {
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/message-single.templ`, Line: 145, Col: 289}
+		}
+		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var16))
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 17, "</span></div>")
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		if activeConversation.DepartmentName != "" || activeConversation.AgentName != "" {
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 18, "<div class=\"mt-0.5 truncate text-[10px] text-gray-400 lg:hidden\">")
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+			var templ_7745c5c3_Var17 string
+			templ_7745c5c3_Var17, templ_7745c5c3_Err = templ.JoinStringErrs(activeConversation.DepartmentName)
+			if templ_7745c5c3_Err != nil {
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/message-single.templ`, Line: 148, Col: 59}
+			}
+			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var17))
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 19, " ")
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+			if activeConversation.DepartmentName != "" && activeConversation.AgentName != "" {
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 20, "<span>· </span> ")
+				if templ_7745c5c3_Err != nil {
+					return templ_7745c5c3_Err
+				}
+			}
+			var templ_7745c5c3_Var18 string
+			templ_7745c5c3_Var18, templ_7745c5c3_Err = templ.JoinStringErrs(activeConversation.AgentName)
+			if templ_7745c5c3_Err != nil {
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/message-single.templ`, Line: 152, Col: 54}
+			}
+			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var18))
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 21, "</div>")
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+		}
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 22, "</div></div><button id=\"conversation-actions-toggle\" type=\"button\" aria-label=\"Abrir ações da conversa\" aria-controls=\"conversation-header-actions\" aria-expanded=\"false\" class=\"grid h-11 w-11 shrink-0 place-items-center rounded-xl border border-purple-100 bg-purple-50 text-purple-700 transition hover:bg-purple-100 focus:outline-none focus:ring-2 focus:ring-purple-300 lg:hidden\"><i class=\"fas fa-bars\" aria-hidden=\"true\"></i></button><div id=\"conversation-header-actions\" role=\"group\" aria-label=\"Ações da conversa\" class=\"absolute left-3 right-3 top-[calc(100%+0.5rem)] hidden max-h-[60dvh] flex-col items-stretch gap-2 overflow-y-auto rounded-2xl border border-stone-200 bg-white p-3 shadow-2xl lg:static lg:flex lg:max-h-none lg:flex-row lg:flex-wrap lg:items-center lg:justify-end lg:gap-2 lg:overflow-visible lg:rounded-none lg:border-0 lg:bg-transparent lg:p-0 lg:shadow-none\"><p class=\"px-1 pb-1 text-[10px] font-black uppercase tracking-[.15em] text-gray-400 lg:hidden\">Ações da conversa</p>")
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		if activeConversation.ConnectionID == 0 {
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 23, "<span class=\"hidden rounded-xl bg-amber-50 px-3 py-2 text-xs font-bold text-amber-700 sm:inline-flex sm:items-center sm:gap-2\"><i class=\"fas fa-box-archive\"></i> Histórico sem conexão</span> ")
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+		}
+		if activeConversation.AgentID == nil && activeConversation.Status != repo.ConversationStatusRunning {
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 24, "<button type=\"button\" hx-post=\"")
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+			var templ_7745c5c3_Var19 string
+			templ_7745c5c3_Var19, templ_7745c5c3_Err = templ.ResolveAttributeValue(fmt.Sprintf("/messages/%s/accept", activeConversation.URL.String()))
+			if templ_7745c5c3_Err != nil {
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/message-single.templ`, Line: 164, Col: 114}
+			}
+			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var19)
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 25, "\" hx-swap=\"none\" class=\"px-2 py-2 bg-green-600 text-white hover:bg-green-700 rounded-xl text-xs font-semibold sm:px-4 sm:text-sm\"><i class=\"fas fa-check mr-1\"></i>Aceitar</button> <button type=\"button\" hx-post=\"")
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+			var templ_7745c5c3_Var20 string
+			templ_7745c5c3_Var20, templ_7745c5c3_Err = templ.ResolveAttributeValue(fmt.Sprintf("/messages/%s/ignore", activeConversation.URL.String()))
+			if templ_7745c5c3_Err != nil {
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/message-single.templ`, Line: 167, Col: 115}
+			}
+			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var20)
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 26, "\" hx-swap=\"none\" hx-confirm=\"Recusar e fechar esta conversa?\" class=\"px-2 py-2 bg-stone-100 text-gray-700 hover:bg-red-50 hover:text-red-700 rounded-xl text-xs font-semibold sm:px-4 sm:text-sm\">Recusar</button> ")
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+			if agent.IsAdmin() {
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 27, "<button type=\"button\" onclick=\"window.openTransferConversationModal()\" class=\"flex items-center gap-2 rounded-xl bg-purple-700 px-2 py-2 text-xs font-semibold text-white shadow-sm transition-colors hover:bg-purple-800 sm:px-4 sm:text-sm\" title=\"Transferir conversa\"><i class=\"fas fa-arrow-right-arrow-left\"></i><span>Transferir</span></button> ")
+				if templ_7745c5c3_Err != nil {
+					return templ_7745c5c3_Err
+				}
+			}
+		} else if activeConversation.Status != repo.ConversationStatusClosed && canReplyToConversation(activeConversation, agent) {
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 28, "<button type=\"button\" onclick=\"window.openTransferConversationModal()\" class=\"flex items-center gap-2 rounded-xl bg-purple-700 px-2 py-2 text-xs font-semibold text-white shadow-sm transition-colors hover:bg-purple-800 sm:px-4 sm:text-sm\" title=\"Transferir conversa\"><i class=\"fas fa-arrow-right-arrow-left\"></i><span>Transferir</span></button> <button type=\"button\" onclick=\"window.openCloseConversationModal()\" class=\"flex items-center gap-2 rounded-xl bg-red-600 px-2 py-2 text-xs font-semibold text-white shadow-sm transition-colors hover:bg-red-700 sm:px-4 sm:text-sm\" title=\"Fechar conversa\"><i class=\"fas fa-check-circle\"></i> <span>Fechar conversa</span></button> ")
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+		} else if activeConversation.Status == repo.ConversationStatusClosed {
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 29, "<span class=\"hidden items-center gap-2 rounded-xl bg-stone-100 px-2 py-2 text-xs font-medium text-gray-500 lg:flex lg:px-3 lg:text-sm\"><i class=\"fas fa-lock\"></i> <span>Conversa fechada</span></span> ")
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+		}
+		if agent.IsAdmin() {
+			templ_7745c5c3_Err = ConversationExportControls(activeConversation.URL.String(), activeConversation.Contact.Id).Render(ctx, templ_7745c5c3_Buffer)
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+		}
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 30, "<button id=\"conversation-message-search-button\" type=\"button\" class=\"p-2 hover:bg-stone-200 rounded-xl transition-colors focus:outline-none focus:ring-2 focus:ring-purple-300\" title=\"Buscar mensagens nesta conversa\" aria-label=\"Buscar mensagens nesta conversa\" aria-expanded=\"false\" aria-controls=\"conversation-message-search\"><i class=\"fas fa-search text-gray-600\"></i> <span class=\"text-sm font-semibold text-gray-700 lg:hidden\">Buscar mensagens</span></button> <button type=\"button\" class=\"p-2 hover:bg-stone-200 rounded-xl transition-colors\" aria-label=\"Detalhes do contato\" onclick=\"document.getElementById('contactPanel').classList.toggle('hidden')\"><i class=\"fas fa-ellipsis-v text-gray-600\"></i> <span class=\"text-sm font-semibold text-gray-700 lg:hidden\">Detalhes do contato</span></button></div></header>")
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		templ_7745c5c3_Err = ConversationHeaderMenuRuntime().Render(ctx, templ_7745c5c3_Buffer)
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		templ_7745c5c3_Err = ConversationHistorySwitch(activeConversation).Render(ctx, templ_7745c5c3_Buffer)
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 31, "<div id=\"conversation-message-search\" data-search-url=\"")
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		var templ_7745c5c3_Var21 string
+		templ_7745c5c3_Var21, templ_7745c5c3_Err = templ.ResolveAttributeValue(fmt.Sprintf("/messages/%s/search", activeConversation.URL.String()))
+		if templ_7745c5c3_Err != nil {
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/message-single.templ`, Line: 204, Col: 125}
+		}
+		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var21)
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 32, "\" data-context-url=\"")
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		var templ_7745c5c3_Var22 string
+		templ_7745c5c3_Var22, templ_7745c5c3_Err = templ.ResolveAttributeValue(fmt.Sprintf("/messages/%s/search-context", activeConversation.URL.String()))
+		if templ_7745c5c3_Err != nil {
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/message-single.templ`, Line: 204, Col: 222}
+		}
+		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var22)
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 33, "\" class=\"hidden border-b border-stone-200 bg-white px-4 py-3\" role=\"search\"><div class=\"mx-auto flex max-w-3xl items-center gap-2\"><label class=\"relative min-w-0 flex-1\"><span class=\"sr-only\">Buscar no histórico desta conversa</span><i class=\"fas fa-magnifying-glass absolute left-3 top-1/2 -translate-y-1/2 text-xs text-gray-400\"></i><input id=\"conversation-message-search-input\" type=\"search\" autocomplete=\"off\" placeholder=\"Buscar no histórico desta conversa\" class=\"w-full rounded-xl border border-stone-200 bg-stone-50 py-2.5 pl-9 pr-3 text-sm outline-none transition focus:border-purple-400 focus:bg-white focus:ring-2 focus:ring-purple-100\"></label> <button id=\"conversation-message-search-count\" type=\"button\" disabled class=\"min-w-14 rounded-lg px-2 py-1 text-center text-xs font-semibold text-gray-500 hover:bg-purple-50 disabled:cursor-default\" aria-live=\"polite\" aria-label=\"Visualizar resultado da busca\" title=\"Visualizar resultado\">0 de 0</button> <button id=\"conversation-message-search-previous\" type=\"button\" disabled class=\"grid h-9 w-9 shrink-0 place-items-center rounded-lg text-gray-500 hover:bg-stone-100 disabled:cursor-not-allowed disabled:opacity-30\" aria-label=\"Resultado anterior\"><i class=\"fas fa-chevron-up text-xs\"></i></button> <button id=\"conversation-message-search-next\" type=\"button\" disabled class=\"grid h-9 w-9 shrink-0 place-items-center rounded-lg text-gray-500 hover:bg-stone-100 disabled:cursor-not-allowed disabled:opacity-30\" aria-label=\"Próximo resultado\"><i class=\"fas fa-chevron-down text-xs\"></i></button> <button id=\"conversation-message-search-close\" type=\"button\" class=\"grid h-9 w-9 shrink-0 place-items-center rounded-lg text-gray-500 hover:bg-stone-100\" aria-label=\"Fechar busca\"><i class=\"fas fa-xmark\"></i></button></div></div><div id=\"close-conversation-modal\" class=\"fixed inset-0 z-50 hidden items-center justify-center bg-stone-950/55 p-4 backdrop-blur-sm\" role=\"dialog\" aria-modal=\"true\" aria-labelledby=\"close-conversation-title\" aria-describedby=\"close-conversation-description\"><div class=\"max-h-[calc(100dvh-2rem)] w-full max-w-md overflow-y-auto rounded-3xl bg-white shadow-2xl ring-1 ring-black/5\"><div class=\"flex items-start gap-4 border-b border-stone-100 px-6 py-5\"><div class=\"grid h-12 w-12 shrink-0 place-items-center rounded-2xl bg-red-50 text-red-600\"><i class=\"fas fa-check-circle text-xl\"></i></div><div class=\"min-w-0 flex-1\"><h2 id=\"close-conversation-title\" class=\"text-lg font-black text-stone-950\">Finalizar conversa?</h2><p id=\"close-conversation-description\" class=\"mt-1 text-sm leading-relaxed text-stone-500\">A conversa com <strong class=\"font-bold text-stone-700\">")
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		var templ_7745c5c3_Var23 string
+		templ_7745c5c3_Var23, templ_7745c5c3_Err = templ.JoinStringErrs(activeConversation.Contact.Name)
+		if templ_7745c5c3_Err != nil {
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/message-single.templ`, Line: 219, Col: 204}
+		}
+		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var23))
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 34, "</strong> será encerrada.</p></div><button id=\"close-conversation-modal-button\" type=\"button\" class=\"grid h-9 w-9 shrink-0 place-items-center rounded-xl text-stone-400 hover:bg-stone-100 hover:text-stone-700\" aria-label=\"Fechar confirmação\"><i class=\"fas fa-xmark\"></i></button></div><div class=\"px-6 py-5\"><div class=\"flex gap-3 rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm leading-relaxed text-amber-900\"><i class=\"fas fa-circle-info mt-0.5 text-amber-600\"></i><span>O fluxo em andamento será cancelado e novas mensagens poderão abrir uma nova conversa.</span></div><div class=\"mt-6 flex flex-col-reverse gap-3 sm:flex-row sm:justify-end\"><button id=\"cancel-close-conversation\" type=\"button\" class=\"rounded-xl border border-stone-200 px-5 py-3 text-sm font-bold text-stone-700 hover:bg-stone-50\">Continuar conversa</button> <button id=\"confirm-close-conversation\" type=\"button\" hx-post=\"")
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		var templ_7745c5c3_Var24 string
+		templ_7745c5c3_Var24, templ_7745c5c3_Err = templ.ResolveAttributeValue(fmt.Sprintf("/messages/%s/close", activeConversation.URL.String()))
+		if templ_7745c5c3_Err != nil {
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/message-single.templ`, Line: 227, Col: 154}
+		}
+		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var24)
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 35, "\" hx-swap=\"none\" class=\"rounded-xl bg-red-600 px-5 py-3 text-sm font-bold text-white shadow-sm hover:bg-red-700 disabled:cursor-wait disabled:opacity-60\"><i class=\"fas fa-check mr-2\"></i>Finalizar conversa</button></div></div></div></div><div id=\"transfer-conversation-modal\" data-options-url=\"")
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		var templ_7745c5c3_Var25 string
+		templ_7745c5c3_Var25, templ_7745c5c3_Err = templ.ResolveAttributeValue(fmt.Sprintf("/messages/%s/transfer/options", activeConversation.URL.String()))
+		if templ_7745c5c3_Err != nil {
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/message-single.templ`, Line: 232, Col: 136}
+		}
+		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var25)
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 36, "\" data-transfer-url=\"")
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		var templ_7745c5c3_Var26 string
+		templ_7745c5c3_Var26, templ_7745c5c3_Err = templ.ResolveAttributeValue(fmt.Sprintf("/messages/%s/transfer", activeConversation.URL.String()))
+		if templ_7745c5c3_Err != nil {
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/message-single.templ`, Line: 232, Col: 228}
+		}
+		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var26)
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 37, "\" class=\"fixed inset-0 z-[60] hidden items-end justify-center bg-stone-950/60 p-0 backdrop-blur-sm sm:items-center sm:p-5\" role=\"dialog\" aria-modal=\"true\" aria-labelledby=\"transfer-conversation-title\"><div class=\"w-full max-w-md rounded-t-3xl bg-white shadow-2xl sm:rounded-3xl\"><header class=\"flex items-start gap-4 border-b border-stone-100 px-5 py-4 sm:px-6\"><span class=\"grid h-11 w-11 shrink-0 place-items-center rounded-2xl bg-purple-100 text-purple-700\"><i class=\"fas fa-arrow-right-arrow-left\"></i></span><div class=\"min-w-0 flex-1\"><p class=\"text-[10px] font-bold uppercase tracking-[.2em] text-purple-600\">Encaminhamento</p><h2 id=\"transfer-conversation-title\" class=\"mt-1 text-lg font-black text-gray-950\">Transferir conversa</h2><p class=\"mt-1 text-xs leading-relaxed text-gray-500\">Escolha um departamento ou um operador e o departamento em que ele atende.</p></div><button id=\"transfer-conversation-close\" type=\"button\" class=\"grid h-9 w-9 shrink-0 place-items-center rounded-xl text-gray-400 hover:bg-stone-100\" aria-label=\"Fechar\"><i class=\"fas fa-xmark\"></i></button></header><div class=\"space-y-4 p-5 sm:p-6\"><div id=\"transfer-conversation-error\" class=\"hidden rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700\" role=\"alert\"></div><label class=\"block text-sm font-bold text-gray-700\">Operador <span class=\"font-normal text-gray-400\">opcional</span><select id=\"transfer-conversation-agent\" class=\"mt-2 w-full rounded-xl border border-stone-200 bg-stone-50 px-4 py-3 text-sm outline-none focus:border-purple-400 focus:ring-2 focus:ring-purple-100\"><option value=\"\">Somente departamento</option></select></label><label class=\"block text-sm font-bold text-gray-700\">Departamento<select id=\"transfer-conversation-department\" class=\"mt-2 w-full rounded-xl border border-stone-200 bg-stone-50 px-4 py-3 text-sm outline-none focus:border-purple-400 focus:ring-2 focus:ring-purple-100\"><option value=\"\">Selecione o departamento</option></select></label></div><footer class=\"flex flex-col-reverse gap-3 border-t border-stone-100 bg-stone-50 px-5 py-4 sm:flex-row sm:justify-end sm:px-6\"><button id=\"transfer-conversation-cancel\" type=\"button\" class=\"rounded-xl border border-stone-200 px-5 py-2.5 text-sm font-bold text-gray-700 hover:bg-white\">Cancelar</button><button id=\"transfer-conversation-submit\" type=\"button\" class=\"rounded-xl bg-purple-700 px-5 py-2.5 text-sm font-bold text-white hover:bg-purple-800 disabled:cursor-wait disabled:opacity-60\"><i class=\"fas fa-arrow-right-arrow-left mr-2\"></i>Transferir</button></footer></div></div>")
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		if agent.IsAdmin() && !activeConversation.Contact.IsGroup {
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 38, "<div id=\"conversation-contact-edit-modal\" class=\"fixed inset-0 z-[60] hidden items-end justify-center bg-stone-950/65 p-0 backdrop-blur-sm sm:items-center sm:p-5\" role=\"dialog\" aria-modal=\"true\" aria-labelledby=\"conversation-contact-edit-title\"><div class=\"max-h-[100dvh] w-full max-w-xl overflow-y-auto rounded-t-3xl bg-white shadow-2xl sm:max-h-[calc(100dvh-2.5rem)] sm:rounded-3xl\"><header class=\"flex items-center justify-between border-b border-stone-200 px-5 py-4 sm:px-6\"><div><p class=\"text-[10px] font-bold uppercase tracking-[.2em] text-purple-600\">Cadastro do contato</p><h2 id=\"conversation-contact-edit-title\" class=\"mt-1 text-xl font-black text-gray-950\">Editar contato</h2></div><button id=\"conversation-contact-edit-close\" type=\"button\" class=\"grid h-10 w-10 place-items-center rounded-xl bg-stone-100 text-gray-500 hover:bg-stone-200\" aria-label=\"Fechar\"><i class=\"fas fa-xmark\"></i></button></header><form id=\"conversation-contact-edit-form\" class=\"p-5 sm:p-6\"><input id=\"conversation-contact-edit-id\" type=\"hidden\" value=\"")
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+			var templ_7745c5c3_Var27 string
+			templ_7745c5c3_Var27, templ_7745c5c3_Err = templ.ResolveAttributeValue(fmt.Sprintf("%d", activeConversation.Contact.Id))
+			if templ_7745c5c3_Err != nil {
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/message-single.templ`, Line: 239, Col: 176}
+			}
+			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var27)
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 39, "\"><div id=\"conversation-contact-edit-error\" class=\"mb-4 hidden rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700\"></div><div class=\"grid gap-4 sm:grid-cols-2\"><label class=\"text-sm font-semibold text-gray-700\">Nome<input id=\"conversation-contact-edit-name\" required maxlength=\"160\" value=\"")
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+			var templ_7745c5c3_Var28 string
+			templ_7745c5c3_Var28, templ_7745c5c3_Err = templ.ResolveAttributeValue(activeConversation.Contact.Name)
+			if templ_7745c5c3_Err != nil {
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/message-single.templ`, Line: 239, Col: 523}
+			}
+			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var28)
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 40, "\" class=\"mt-2 w-full rounded-xl border border-stone-200 px-4 py-3 outline-none focus:border-purple-400 focus:ring-2 focus:ring-purple-100\"></label><label class=\"text-sm font-semibold text-gray-700\">Empresa<input id=\"conversation-contact-edit-company\" maxlength=\"160\" value=\"")
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+			var templ_7745c5c3_Var29 string
+			templ_7745c5c3_Var29, templ_7745c5c3_Err = templ.ResolveAttributeValue(activeConversation.Contact.Company)
+			if templ_7745c5c3_Err != nil {
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/message-single.templ`, Line: 239, Col: 834}
+			}
+			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var29)
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 41, "\" class=\"mt-2 w-full rounded-xl border border-stone-200 px-4 py-3 outline-none focus:border-purple-400 focus:ring-2 focus:ring-purple-100\" placeholder=\"Empresa do contato\"></label><label class=\"text-sm font-semibold text-gray-700\">Email<input id=\"conversation-contact-edit-email\" type=\"email\" maxlength=\"320\" value=\"")
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+			var templ_7745c5c3_Var30 string
+			templ_7745c5c3_Var30, templ_7745c5c3_Err = templ.ResolveAttributeValue(activeConversation.Contact.Email)
+			if templ_7745c5c3_Err != nil {
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/message-single.templ`, Line: 239, Col: 1185}
+			}
+			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var30)
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 42, "\" class=\"mt-2 w-full rounded-xl border border-stone-200 px-4 py-3 outline-none focus:border-purple-400 focus:ring-2 focus:ring-purple-100\"></label><label class=\"text-sm font-semibold text-gray-700\">Telefone<input id=\"conversation-contact-edit-number\" type=\"tel\" required maxlength=\"24\" value=\"")
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+			var templ_7745c5c3_Var31 string
+			templ_7745c5c3_Var31, templ_7745c5c3_Err = templ.ResolveAttributeValue(activeConversation.Contact.Number)
+			if templ_7745c5c3_Err != nil {
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/message-single.templ`, Line: 239, Col: 1514}
+			}
+			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var31)
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 43, "\" class=\"mt-2 w-full rounded-xl border border-stone-200 px-4 py-3 outline-none focus:border-purple-400 focus:ring-2 focus:ring-purple-100\"><span class=\"mt-1 block text-xs font-normal text-gray-400\">Use DDI e DDD.</span></label></div><div class=\"mt-6 flex flex-col-reverse gap-3 sm:flex-row sm:justify-end\"><button id=\"conversation-contact-edit-cancel\" type=\"button\" class=\"rounded-xl border border-stone-200 px-5 py-3 text-sm font-bold text-gray-700 hover:bg-stone-50\">Cancelar</button><button id=\"conversation-contact-edit-save\" type=\"submit\" class=\"rounded-xl bg-purple-700 px-5 py-3 text-sm font-bold text-white hover:bg-purple-800 disabled:cursor-wait disabled:opacity-60\"><i class=\"fas fa-floppy-disk mr-2\"></i>Salvar</button></div></form></div></div>")
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+		}
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 44, "<script>\n            (function () {\n                const document = window.conversationDocument;\n                const modal = document.getElementById('close-conversation-modal');\n                const trigger = document.querySelector('[onclick=\"window.openCloseConversationModal()\"]');\r\n                const closeButton = document.getElementById('close-conversation-modal-button');\r\n                const cancelButton = document.getElementById('cancel-close-conversation');\r\n                const confirmButton = document.getElementById('confirm-close-conversation');\r\n                if (!modal || !confirmButton) return;\r\n                let previousFocus;\r\n                function close() {\r\n                    modal.classList.add('hidden');\r\n                    modal.classList.remove('flex');\r\n                    document.body.classList.remove('overflow-hidden');\r\n                    if (previousFocus) previousFocus.focus();\r\n                }\r\n                window.openCloseConversationModal = function () {\r\n                    previousFocus = document.activeElement;\r\n                    modal.classList.remove('hidden');\r\n                    modal.classList.add('flex');\r\n                    document.body.classList.add('overflow-hidden');\r\n                    confirmButton.focus();\r\n                };\r\n                closeButton.addEventListener('click', close);\r\n                cancelButton.addEventListener('click', close);\r\n                modal.addEventListener('click', event => { if (event.target === modal) close(); });\r\n                document.addEventListener('keydown', event => { if (event.key === 'Escape' && modal.classList.contains('flex')) close(); });\r\n                document.body.addEventListener('htmx:beforeRequest', event => {\r\n                    if (event.detail.elt === confirmButton) confirmButton.disabled = true;\r\n                });\r\n                document.body.addEventListener('htmx:afterRequest', event => {\r\n                    if (event.detail.elt === confirmButton && event.detail.successful) close();\r\n                    if (event.detail.elt === confirmButton && !event.detail.successful) confirmButton.disabled = false;\r\n                });\r\n            })();\r\n        </script><script>\n\t\t\t(function () {\n\t\t\t\tconst document = window.conversationDocument;\n\t\t\t\tconst modal = document.getElementById('transfer-conversation-modal');\n\t\t\t\tconst agentSelect = document.getElementById('transfer-conversation-agent');\n\t\t\t\tconst departmentSelect = document.getElementById('transfer-conversation-department');\n\t\t\t\tconst errorBox = document.getElementById('transfer-conversation-error');\n\t\t\t\tconst submit = document.getElementById('transfer-conversation-submit');\n\t\t\t\tfor (const select of [agentSelect, departmentSelect]) select.closest('label').setAttribute('for', select.id);\n\t\t\t\tlet options = { agents: [], departments: [] }; let previousFocus;\n\t\t\t\tfunction close() { modal.classList.add('hidden'); modal.classList.remove('flex'); document.body.classList.remove('overflow-hidden'); if (previousFocus && previousFocus.isConnected) previousFocus.focus(); }\n\t\t\t\tfunction renderDepartments() { const selectedAgent = options.agents.find(item => String(item.id) === agentSelect.value); const allowed = selectedAgent ? new Set(selectedAgent.departmentIds || []) : null; const previous = departmentSelect.value; departmentSelect.replaceChildren(new Option('Selecione o departamento', '')); options.departments.filter(item => !allowed || allowed.has(item.id)).forEach(item => departmentSelect.add(new Option(item.name, item.id))); if (Array.from(departmentSelect.options).some(item => item.value === previous)) departmentSelect.value = previous; if (departmentSelect._refreshAdminSelect) departmentSelect._refreshAdminSelect(); }\n\t\t\t\twindow.openTransferConversationModal = async function () { previousFocus = document.activeElement; errorBox.classList.add('hidden'); submit.disabled = true; modal.classList.remove('hidden'); modal.classList.add('flex'); document.body.classList.add('overflow-hidden'); try { const response = await fetch(modal.dataset.optionsUrl, { credentials: 'same-origin', headers: { Accept: 'application/json' } }); const payload = await response.json().catch(() => ({})); if (!response.ok) throw new Error(payload.error || 'Não foi possível carregar os destinos.'); options = payload.data || options; agentSelect.replaceChildren(new Option('Somente departamento', '')); (options.agents || []).forEach(item => agentSelect.add(new Option(item.name, item.id))); agentSelect.value = ''; renderDepartments(); if (window.refreshAdminSelects) window.refreshAdminSelects(modal); submit.disabled = false; (agentSelect._adminTrigger || agentSelect).focus(); } catch (error) { errorBox.textContent = error.message; errorBox.classList.remove('hidden'); } };\n\t\t\tagentSelect.addEventListener('change', renderDepartments);\n\t\t\tdocument.getElementById('transfer-conversation-close').addEventListener('click', close); document.getElementById('transfer-conversation-cancel').addEventListener('click', close); modal.addEventListener('click', event => { if (event.target === modal) close(); }); document.addEventListener('keydown', event => { if (event.key === 'Escape' && modal.classList.contains('flex')) close(); });\n\t\t\tsubmit.addEventListener('click', async function () { const departmentID = Number(departmentSelect.value); if (!departmentID) { errorBox.textContent = 'Selecione o departamento de destino.'; errorBox.classList.remove('hidden'); return; } const agentID = agentSelect.value ? Number(agentSelect.value) : null; submit.disabled = true; errorBox.classList.add('hidden'); try { const response = await fetch(modal.dataset.transferUrl, { method: 'POST', credentials: 'same-origin', headers: { Accept: 'application/json', 'Content-Type': 'application/json' }, body: JSON.stringify({ agentId: agentID, departmentId: departmentID }) }); const payload = await response.json().catch(() => ({})); if (!response.ok) throw new Error(payload.error || 'Não foi possível transferir a conversa.'); window.location.assign('/messages?tab=pending'); } catch (error) { errorBox.textContent = error.message; errorBox.classList.remove('hidden'); submit.disabled = false; } });\n\t\t\t})();\n\t\t</script>")
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		templ_7745c5c3_Err = ConversationSearchDialog().Render(ctx, templ_7745c5c3_Buffer)
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 45, "<script>\n\t\t\t(function () {\n\t\t\t\tconst document = window.conversationDocument;\n\t\t\t\tconst trigger = document.getElementById('conversation-message-search-button');\n\t\t\t\tconst panel = document.getElementById('conversation-message-search');\r\n\t\t\t\tconst input = document.getElementById('conversation-message-search-input');\r\n\t\t\t\tconst count = document.getElementById('conversation-message-search-count');\r\n\t\t\t\tconst previous = document.getElementById('conversation-message-search-previous');\r\n\t\t\t\tconst next = document.getElementById('conversation-message-search-next');\r\n\t\t\t\tconst closeButton = document.getElementById('conversation-message-search-close');\n\t\t\t\tconst modal = document.getElementById('conversation-search-preview');\n\t\t\t\tconst content = document.getElementById('conversation-search-preview-content');\n\t\t\t\tconst status = document.getElementById('conversation-search-preview-status');\n\t\t\t\tconst loadButton = document.getElementById('conversation-search-preview-load');\n\t\t\t\tconst modalPrevious = document.getElementById('conversation-search-preview-previous');\n\t\t\t\tconst modalNext = document.getElementById('conversation-search-preview-next');\n\t\t\t\tconst modalCount = document.getElementById('conversation-search-preview-count');\n\t\t\t\tdocument.body.appendChild(modal);\n\t\t\t\tlet results = [];\n\t\t\t\tlet current = -1;\n\t\t\t\tlet total = 0, timer = null, generation = 0, request = null;\n\t\t\t\tlet previewRequest = null, previewVersion = 0, loadingHistory = false;\n\t\t\t\tfunction pausePreview() { content.querySelectorAll('audio, video').forEach(media => media.pause()); }\n\t\t\t\tfunction closePreview() {\n\t\t\t\t\t++previewVersion; if (previewRequest) previewRequest.abort(); pausePreview(); loadingHistory = false;\n\t\t\t\t\tif (modal.open) modal.close(); document.body.classList.remove('overflow-hidden');\n\t\t\t\t\tupdateNavigation();\n\t\t\t\t}\n\t\t\t\twindow.conversationAbort.signal.addEventListener('abort', () => { clearTimeout(timer); if (request) request.abort(); closePreview(); modal.remove(); }, { once: true });\n\t\t\t\tfunction updateNavigation() {\n\t\t\t\t\tcount.textContent = results.length ? (current + 1) + ' de ' + total : '0 de 0'; count.disabled = !results.length;\n\t\t\t\t\tmodalCount.textContent = count.textContent;\n\t\t\t\t\tprevious.disabled = modalPrevious.disabled = loadingHistory || current <= 0;\n\t\t\t\t\tnext.disabled = modalNext.disabled = loadingHistory || current < 0 || current + 1 >= total;\n\t\t\t\t}\n\t\t\t\tasync function openPreview(match, expected) {\n\t\t\t\t\tif (previewRequest) previewRequest.abort(); previewRequest = new AbortController();\n\t\t\t\t\tconst version = ++previewVersion;\n\t\t\t\t\tpausePreview(); content.textContent = 'Carregando contexto da mensagem…'; status.textContent = ''; loadButton.disabled = true;\n\t\t\t\t\tif (!modal.open) modal.showModal(); document.body.classList.add('overflow-hidden');\n\t\t\t\t\ttry {\n\t\t\t\t\t\tconst params = new URLSearchParams({ id: String(match.id), history: panel.dataset.historyScope || 'current' });\n\t\t\t\t\t\tconst response = await fetch(panel.dataset.contextUrl + '?' + params, { credentials: 'same-origin', headers: { Accept: 'application/json' }, signal: previewRequest.signal });\n\t\t\t\t\t\tconst payload = await response.json(); if (!response.ok) throw new Error(payload.error || 'Não foi possível carregar o contexto.');\n\t\t\t\t\t\tif (generation !== expected || previewVersion !== version || !modal.open) return;\n\t\t\t\t\t\tcontent.innerHTML = payload.html;\n\t\t\t\t\t\tconst selected = content.querySelector('[data-search-context-selected]');\n\t\t\t\t\t\tif (!selected) throw new Error('A mensagem encontrada não está mais disponível.');\n\t\t\t\t\t\tstatus.textContent = 'Prévia do histórico. Carregue a conversa até este ponto para continuar lendo.'; loadButton.disabled = false;\n\t\t\t\t\t\trequestAnimationFrame(() => { if (version === previewVersion && modal.open) selected.scrollIntoView({ block: 'center' }); });\n\t\t\t\t\t} catch (error) {\n\t\t\t\t\t\tif (error.name === 'AbortError' || version !== previewVersion || generation !== expected) return;\n\t\t\t\t\t\tcontent.textContent = 'Não foi possível exibir esta mensagem.'; status.textContent = error.message;\n\t\t\t\t\t\tconst retry = document.createElement('button'); retry.type = 'button'; retry.className = 'mt-3 block rounded-lg bg-white px-3 py-2 text-xs font-bold text-purple-700'; retry.textContent = 'Tentar novamente'; retry.addEventListener('click', () => showCurrent(true)); content.appendChild(retry);\n\t\t\t\t\t}\n\t\t\t\t}\n\t\t\t\tfunction clearHighlights() {\r\n\t\t\t\t\tdocument.querySelectorAll('#chatMessages [data-message-id]').forEach(message => message.classList.remove('rounded-2xl', 'ring-2', 'ring-amber-400', 'ring-offset-2'));\n\t\t\t\t}\r\n\t\t\t\tasync function showCurrent(scroll) {\n\t\t\t\t\tclearHighlights();\n\t\t\t\t\tif (!results.length) { current = -1; updateNavigation(); closePreview(); return; }\n\t\t\t\t\tif (current < 0 || current >= results.length) current = 0;\n\t\t\t\t\tupdateNavigation();\n\t\t\t\t\tconst message = document.querySelector('#chatMessages [data-message-id=\"' + CSS.escape(results[current].messageId) + '\"]');\n\t\t\t\t\tif (message) message.classList.add('rounded-2xl', 'ring-2', 'ring-amber-400', 'ring-offset-2');\n\t\t\t\t\tif (scroll) await openPreview(results[current], generation);\n\t\t\t\t}\n\t\t\t\tasync function fetchMatches(offset, expected) {\n\t\t\t\t\tif (request) request.abort(); request = new AbortController();\n\t\t\t\t\tconst params = new URLSearchParams({ q: input.value.trim(), offset: String(offset), history: panel.dataset.historyScope || 'current' });\n\t\t\t\t\tconst response = await fetch(panel.dataset.searchUrl + '?' + params, { credentials: 'same-origin', headers: { Accept: 'application/json' }, signal: request.signal });\n\t\t\t\t\tconst payload = await response.json(); if (!response.ok) throw new Error(payload.error || 'Não foi possível pesquisar.');\n\t\t\t\t\tif (generation !== expected) return false;\n\t\t\t\t\ttotal = Number(payload.total || 0); results = offset ? results.concat(payload.matches || []) : (payload.matches || []);\n\t\t\t\t\treturn true;\n\t\t\t\t}\n\t\t\t\tfunction search(scroll) {\n\t\t\t\t\tclearTimeout(timer); const expected = ++generation; if (request) request.abort();\n\t\t\t\t\tif (!input.value.trim()) { results = []; total = 0; current = -1; showCurrent(false); return; }\n\t\t\t\t\tcount.textContent = 'Buscando...'; count.disabled = true; previous.disabled = true; next.disabled = true;\n\t\t\t\t\ttimer = setTimeout(async () => { try { if (await fetchMatches(0, expected)) { current = results.length ? 0 : -1; await showCurrent(scroll); } } catch (error) { if (error.name !== 'AbortError' && generation === expected) count.textContent = 'Falha na busca'; } }, 250);\n\t\t\t\t}\n\t\t\t\tfunction open() { panel.classList.remove('hidden'); trigger.setAttribute('aria-expanded', 'true'); setTimeout(() => input.focus(), 30); if (input.value) search(false); }\r\n\t\t\t\tfunction close() { ++generation; clearTimeout(timer); if (request) request.abort(); closePreview(); panel.classList.add('hidden'); trigger.setAttribute('aria-expanded', 'false'); input.value = ''; results = []; total = 0; current = -1; clearHighlights(); updateNavigation(); trigger.focus(); }\n\t\t\t\tasync function move(step) { if (!results.length || loadingHistory) return; const target = current + step; if (target < 0 || target >= total) return; const expected = generation; try { if (target >= results.length && !await fetchMatches(results.length, expected)) return; if (generation !== expected) return; current = target; await showCurrent(true); } catch (error) { if (error.name !== 'AbortError' && generation === expected) { if (modal.open) status.textContent = 'Não foi possível carregar o resultado. Tente novamente.'; else count.textContent = 'Falha na busca'; } } }\n\t\t\t\ttrigger.addEventListener('click', () => panel.classList.contains('hidden') ? open() : close());\r\n\t\t\t\tcloseButton.addEventListener('click', close);\r\n\t\t\t\tinput.addEventListener('input', () => search(true));\r\n\t\t\t\tinput.addEventListener('keydown', event => { if (event.key === 'Enter') { event.preventDefault(); move(event.shiftKey ? -1 : 1); } else if (event.key === 'Escape') { event.preventDefault(); close(); } });\r\n\t\t\t\tprevious.addEventListener('click', () => move(-1)); next.addEventListener('click', () => move(1));\n\t\t\t\tcount.addEventListener('click', () => showCurrent(true)); modalPrevious.addEventListener('click', () => move(-1)); modalNext.addEventListener('click', () => move(1));\n\t\t\t\tdocument.getElementById('conversation-search-preview-close').addEventListener('click', closePreview);\n\t\t\t\tmodal.addEventListener('cancel', event => { event.preventDefault(); closePreview(); });\n\t\t\t\tmodal.addEventListener('click', event => { if (event.target === modal) { const bounds = modal.getBoundingClientRect(); if (event.clientX < bounds.left || event.clientX > bounds.right || event.clientY < bounds.top || event.clientY > bounds.bottom) closePreview(); } });\n\t\t\t\tloadButton.addEventListener('click', async () => {\n\t\t\t\t\tif (loadingHistory || !results[current]) return;\n\t\t\t\t\tconst match = results[current], expected = generation, version = previewVersion;\n\t\t\t\t\tconst valid = () => modal.open && expected === generation && version === previewVersion && !window.conversationAbort.signal.aborted;\n\t\t\t\t\tloadingHistory = true; loadButton.disabled = true; updateNavigation(); status.textContent = 'Carregando conversa até a mensagem… Feche a prévia para interromper.';\n\t\t\t\t\ttry {\n\t\t\t\t\t\tlet message = document.querySelector('#chatMessages [data-message-id=\"' + CSS.escape(match.messageId) + '\"]');\n\t\t\t\t\t\tif (!message && window.ensureConversationMessage) message = await window.ensureConversationMessage(match.messageId, valid, pages => { if (valid()) status.textContent = 'Carregando conversa… ' + pages + ' bloco(s) carregado(s). Feche a prévia para interromper.'; });\n\t\t\t\t\t\tif (!valid()) return;\n\t\t\t\t\t\tif (!message || !message.isConnected) throw new Error('Não foi possível localizar a mensagem no histórico. Tente novamente.');\n\t\t\t\t\t\tclosePreview(); clearHighlights(); message.classList.add('rounded-2xl', 'ring-2', 'ring-amber-400', 'ring-offset-2'); message.scrollIntoView({ behavior: 'smooth', block: 'center' }); updateNavigation();\n\t\t\t\t\t} catch (error) { if (valid() && error.name !== 'AbortError') status.textContent = error.message; }\n\t\t\t\t\tfinally { if (version === previewVersion) { loadingHistory = false; loadButton.disabled = false; updateNavigation(); } }\n\t\t\t\t});\n\t\t\t\tdocument.body.addEventListener('htmx:sseMessage', () => { if (!modal.open && !panel.classList.contains('hidden') && input.value) setTimeout(() => search(false), 0); });\n\t\t\t\tdocument.addEventListener('conversation:history-scope', () => { ++generation; clearTimeout(timer); if(request)request.abort(); closePreview(); clearHighlights(); results=[];total=0;current=-1;updateNavigation(); if(input.value.trim())search(false); });\n\t\t\t\tdocument.body.addEventListener('htmx:responseError', event => { if(event.detail.target?.id==='chatMessages')document.getElementById('conversation-history-scope-error')?.classList.remove('hidden'); });\n\t\t\t})();\r\n\t\t</script><!-- Messages Area --><div hx-ext=\"sse\" sse-connect=\"")
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		var templ_7745c5c3_Var32 string
+		templ_7745c5c3_Var32, templ_7745c5c3_Err = templ.ResolveAttributeValue(fmt.Sprintf("/sse?conversation=%s", activeConversation.URL.String()))
+		if templ_7745c5c3_Err != nil {
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/message-single.templ`, Line: 413, Col: 108}
+		}
+		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var32)
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 46, "\" sse-swap=\"message,internal-note,message-status,message-update\" hx-swap=\"beforeend\" hx-target=\"#chatMessages\" data-read-url=\"")
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		var templ_7745c5c3_Var33 string
+		templ_7745c5c3_Var33, templ_7745c5c3_Err = templ.ResolveAttributeValue(fmt.Sprintf("/messages/%s/read", activeConversation.URL.String()))
+		if templ_7745c5c3_Err != nil {
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/message-single.templ`, Line: 413, Col: 301}
+		}
+		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var33)
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 47, "\" class=\"min-h-0 flex-1 space-y-6 overflow-y-auto p-3 sm:p-6\" style=\"background: linear-gradient(to bottom, #f5f5f4, #e7e5e4);\" id=\"chatMessages\">")
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		templ_7745c5c3_Err = ConversationTimelineContent(activeConversation, agent, messages, events, historyPageOrDefault(page)).Render(ctx, templ_7745c5c3_Buffer)
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 48, "</div>")
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		templ_7745c5c3_Err = ConversationNoteComposer(activeConversation.URL.String()).Render(ctx, templ_7745c5c3_Buffer)
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 49, "<script>\n\t\t\t(function(){\n\t\t\t\tconst chat=document.getElementById('chatMessages'),signal=window.conversationAbort.signal;\n\t\t\t\tchat.addEventListener('click',async event=>{\n\t\t\t\t\tconst button=event.target.closest('[data-media-retry]');if(!button||button.disabled)return;\n\t\t\t\t\tconst message=button.closest('[data-message-id]'),error=button.parentElement.querySelector('[data-media-retry-error]');button.disabled=true;button.textContent='Carregando…';error.classList.add('hidden');\n\t\t\t\t\ttry{\n\t\t\t\t\t\tconst response=await fetch(button.dataset.retryUrl,{method:'POST',credentials:'same-origin',headers:{Accept:'application/json','Content-Type':'application/x-www-form-urlencoded'},body:new URLSearchParams({id:button.dataset.messageDbId}),signal});\n\t\t\t\t\t\tconst payload=await response.json();if(!response.ok)throw new Error(payload.error||'Não foi possível recuperar esta mídia.');if(signal.aborted)return;\n\t\t\t\t\t\tconst template=document.createElement('template');template.innerHTML=payload.html;const replacement=template.content.firstElementChild;\n\t\t\t\t\t\tif(!replacement)throw new Error('Não foi possível exibir o arquivo.');if(message.isConnected){message.replaceWith(replacement);if(window.htmx)htmx.process(replacement);if(window.initAudioPlayer)replacement.querySelectorAll('[data-audio-player]').forEach(window.initAudioPlayer);}\n\t\t\t\t\t}catch(failure){if(failure.name!=='AbortError'){error.textContent=failure.message;error.classList.remove('hidden');}}\n\t\t\t\t\tfinally{button.disabled=false;button.textContent='Tentar carregar';}\n\t\t\t\t},{signal});\n\t\t\t})();\n\t\t</script><!-- Input Area -->")
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		if canReplyToConversation(activeConversation, agent) && activeConversation.AgentID != nil && activeConversation.Status != repo.ConversationStatusClosed && activeConversation.Status != repo.ConversationStatusRunning {
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 50, "<div id=\"message-composer-area\" data-composer-layout=\"desktop\" class=\"relative z-30 shrink-0 border-t border-stone-200 bg-stone-50 p-2 sm:p-4\"><div id=\"message-reply-preview\" class=\"mb-3 hidden items-center gap-3 rounded-2xl border border-purple-200 bg-white px-4 py-3 shadow-sm\"><div class=\"w-1 self-stretch rounded-full bg-purple-500\"></div><div class=\"min-w-0 flex-1\"><div class=\"text-xs font-bold text-purple-700\">Respondendo</div><div id=\"message-reply-text\" class=\"truncate text-sm text-gray-500\"></div></div><button id=\"message-reply-cancel\" type=\"button\" class=\"grid h-8 w-8 place-items-center rounded-full text-gray-400 hover:bg-stone-100\" aria-label=\"Cancelar resposta\"><i class=\"fas fa-xmark\"></i></button></div><div id=\"message-media-error\" class=\"mb-3 hidden flex-wrap items-center gap-3 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700\" role=\"alert\"><span id=\"message-media-error-text\" class=\"flex-1\"></span><button id=\"message-microphone-retry\" type=\"button\" class=\"hidden shrink-0 rounded-lg border border-red-300 px-3 py-1.5 text-xs font-bold hover:bg-red-100\">Tentar microfone novamente</button></div><div id=\"message-recording\" class=\"mb-3 hidden items-center gap-3 rounded-2xl border border-red-200 bg-white p-3 shadow-sm\" aria-live=\"polite\"><span class=\"message-recording-dot h-2.5 w-2.5 shrink-0 rounded-full bg-red-600\"></span> <span class=\"min-w-0 flex-1 text-sm font-semibold text-gray-700\">Gravando áudio <span id=\"message-recording-time\">00:00</span></span> <button id=\"message-recording-cancel\" type=\"button\" class=\"rounded-lg px-3 py-2 text-xs font-bold text-gray-600 hover:bg-stone-100\">Cancelar</button> <button id=\"message-recording-stop\" type=\"button\" class=\"rounded-lg bg-red-600 px-3 py-2 text-xs font-bold text-white hover:bg-red-700\">Parar</button></div><div id=\"message-recording-preview\" class=\"mb-3 hidden flex-wrap items-center gap-3 rounded-2xl border border-purple-200 bg-white p-3 shadow-sm\"><audio id=\"message-recording-audio\" controls class=\"min-w-0 flex-1\"></audio> <button id=\"message-recording-discard\" type=\"button\" class=\"rounded-lg px-3 py-2 text-xs font-bold text-gray-600 hover:bg-stone-100\">Descartar</button> <button id=\"message-recording-send\" type=\"button\" class=\"rounded-lg bg-purple-600 px-3 py-2 text-xs font-bold text-white hover:bg-purple-700 disabled:opacity-50\">Enviar áudio</button></div><div id=\"message-composer-layout\" class=\"flex w-full min-w-0 items-center gap-1 sm:gap-3\"><details id=\"message-attachment-details\" class=\"group/attachment relative\"><summary id=\"message-attachment-button\" class=\"list-none cursor-pointer rounded-xl p-2 transition-colors hover:bg-stone-200\" aria-label=\"Anexar mídia\" aria-controls=\"message-attachment-menu\" aria-expanded=\"false\"><i class=\"fas fa-paperclip text-gray-400 text-xl\"></i></summary><div id=\"message-attachment-menu\" class=\"absolute bottom-full left-0 z-50 mb-3 max-h-[min(60dvh,24rem)] w-[min(22rem,calc(100vw-2.5rem))] overflow-y-auto rounded-2xl border border-stone-200 bg-white p-3 shadow-2xl\"><header class=\"mb-3 flex items-center justify-between gap-2\"><span class=\"text-sm font-bold text-gray-800\">Adicionar à mensagem</span><button id=\"message-actions-close\" type=\"button\" aria-label=\"Fechar ações da mensagem\" class=\"grid h-9 w-9 place-items-center rounded-lg text-gray-400 hover:bg-stone-100\"><i class=\"fas fa-xmark\"></i></button></header><div id=\"message-actions-grid\" class=\"grid grid-cols-2 gap-2\"><button id=\"message-upload-option\" type=\"button\" aria-label=\"Enviar do dispositivo\" class=\"flex w-full items-center gap-3 rounded-xl p-3 text-left hover:bg-stone-50\"><span class=\"grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-purple-100 text-purple-700\"><i class=\"fas fa-arrow-up-from-bracket\"></i></span><span><span class=\"block text-sm font-bold text-gray-800\">Arquivo</span><span class=\"mt-0.5 block text-[11px] text-gray-500\">Do dispositivo</span></span></button> <button id=\"message-gallery-option\" type=\"button\" aria-label=\"Escolher da galeria\" class=\"flex w-full items-center gap-3 rounded-xl bg-purple-50 p-3 text-left hover:bg-purple-100\"><span class=\"grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-purple-200 text-purple-700\"><i class=\"fas fa-photo-film\"></i></span><span><span class=\"block text-sm font-bold text-purple-900\">Galeria</span><span class=\"mt-0.5 block text-[11px] text-purple-700\">Mídias da empresa</span></span></button><div id=\"message-mobile-actions\" class=\"contents\"></div></div></div><input id=\"message-media-file\" type=\"file\" class=\"hidden\" accept=\"image/jpeg,image/png,image/gif,image/webp,video/mp4,video/webm,video/quicktime,audio/webm,audio/ogg,audio/mpeg,audio/mp4,audio/wav,.pdf,.txt,.csv,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.zip\"></details><form id=\"message-composer\" class=\"flex min-w-0 flex-1 items-center gap-1 sm:gap-3\" hx-post=\"/api/message/send\" hx-trigger=\"submit\" hx-swap=\"beforeend\" hx-target=\"#chatMessages\" hx-on::before-request=\"this.dataset.sentWithQuote = String(Boolean(this.querySelector('[name=quotedId]').value)); this.reset(); window.clearMessageReply(); this.querySelector('[name=message]').focus();\" hx-on::after-request=\"if (event.detail.successful) window.refreshConversationSidebar && window.refreshConversationSidebar();\"><input type=\"hidden\" name=\"conversation\" value=\"")
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+			var templ_7745c5c3_Var34 string
+			templ_7745c5c3_Var34, templ_7745c5c3_Err = templ.ResolveAttributeValue(activeConversation.URL.String())
+			if templ_7745c5c3_Err != nil {
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/message-single.templ`, Line: 467, Col: 85}
+			}
+			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var34)
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 51, "\"> <input type=\"hidden\" name=\"quotedId\" value=\"\"> <textarea rows=\"1\" required placeholder=\"Mensagem ou / para atalhos\" aria-label=\"Mensagem\" name=\"message\" class=\"min-w-0 flex-1 max-h-36 resize-none px-3 py-3 bg-white border border-stone-200 rounded-2xl text-sm focus:outline-none focus:ring-2 focus:ring-purple-400 transition-all sm:px-4\"></textarea><div id=\"message-composer-shortcuts\" class=\"flex shrink-0 items-center gap-1 sm:gap-3\"><button id=\"conversation-note-button\" type=\"button\" title=\"Nota interna\" aria-label=\"Adicionar nota interna\" aria-expanded=\"false\" aria-controls=\"conversation-note-form\" class=\"shrink-0 rounded-xl p-2 text-amber-600 transition-colors hover:bg-amber-100\"><i class=\"fas fa-note-sticky text-xl\"></i><span class=\"message-action-label\">Nota interna</span></button> <button id=\"message-emoji-button\" type=\"button\" class=\"shrink-0 rounded-xl p-2 transition-colors hover:bg-stone-200\" aria-label=\"Escolher emoji\" aria-expanded=\"false\" aria-controls=\"message-emoji-tray\"><i class=\"far fa-smile text-gray-400 text-xl\"></i> <span class=\"message-action-label\">Emojis</span></button> <button id=\"message-record-button\" type=\"button\" class=\"shrink-0 rounded-xl p-2 transition-colors hover:bg-stone-200\" aria-label=\"Gravar áudio\"><i class=\"fas fa-microphone text-gray-400 text-xl\"></i> <span class=\"message-action-label\">Áudio</span></button></div><button id=\"message-send-button\" type=\"submit\" aria-label=\"Enviar mensagem\" class=\"shrink-0 p-3 rounded-full hover:shadow-md shadow-sm transition-all\" style=\"background: linear-gradient(to right, #3b82f6, #9333ea);\"><i class=\"fas fa-paper-plane text-white\"></i></button></form></div><div id=\"message-emoji-tray\" class=\"absolute bottom-full right-2 z-50 mb-2 hidden w-[min(22rem,calc(100vw-1rem))] rounded-2xl border border-stone-200 bg-white p-3 shadow-xl sm:right-4\" aria-label=\"Emojis\"><div class=\"mb-2 flex items-center justify-between\"><span class=\"text-xs font-bold text-gray-700\">Escolha um emoji</span><button id=\"message-emoji-close\" type=\"button\" class=\"rounded-lg p-1 text-gray-500 hover:bg-stone-100\" aria-label=\"Fechar emojis\"><i class=\"fas fa-xmark\"></i></button></div><div id=\"message-emoji-list\" class=\"grid max-h-48 grid-cols-8 gap-1 overflow-y-auto\"></div></div>")
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+			templ_7745c5c3_Err = QuickReplyTray().Render(ctx, templ_7745c5c3_Buffer)
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 52, "</div>")
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+			templ_7745c5c3_Err = MessageComposerLayoutRuntime().Render(ctx, templ_7745c5c3_Buffer)
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 53, " <div id=\"message-upload-modal\" class=\"fixed inset-0 z-[70] hidden items-center justify-center bg-stone-950/60 p-4 backdrop-blur-sm\" role=\"dialog\" aria-modal=\"true\" aria-labelledby=\"message-upload-title\"><div class=\"max-h-[calc(100dvh-2rem)] w-full max-w-lg overflow-y-auto rounded-3xl bg-white shadow-2xl\"><header class=\"flex items-start gap-4 border-b border-stone-100 px-6 py-5\"><span class=\"grid h-12 w-12 shrink-0 place-items-center rounded-2xl bg-purple-100 text-purple-700\"><i class=\"fas fa-paperclip text-lg\"></i></span><div class=\"min-w-0 flex-1\"><h2 id=\"message-upload-title\" class=\"text-lg font-black text-gray-950\">Enviar arquivo</h2><p id=\"message-upload-meta\" class=\"mt-1 truncate text-xs text-gray-500\"></p></div><button id=\"message-upload-close\" type=\"button\" class=\"grid h-9 w-9 place-items-center rounded-xl text-gray-400 hover:bg-stone-100\" aria-label=\"Fechar\"><i class=\"fas fa-xmark\"></i></button></header><div class=\"p-6\"><div id=\"message-upload-preview\" class=\"flex min-h-48 items-center justify-center overflow-hidden rounded-2xl bg-stone-100\"></div><label class=\"mt-5 block text-sm font-bold text-gray-700\">Legenda opcional<textarea id=\"message-upload-caption\" maxlength=\"1000\" rows=\"3\" placeholder=\"Adicione uma legenda\" class=\"mt-2 w-full resize-none rounded-xl border border-stone-200 bg-stone-50 px-4 py-3 text-sm font-normal outline-none focus:border-purple-400 focus:ring-2 focus:ring-purple-100\"></textarea></label><div id=\"message-upload-error\" class=\"mt-4 hidden rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700\"></div></div><footer class=\"flex justify-end gap-3 border-t border-stone-100 bg-stone-50 px-6 py-4\"><button id=\"message-upload-cancel\" type=\"button\" class=\"rounded-xl px-5 py-2.5 text-sm font-bold text-gray-600 hover:bg-stone-200\">Cancelar</button><button id=\"message-upload-send\" type=\"button\" class=\"rounded-xl bg-gradient-to-r from-blue-500 to-purple-600 px-5 py-2.5 text-sm font-bold text-white shadow-sm hover:shadow-md disabled:cursor-wait disabled:opacity-60\"><i class=\"fas fa-paper-plane mr-2\"></i>Enviar mídia</button></footer></div></div><div id=\"message-gallery-modal\" data-list-url=\"")
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+			var templ_7745c5c3_Var35 string
+			templ_7745c5c3_Var35, templ_7745c5c3_Err = templ.ResolveAttributeValue(fmt.Sprintf("/messages/%s/media", activeConversation.URL.String()))
+			if templ_7745c5c3_Err != nil {
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/message-single.templ`, Line: 500, Col: 116}
+			}
+			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var35)
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 54, "\" data-send-url=\"")
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+			var templ_7745c5c3_Var36 string
+			templ_7745c5c3_Var36, templ_7745c5c3_Err = templ.ResolveAttributeValue(fmt.Sprintf("/messages/%s/media/send", activeConversation.URL.String()))
+			if templ_7745c5c3_Err != nil {
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/message-single.templ`, Line: 500, Col: 206}
+			}
+			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var36)
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 55, "\" data-upload-url=\"")
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+			var templ_7745c5c3_Var37 string
+			templ_7745c5c3_Var37, templ_7745c5c3_Err = templ.ResolveAttributeValue(fmt.Sprintf("/messages/%s/media/upload", activeConversation.URL.String()))
+			if templ_7745c5c3_Err != nil {
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/message-single.templ`, Line: 500, Col: 300}
+			}
+			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var37)
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 56, "\" class=\"fixed inset-0 z-[70] hidden items-center justify-center bg-stone-950/65 p-3 backdrop-blur-sm sm:p-5\" role=\"dialog\" aria-modal=\"true\" aria-labelledby=\"message-gallery-title\"><div class=\"flex max-h-[90vh] w-full max-w-5xl flex-col overflow-hidden rounded-3xl bg-white shadow-2xl\"><header class=\"flex items-start gap-4 border-b border-stone-100 px-5 py-4 sm:px-6 sm:py-5\"><span class=\"grid h-12 w-12 shrink-0 place-items-center rounded-2xl bg-purple-100 text-purple-700\"><i class=\"fas fa-photo-film text-lg\"></i></span><div class=\"min-w-0 flex-1\"><h2 id=\"message-gallery-title\" class=\"text-lg font-black text-gray-950\">Galeria de mídias</h2><p class=\"mt-1 text-xs text-gray-500\">Selecione um arquivo já armazenado pela empresa.</p></div><button id=\"message-gallery-close\" type=\"button\" class=\"grid h-9 w-9 place-items-center rounded-xl text-gray-400 hover:bg-stone-100\" aria-label=\"Fechar\"><i class=\"fas fa-xmark\"></i></button></header><div class=\"border-b border-stone-100 px-5 py-4 sm:px-6\"><div class=\"flex flex-col gap-3 sm:flex-row\"><label class=\"relative min-w-0 flex-1\"><i class=\"fas fa-magnifying-glass absolute left-3.5 top-1/2 -translate-y-1/2 text-xs text-gray-400\"></i><input id=\"message-gallery-search\" type=\"search\" placeholder=\"Buscar na galeria\" class=\"w-full rounded-xl border border-stone-200 bg-stone-50 py-2.5 pl-9 pr-3 text-sm outline-none focus:border-purple-400 focus:ring-2 focus:ring-purple-100\"></label><div id=\"message-gallery-filters\" class=\"flex gap-2 overflow-x-auto\"><button type=\"button\" data-gallery-kind=\"all\" class=\"rounded-xl bg-purple-600 px-3 py-2 text-xs font-bold text-white\">Todos</button><button type=\"button\" data-gallery-kind=\"image\" class=\"rounded-xl bg-stone-100 px-3 py-2 text-xs font-bold text-gray-600\">Imagens</button><button type=\"button\" data-gallery-kind=\"video\" class=\"rounded-xl bg-stone-100 px-3 py-2 text-xs font-bold text-gray-600\">Vídeos</button><button type=\"button\" data-gallery-kind=\"audio\" class=\"rounded-xl bg-stone-100 px-3 py-2 text-xs font-bold text-gray-600\">Áudios</button><button type=\"button\" data-gallery-kind=\"document\" class=\"rounded-xl bg-stone-100 px-3 py-2 text-xs font-bold text-gray-600\">Documentos</button></div></div></div><div class=\"min-h-0 flex-1 overflow-y-auto p-5 sm:p-6\"><div id=\"message-gallery-loading\" class=\"py-16 text-center text-sm text-gray-500\"><i class=\"fas fa-circle-notch fa-spin mr-2 text-purple-600\"></i>Carregando galeria...</div><div id=\"message-gallery-grid\" class=\"hidden grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5\"></div><div id=\"message-gallery-empty\" class=\"hidden py-16 text-center\"><span class=\"mx-auto grid h-14 w-14 place-items-center rounded-2xl bg-stone-100 text-gray-400\"><i class=\"fas fa-photo-film\"></i></span><p class=\"mt-4 text-sm font-bold text-gray-700\">Nenhuma mídia encontrada</p></div><div id=\"message-gallery-error\" class=\"hidden rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700\"></div></div><footer class=\"border-t border-stone-100 bg-stone-50 px-5 py-4 sm:px-6\"><div class=\"flex flex-col gap-3 sm:flex-row sm:items-end\"><div class=\"min-w-0 flex-1\"><p id=\"message-gallery-selection\" class=\"mb-2 truncate text-xs font-bold text-gray-600\">Nenhuma mídia selecionada</p><input id=\"message-gallery-caption\" maxlength=\"1000\" placeholder=\"Legenda opcional\" class=\"w-full rounded-xl border border-stone-200 bg-white px-4 py-2.5 text-sm outline-none focus:border-purple-400 focus:ring-2 focus:ring-purple-100\"></div><div class=\"flex justify-end gap-2\"><button id=\"message-gallery-cancel\" type=\"button\" class=\"rounded-xl px-5 py-2.5 text-sm font-bold text-gray-600 hover:bg-stone-200\">Cancelar</button><button id=\"message-gallery-send\" type=\"button\" disabled class=\"rounded-xl bg-gradient-to-r from-blue-500 to-purple-600 px-5 py-2.5 text-sm font-bold text-white shadow-sm disabled:cursor-not-allowed disabled:opacity-40\"><i class=\"fas fa-paper-plane mr-2\"></i>Enviar</button></div></div></footer></div></div><div id=\"conversation-media-preview\" class=\"fixed inset-0 z-[80] hidden items-center justify-center bg-stone-950/90 p-3 backdrop-blur-sm\" role=\"dialog\" aria-modal=\"true\" aria-label=\"Visualização da mídia\"><div class=\"flex h-full max-h-[920px] w-full max-w-6xl flex-col overflow-hidden rounded-2xl border border-white/10 bg-stone-950 text-white shadow-2xl\"><header class=\"flex items-center gap-3 border-b border-white/10 px-4 py-3\"><div class=\"min-w-0 flex-1\"><p id=\"conversation-media-preview-name\" class=\"truncate text-sm font-bold\"></p><p id=\"conversation-media-preview-meta\" class=\"mt-0.5 text-xs text-stone-400\"></p></div><a id=\"conversation-media-preview-download\" class=\"grid h-10 w-10 place-items-center rounded-xl bg-white/10 hover:bg-white/20\" aria-label=\"Baixar mídia\"><i class=\"fas fa-download\"></i></a><button id=\"conversation-media-preview-close\" type=\"button\" class=\"grid h-10 w-10 place-items-center rounded-xl bg-white/10 hover:bg-white/20\" aria-label=\"Fechar\"><i class=\"fas fa-xmark\"></i></button></header><div id=\"conversation-media-preview-stage\" class=\"relative flex min-h-0 flex-1 items-center justify-center overflow-hidden bg-black/40 p-3 sm:p-8\"><button id=\"conversation-media-preview-previous\" type=\"button\" class=\"absolute left-3 z-10 grid h-11 w-11 place-items-center rounded-full bg-black/50 hover:bg-black/70\" aria-label=\"Mídia anterior\"><i class=\"fas fa-chevron-left\"></i></button><div id=\"conversation-media-preview-content\" class=\"flex h-full w-full items-center justify-center\"></div><button id=\"conversation-media-preview-next\" type=\"button\" class=\"absolute right-3 z-10 grid h-11 w-11 place-items-center rounded-full bg-black/50 hover:bg-black/70\" aria-label=\"Próxima mídia\"><i class=\"fas fa-chevron-right\"></i></button></div><footer class=\"flex items-center justify-between border-t border-white/10 px-4 py-3 text-xs text-stone-400\"><span>Mídia da conversa</span><span id=\"conversation-media-preview-counter\"></span></footer></div></div><script>\n\t\t\t(function () {\n\t\t\t\tconst document = window.conversationDocument;\n\t\t\t\tconst composer = document.getElementById('message-composer');\n\t\t\t\tconst preview = document.getElementById('message-reply-preview');\r\n\t\t\t\tconst previewText = document.getElementById('message-reply-text');\r\n\t\t\t\tif (!composer || !preview || !previewText) return;\r\n\t\t\t\tconst quotedInput = composer.querySelector('[name=quotedId]');\r\n\t\t\t\twindow.clearMessageReply = function () { quotedInput.value = ''; previewText.textContent = ''; preview.classList.add('hidden'); preview.classList.remove('flex'); window.syncMessageComposerLayout?.(); };\n\t\t\t\tdocument.getElementById('message-reply-cancel').addEventListener('click', window.clearMessageReply);\r\n\t\t\t\tdocument.getElementById('chatMessages').addEventListener('click', async function (event) {\n\t\t\t\t\tconst quotedMessage = event.target.closest('[data-quoted-message-id]');\n\t\t\t\t\tif (quotedMessage) { const id = quotedMessage.dataset.quotedMessageId; let target = document.querySelector('#chatMessages [data-message-id=\"' + CSS.escape(id) + '\"]'); if (!target && window.ensureConversationMessage) target = await window.ensureConversationMessage(id); if (target && target.isConnected) { target.scrollIntoView({ behavior: 'smooth', block: 'center' }); target.classList.add('rounded-2xl', 'ring-2', 'ring-purple-400', 'ring-offset-2'); setTimeout(() => target.classList.remove('rounded-2xl', 'ring-2', 'ring-purple-400', 'ring-offset-2'), 1800); } return; }\n\t\t\t\t\tconst button = event.target.closest('[data-reply-message-id]');\n\t\t\t\t\tif (!button) return;\r\n\t\t\t\t\tquotedInput.value = button.dataset.replyMessageId;\r\n\t\t\t\t\tpreviewText.textContent = button.dataset.replyText || 'Mensagem';\r\n\t\t\t\t\tpreview.classList.remove('hidden'); preview.classList.add('flex');\n\t\t\t\t\twindow.syncMessageComposerLayout?.();\n\t\t\t\t\tcomposer.querySelector('[name=message]').focus();\r\n\t\t\t\t});\r\n\t\t\t})();\n\t\t</script> <script>\n\t\t\t(function () {\n\t\t\t\tconst document = window.conversationDocument;\n\t\t\t\tconst button = document.getElementById('message-emoji-button');\n\t\t\t\tif (!button) return;\n\t\t\t\tconst tray = document.getElementById('message-emoji-tray');\n\t\t\t\tconst input = document.querySelector('#message-composer [name=message]');\n\t\t\t\tconst list = document.getElementById('message-emoji-list');\n\t\t\t\tconst emojis = '😀 😃 😄 😁 😆 😅 😂 🙂 🙃 😉 😊 😍 🥰 😘 😎 🤔 😢 😭 😡 👍 👎 👏 🙌 👋 🤝 🙏 💪 ❤️ 💜 💙 💚 💛 🧡 🔥 ✨ 🎉 🎂 🎁 ✅ ❌ 👀 💬 📞 🌹'.split(' ');\n\t\t\t\tfunction close() { tray.classList.add('hidden'); button.setAttribute('aria-expanded', 'false'); }\n\t\t\t\temojis.forEach(emoji => { const option = document.createElement('button'); option.type = 'button'; option.className = 'rounded-lg p-1 text-2xl hover:bg-purple-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-purple-500'; option.textContent = emoji; option.setAttribute('aria-label', 'Inserir ' + emoji); option.addEventListener('click', () => { const start = input.selectionStart ?? input.value.length; const end = input.selectionEnd ?? start; input.setRangeText(emoji, start, end, 'end'); input.dispatchEvent(new Event('input', { bubbles: true })); close(); input.focus(); }); list.appendChild(option); });\n\t\t\t\tbutton.addEventListener('click', () => { const open = tray.classList.toggle('hidden') === false; button.setAttribute('aria-expanded', String(open)); if (open) list.querySelector('button').focus(); });\n\t\t\t\tdocument.getElementById('message-emoji-close').addEventListener('click', () => { close(); button.focus(); });\n\t\t\t\tdocument.addEventListener('click', event => { if (!tray.contains(event.target) && !button.contains(event.target)) close(); });\n\t\t\t\tdocument.addEventListener('keydown', event => { if (event.key === 'Escape' && !tray.classList.contains('hidden')) { close(); button.focus(); } });\n\t\t\t})();\n\t\t</script> <script>\n\t\t\t(function () {\n\t\t\t\tconst document = window.conversationDocument;\n\t\t\t\tconst modal = document.getElementById('conversation-media-preview');\n\t\t\t\tconst content = document.getElementById('conversation-media-preview-content');\n\t\t\t\t// The conversation layout clips overflowing content; keep the viewer above it.\n\t\t\t\tdocument.body.appendChild(modal);\n\t\t\t\tlet current = 0, documentURL = '', previewToken = 0;\n\t\t\t\tfunction items() { return Array.from(document.querySelectorAll('[data-conversation-media-preview]')); }\n\t\t\t\tfunction clearDocumentURL() { if (documentURL) { URL.revokeObjectURL(documentURL); documentURL = ''; } }\n\t\t\t\tfunction close() { previewToken++; modal.classList.add('hidden'); modal.classList.remove('flex'); content.querySelectorAll('video').forEach(video => video.pause()); clearDocumentURL(); document.body.classList.remove('overflow-hidden'); }\n\t\t\t\tfunction canReadDocument(item) { const mime = String(item.dataset.mediaMime || '').toLowerCase(); const name = String(item.dataset.mediaName || '').toLowerCase(); return mime === 'application/pdf' || mime === 'text/plain' || mime === 'text/csv' || /\\.(pdf|txt|csv)$/.test(name); }\n\t\t\t\tfunction showDocumentLoadError() { const error = document.createElement('div'); error.className = 'text-center'; error.innerHTML = '<span class=\"mx-auto grid h-24 w-24 place-items-center rounded-3xl bg-red-500/15 text-4xl text-red-300\"><i class=\"fas fa-file-circle-exclamation\"><\\/i><\\/span><p class=\"mt-5 text-sm text-stone-300\">Não foi possível carregar o documento para leitura. Use o botão de download para abri-lo.<\\/p>'; content.replaceChildren(error); }\n\t\t\t\tasync function loadReadableDocument(item, token) { try { const response = await fetch(item.dataset.mediaContent, { credentials: 'same-origin' }); if (!response.ok) throw new Error('HTTP ' + response.status); const blob = await response.blob(); if (token !== previewToken || !modal.classList.contains('flex')) return; clearDocumentURL(); documentURL = URL.createObjectURL(blob); const frame = document.createElement('iframe'); frame.src = documentURL; frame.title = 'Leitura de ' + (item.dataset.mediaName || 'documento'); frame.className = 'h-full w-full rounded-lg border-0 bg-white'; content.replaceChildren(frame); } catch (_) { if (token === previewToken && modal.classList.contains('flex')) showDocumentLoadError(); } }\n\t\t\t\tfunction open(index) { const media = items(); if (!media.length) return; current = (index + media.length) % media.length; const item = media[current]; const kind = item.dataset.mediaKind; const token = ++previewToken; clearDocumentURL(); content.replaceChildren(); let element; if (kind === 'image') { element = document.createElement('img'); element.src = item.dataset.mediaContent; element.alt = item.dataset.mediaName || 'Imagem'; element.className = 'max-h-full max-w-full object-contain'; } else if (kind === 'video') { element = document.createElement('video'); element.src = item.dataset.mediaContent; element.controls = true; element.autoplay = false; element.className = 'max-h-full max-w-full'; } else if (kind === 'document' && canReadDocument(item)) { element = document.createElement('div'); element.className = 'text-sm text-stone-300'; element.innerHTML = '<i class=\"fas fa-circle-notch fa-spin mr-2 text-purple-300\"><\\/i>Carregando documento...'; } else { element = document.createElement('div'); element.className = 'text-center'; element.innerHTML = '<span class=\"mx-auto grid h-24 w-24 place-items-center rounded-3xl bg-white/10 text-4xl\"><i class=\"fas fa-file-lines\"><\\/i><\\/span><p class=\"mt-5 text-sm text-stone-300\">Este formato não pode ser lido no navegador. Use o botão de download para abrir o documento.<\\/p>'; } content.appendChild(element); document.getElementById('conversation-media-preview-name').textContent = item.dataset.mediaName || 'Mídia'; document.getElementById('conversation-media-preview-meta').textContent = kind === 'image' ? 'Imagem' : kind === 'video' ? 'Vídeo' : canReadDocument(item) ? 'Documento para leitura' : 'Documento'; document.getElementById('conversation-media-preview-download').href = item.dataset.mediaDownload; document.getElementById('conversation-media-preview-counter').textContent = (current + 1) + ' de ' + media.length; modal.classList.remove('hidden'); modal.classList.add('flex'); document.body.classList.add('overflow-hidden'); if (kind === 'document' && canReadDocument(item)) loadReadableDocument(item, token); }\n\t\t\t\tdocument.getElementById('chatMessages').addEventListener('click', event => { const item = event.target.closest('[data-conversation-media-preview]'); if (!item) return; event.preventDefault(); open(items().indexOf(item)); }, true);\n\t\t\t\tdocument.getElementById('conversation-media-preview-close').onclick = close; document.getElementById('conversation-media-preview-previous').onclick = () => open(current - 1); document.getElementById('conversation-media-preview-next').onclick = () => open(current + 1); modal.onclick = event => { if (event.target === modal) close(); };\n\t\t\t\tdocument.addEventListener('keydown', event => { if (!modal.classList.contains('flex')) return; if (event.key === 'Escape') close(); if (event.key === 'ArrowLeft') open(current - 1); if (event.key === 'ArrowRight') open(current + 1); });\n\t\t\t})();\n\t\t</script> <script>\n\t\t\t(function () {\n\t\t\t\tconst document = window.conversationDocument;\n\t\t\t\tconst attachmentButton = document.getElementById('message-attachment-button');\n\t\t\t\tconst attachmentDetails = document.getElementById('message-attachment-details');\r\n\t\t\t\tconst attachmentMenu = document.getElementById('message-attachment-menu');\r\n\t\t\t\tconst fileInput = document.getElementById('message-media-file');\r\n\t\t\t\tconst uploadModal = document.getElementById('message-upload-modal');\r\n\t\t\t\tconst galleryModal = document.getElementById('message-gallery-modal');\n\t\t\t\tconst pageError = document.getElementById('message-media-error');\n\t\t\t\tconst microphoneRetry = document.getElementById('message-microphone-retry');\n\t\t\t\tlet uploadFile = null;\r\n\t\t\t\tlet uploadObjectURL = '';\r\n\t\t\t\tlet galleryItems = [];\r\n\t\t\t\tlet galleryKind = 'all';\r\n\t\t\t\tlet selectedGalleryItem = null;\r\n\r\n\t\t\t\tfunction setVisible(modal, visible) { modal.classList.toggle('hidden', !visible); modal.classList.toggle('flex', visible); document.body.classList.toggle('overflow-hidden', visible); }\r\n\t\t\t\tfunction showError(element, message) { (element === pageError ? document.getElementById('message-media-error-text') : element).textContent = message; element.classList.remove('hidden'); }\n\t\t\t\tfunction clearError(element) { (element === pageError ? document.getElementById('message-media-error-text') : element).textContent = ''; element.classList.add('hidden'); if (element === pageError) microphoneRetry.classList.add('hidden'); }\n\t\t\t\tfunction mediaKind(file) { const type = String(file.type || '').toLowerCase(); if (type.startsWith('image/')) return 'image'; if (type.startsWith('video/')) return 'video'; if (type.startsWith('audio/')) return 'audio'; return 'document'; }\r\n\t\t\t\tfunction mediaBytes(value) { const bytes = Number(value || 0); if (bytes < 1024 * 1024) return Math.max(1, Math.round(bytes / 1024)) + ' KB'; return (bytes / 1024 / 1024).toLocaleString('pt-BR', { maximumFractionDigits: 1 }) + ' MB'; }\r\n\t\t\t\tasync function responseText(response) { const text = await response.text(); if (response.ok) return text; let message = ''; try { const payload = JSON.parse(text); message = typeof payload.error === 'string' ? payload.error : ''; } catch (_) {} if (!message) message = response.status >= 500 ? 'O serviço de envio não respondeu (HTTP ' + response.status + '). Confira se a mensagem apareceu na conversa antes de tentar novamente.' : 'Não foi possível enviar a mídia (HTTP ' + response.status + ').'; throw new Error(message); }\n\t\t\t\tfunction appendMessage(html) { const template = document.createElement('template'); template.innerHTML = html.trim(); const message = template.content.firstElementChild; if (!message) return; const id = message.dataset.messageId; if (id && document.querySelector('#chatMessages [data-message-id=\"' + CSS.escape(id) + '\"]')) return; document.getElementById('chatMessages').appendChild(message); if (window.htmx) htmx.process(message); message.querySelectorAll('[data-audio-player]').forEach(player => initAudioPlayer(player)); if (!window.shouldAutoScrollAfterSend || window.shouldAutoScrollAfterSend(Boolean(message.dataset.messageQuotedId))) message.scrollIntoView({ behavior: 'smooth', block: 'end' }); }\n\t\t\t\tfunction toggleMenu(show) { attachmentDetails.open = show; attachmentButton.setAttribute('aria-expanded', show ? 'true' : 'false'); }\r\n\t\t\t\tfunction closeUpload() { setVisible(uploadModal, false); uploadFile = null; fileInput.value = ''; document.getElementById('message-upload-caption').value = ''; document.getElementById('message-upload-preview').replaceChildren(); clearError(document.getElementById('message-upload-error')); if (uploadObjectURL) URL.revokeObjectURL(uploadObjectURL); uploadObjectURL = ''; }\r\n\t\t\t\tfunction openUpload(file) { uploadFile = file; uploadObjectURL = URL.createObjectURL(file); const preview = document.getElementById('message-upload-preview'); preview.replaceChildren(); const kind = mediaKind(file); let element; if (kind === 'image') { element = document.createElement('img'); element.src = uploadObjectURL; element.className = 'max-h-80 w-full object-contain'; } else if (kind === 'video') { element = document.createElement('video'); element.src = uploadObjectURL; element.controls = true; element.className = 'max-h-80 w-full'; } else if (kind === 'audio') { element = document.createElement('audio'); element.src = uploadObjectURL; element.controls = true; element.className = 'w-full px-5'; } else { element = document.createElement('div'); element.className = 'py-10 text-center text-gray-500'; element.innerHTML = '<span class=\"mx-auto grid h-16 w-16 place-items-center rounded-2xl bg-purple-100 text-2xl text-purple-700\"><i class=\"fas fa-file-lines\"><\\/i><\\/span><p class=\"mt-3 text-sm font-bold\"><\\/p>'; element.querySelector('p').textContent = file.name; } preview.appendChild(element); document.getElementById('message-upload-meta').textContent = file.name + ' · ' + mediaBytes(file.size); setVisible(uploadModal, true); }\n\n\t\t\t\tconst recordButton = document.getElementById('message-record-button');\n\t\t\t\tconst recordingPanel = document.getElementById('message-recording');\n\t\t\t\tconst recordingPreview = document.getElementById('message-recording-preview');\n\t\t\t\tconst recordingAudio = document.getElementById('message-recording-audio');\n\t\t\t\tconst recordingSend = document.getElementById('message-recording-send');\n\t\t\t\tconst recordingDiscard = document.getElementById('message-recording-discard');\n\t\t\t\tlet recorder = null, recordingStream = null, recordingFile = null, recordingURL = '', recordingTimer = null, recordingStarted = 0, recordingRequest = 0;\n\t\t\t\tfunction releaseMicrophone() { if (recordingStream) recordingStream.getTracks().forEach(track => track.stop()); recordingStream = null; }\n\t\t\t\tfunction discardRecording() {\n\t\t\t\t\trecordingRequest++;\n\t\t\t\t\tif (recorder && recorder.state !== 'inactive') { recorder.onstop = null; recorder.stop(); }\n\t\t\t\t\trecorder = null; releaseMicrophone(); clearInterval(recordingTimer); recordingTimer = null;\n\t\t\t\t\trecordingAudio.pause(); recordingAudio.removeAttribute('src'); recordingAudio.load();\n\t\t\t\t\tif (recordingURL) URL.revokeObjectURL(recordingURL);\n\t\t\t\t\trecordingURL = ''; recordingFile = null;\n\t\t\t\t\trecordingPanel.classList.add('hidden'); recordingPanel.classList.remove('flex');\n\t\t\t\t\trecordingPreview.classList.add('hidden'); recordingPreview.classList.remove('flex');\n\t\t\t\t\trecordButton.disabled = false;\n\t\t\t\t}\n\t\t\t\tasync function startRecording() {\n\t\t\t\t\tif (recorder || recordingFile || recordButton.disabled) return;\n\t\t\t\t\tclearError(pageError);\n\t\t\t\t\tif (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) { showError(pageError, 'O microfone requer uma conexão segura (HTTPS ou localhost) e um navegador compatível.'); return; }\n\t\t\t\t\trecordButton.disabled = true;\n\t\t\t\t\tconst request = ++recordingRequest;\n\t\t\t\t\tlet stream;\n\t\t\t\t\ttry {\n\t\t\t\t\t\tstream = await navigator.mediaDevices.getUserMedia({ audio: true });\n\t\t\t\t\t} catch (error) {\n\t\t\t\t\t\tdiscardRecording();\n\t\t\t\t\t\tif (error.name === 'NotAllowedError' || error.name === 'PermissionDeniedError' || error.name === 'SecurityError') {\n\t\t\t\t\t\t\tlet blocked = false;\n\t\t\t\t\t\t\ttry { blocked = (await navigator.permissions.query({ name: 'microphone' })).state === 'denied'; } catch (_) { /* Nem todos os navegadores implementam a consulta de permissão. */ }\n\t\t\t\t\t\t\tshowError(pageError, blocked ? 'O navegador bloqueou o microfone para este site e não mostrará outro pedido. Clique no ícone à esquerda do endereço, mude Microfone para Permitir e clique em Tentar microfone novamente.' : 'Permissão de microfone recusada. Clique em Tentar microfone novamente para solicitar acesso; se o navegador não perguntar, permita o microfone nas configurações deste site (ícone à esquerda do endereço).');\n\t\t\t\t\t\t} else {\n\t\t\t\t\t\t\tshowError(pageError, error.name === 'NotFoundError' ? 'Nenhum microfone foi encontrado. Conecte um microfone e tente novamente.' : 'Não foi possível acessar o microfone. Verifique se ele está conectado e tente novamente.');\n\t\t\t\t\t\t}\n\t\t\t\t\t\tmicrophoneRetry.classList.remove('hidden');\n\t\t\t\t\t\treturn;\n\t\t\t\t\t}\n\t\t\t\t\ttry {\n\t\t\t\t\t\tif (request !== recordingRequest) { stream.getTracks().forEach(track => track.stop()); return; }\n\t\t\t\t\t\trecordingStream = stream;\n\t\t\t\t\t\tif (!window.MediaRecorder) throw new Error('MediaRecorder indisponível');\n\t\t\t\t\t\tconst mime = ['audio/webm;codecs=opus', 'audio/ogg;codecs=opus', 'audio/mp4', 'audio/webm', 'audio/ogg'].find(type => MediaRecorder.isTypeSupported(type));\n\t\t\t\t\t\tif (!mime) throw new Error('Formato de áudio incompatível');\n\t\t\t\t\t\tconst chunks = [];\n\t\t\t\t\t\tconst current = new MediaRecorder(stream, { mimeType: mime });\n\t\t\t\t\t\trecorder = current;\n\t\t\t\t\t\tstream.getAudioTracks().forEach(track => track.addEventListener('ended', () => { if (recorder === current && current.state === 'recording') current.stop(); }));\n\t\t\t\t\t\tcurrent.ondataavailable = event => { if (event.data.size) chunks.push(event.data); };\n\t\t\t\t\t\tcurrent.onerror = () => { discardRecording(); showError(pageError, 'A gravação foi interrompida. Tente novamente.'); };\n\t\t\t\t\t\tcurrent.onstop = () => {\n\t\t\t\t\t\t\tif (recorder !== current) return;\n\t\t\t\t\t\t\trecorder = null; releaseMicrophone(); clearInterval(recordingTimer); recordingTimer = null;\n\t\t\t\t\t\t\trecordingPanel.classList.add('hidden'); recordingPanel.classList.remove('flex');\n\t\t\t\t\t\t\tconst type = mime.split(';')[0];\n\t\t\t\t\t\t\tconst blob = new Blob(chunks, { type });\n\t\t\t\t\t\t\tif (!blob.size || blob.size > 20 * 1024 * 1024) { discardRecording(); showError(pageError, blob.size ? 'O áudio excede o limite de 20 MB.' : 'Não foi possível capturar o áudio.'); return; }\n\t\t\t\t\t\t\trecordingFile = new File([blob], 'gravacao.' + (type === 'audio/mp4' ? 'm4a' : type === 'audio/ogg' ? 'ogg' : 'webm'), { type });\n\t\t\t\t\t\t\trecordingURL = URL.createObjectURL(blob); recordingAudio.src = recordingURL;\n\t\t\t\t\t\t\trecordingPreview.classList.remove('hidden'); recordingPreview.classList.add('flex'); recordingSend.focus();\n\t\t\t\t\t\t};\n\t\t\t\t\t\tcurrent.start(1000);\n\t\t\t\t\t\trecordingStarted = Date.now();\n\t\t\t\t\t\tdocument.getElementById('message-recording-time').textContent = '00:00';\n\t\t\t\t\t\trecordingTimer = setInterval(() => { const seconds = Math.floor((Date.now() - recordingStarted) / 1000); document.getElementById('message-recording-time').textContent = String(Math.floor(seconds / 60)).padStart(2, '0') + ':' + String(seconds % 60).padStart(2, '0'); }, 1000);\n\t\t\t\t\t\trecordingPanel.classList.remove('hidden'); recordingPanel.classList.add('flex');\n\t\t\t\t\t} catch (error) {\n\t\t\t\t\t\tdiscardRecording();\n\t\t\t\t\t\tshowError(pageError, 'O microfone foi permitido, mas este navegador não conseguiu iniciar a gravação de áudio.');\n\t\t\t\t\t\tmicrophoneRetry.classList.remove('hidden');\n\t\t\t\t\t}\n\t\t\t\t}\n\t\t\t\trecordButton.addEventListener('click', startRecording);\n\t\t\t\tmicrophoneRetry.addEventListener('click', startRecording);\n\t\t\t\tdocument.getElementById('message-recording-stop').addEventListener('click', () => { if (recorder && recorder.state === 'recording') recorder.stop(); });\n\t\t\t\tdocument.getElementById('message-recording-cancel').addEventListener('click', discardRecording);\n\t\t\t\trecordingDiscard.addEventListener('click', discardRecording);\n\t\t\t\trecordingSend.addEventListener('click', async () => {\n\t\t\t\t\tif (!recordingFile || recordingSend.disabled) return;\n\t\t\t\t\tclearError(pageError); recordingSend.disabled = true; recordingDiscard.disabled = true;\n\t\t\t\t\tconst data = new FormData(); data.append('file', recordingFile); data.append('kind', 'audio'); data.append('caption', '');\n\t\t\t\t\ttry { const response = await fetch(galleryModal.dataset.uploadUrl, { method: 'POST', credentials: 'same-origin', body: data }); appendMessage(await responseText(response)); discardRecording(); if (window.refreshConversationSidebar) window.refreshConversationSidebar(); }\n\t\t\t\t\tcatch (error) { showError(pageError, error.message); }\n\t\t\t\t\tfinally { recordingSend.disabled = false; recordingDiscard.disabled = false; }\n\t\t\t\t});\n\t\t\t\twindow.addEventListener('pagehide', discardRecording, { signal: window.conversationAbort.signal });\n\t\t\t\twindow.conversationAbort.signal.addEventListener('abort', discardRecording, { once: true });\n\n\t\t\t\tattachmentDetails.addEventListener('toggle', () => attachmentButton.setAttribute('aria-expanded', attachmentDetails.open ? 'true' : 'false'));\n\t\t\t\tdocument.addEventListener('click', event => { if (!attachmentDetails.contains(event.target)) toggleMenu(false); });\r\n\t\t\t\tdocument.getElementById('message-upload-option').addEventListener('click', () => { toggleMenu(false); fileInput.click(); });\n\t\t\t\tfileInput.addEventListener('change', () => { if (fileInput.files && fileInput.files[0]) openUpload(fileInput.files[0]); });\n\t\t\t\tdocument.addEventListener('paste', event => { const item = Array.from((event.clipboardData && event.clipboardData.items) || []).find(value => value.kind === 'file'); if (!item || !uploadModal.classList.contains('hidden') || !galleryModal.classList.contains('hidden')) return; const file = item.getAsFile(); if (!file) return; event.preventDefault(); toggleMenu(false); openUpload(file); });\n\t\t\t\tdocument.getElementById('message-upload-close').addEventListener('click', closeUpload); document.getElementById('message-upload-cancel').addEventListener('click', closeUpload);\n\t\t\t\tuploadModal.addEventListener('click', event => { if (event.target === uploadModal) closeUpload(); });\r\n\t\t\t\tdocument.getElementById('message-upload-send').addEventListener('click', async function () { if (!uploadFile) return; const button = this; clearError(document.getElementById('message-upload-error')); button.disabled = true; const data = new FormData(); data.append('file', uploadFile); data.append('kind', mediaKind(uploadFile)); data.append('caption', document.getElementById('message-upload-caption').value.trim()); try { const response = await fetch(galleryModal.dataset.uploadUrl, { method: 'POST', credentials: 'same-origin', body: data }); appendMessage(await responseText(response)); closeUpload(); } catch (error) { showError(document.getElementById('message-upload-error'), error.message); } finally { button.disabled = false; } });\r\n\r\n\t\t\t\tfunction galleryCard(item) { const card = document.createElement('button'); card.type = 'button'; card.className = 'group overflow-hidden rounded-2xl border bg-white text-left shadow-sm transition hover:-translate-y-0.5 hover:shadow-md ' + (selectedGalleryItem === item ? 'border-purple-500 ring-2 ring-purple-200' : 'border-stone-200'); const preview = document.createElement('div'); preview.className = 'relative flex aspect-square items-center justify-center overflow-hidden bg-stone-100'; if (item.kind === 'image') { const image = document.createElement('img'); image.src = item.previewURL; image.alt = ''; image.loading = 'lazy'; image.className = 'h-full w-full object-cover transition group-hover:scale-105'; preview.appendChild(image); } else { const icon = document.createElement('span'); icon.className = 'grid h-14 w-14 place-items-center rounded-2xl text-xl ' + (item.kind === 'video' ? 'bg-blue-100 text-blue-700' : item.kind === 'audio' ? 'bg-purple-100 text-purple-700' : 'bg-stone-200 text-gray-600'); icon.innerHTML = '<i class=\"fas ' + (item.kind === 'video' ? 'fa-play' : item.kind === 'audio' ? 'fa-waveform-lines' : 'fa-file-lines') + '\"><\\/i>'; preview.appendChild(icon); } if (selectedGalleryItem === item) { const mark = document.createElement('span'); mark.className = 'absolute right-2 top-2 grid h-7 w-7 place-items-center rounded-full bg-purple-600 text-xs text-white shadow'; mark.innerHTML = '<i class=\"fas fa-check\"><\\/i>'; preview.appendChild(mark); } const info = document.createElement('div'); info.className = 'p-3'; const name = document.createElement('p'); name.className = 'truncate text-xs font-bold text-gray-800'; name.textContent = item.name; const meta = document.createElement('p'); meta.className = 'mt-1 text-[10px] text-gray-500'; meta.textContent = mediaBytes(item.sizeBytes) + ' · ' + (item.scope === 'flows' ? 'Automação' : 'Conversa'); info.append(name, meta); card.append(preview, info); card.addEventListener('click', () => { selectedGalleryItem = item; document.getElementById('message-gallery-selection').textContent = item.name + ' · ' + mediaBytes(item.sizeBytes); document.getElementById('message-gallery-send').disabled = false; renderGallery(); }); return card; }\r\n\t\t\t\tfunction renderGallery() { const query = document.getElementById('message-gallery-search').value.trim().toLowerCase(); const visible = galleryItems.filter(item => (galleryKind === 'all' || item.kind === galleryKind) && (!query || item.name.toLowerCase().includes(query))); const grid = document.getElementById('message-gallery-grid'); grid.replaceChildren(); visible.forEach(item => grid.appendChild(galleryCard(item))); grid.classList.toggle('hidden', visible.length === 0); grid.classList.toggle('grid', visible.length > 0); document.getElementById('message-gallery-empty').classList.toggle('hidden', visible.length > 0); }\r\n\t\t\t\tasync function openGallery() { toggleMenu(false); clearError(document.getElementById('message-gallery-error')); setVisible(galleryModal, true); document.getElementById('message-gallery-loading').classList.remove('hidden'); document.getElementById('message-gallery-grid').classList.add('hidden'); document.getElementById('message-gallery-empty').classList.add('hidden'); try { const response = await fetch(galleryModal.dataset.listUrl, { credentials: 'same-origin', headers: { Accept: 'application/json' } }); const text = await response.text(); const payload = text ? JSON.parse(text) : {}; if (!response.ok) throw new Error(payload.error || 'Não foi possível carregar a galeria.'); galleryItems = (payload.data && payload.data.items) || []; renderGallery(); } catch (error) { showError(document.getElementById('message-gallery-error'), error.message); } finally { document.getElementById('message-gallery-loading').classList.add('hidden'); } }\r\n\t\t\t\tfunction closeGallery() { setVisible(galleryModal, false); selectedGalleryItem = null; document.getElementById('message-gallery-selection').textContent = 'Nenhuma mídia selecionada'; document.getElementById('message-gallery-caption').value = ''; document.getElementById('message-gallery-send').disabled = true; }\r\n\t\t\t\tdocument.getElementById('message-gallery-option').addEventListener('click', openGallery); document.getElementById('message-gallery-close').addEventListener('click', closeGallery); document.getElementById('message-gallery-cancel').addEventListener('click', closeGallery); galleryModal.addEventListener('click', event => { if (event.target === galleryModal) closeGallery(); });\r\n\t\t\t\tdocument.getElementById('message-gallery-search').addEventListener('input', renderGallery); document.querySelectorAll('[data-gallery-kind]').forEach(button => button.addEventListener('click', () => { galleryKind = button.dataset.galleryKind; document.querySelectorAll('[data-gallery-kind]').forEach(item => item.className = 'rounded-xl px-3 py-2 text-xs font-bold ' + (item === button ? 'bg-purple-600 text-white' : 'bg-stone-100 text-gray-600')); renderGallery(); }));\r\n\t\t\t\tdocument.getElementById('message-gallery-send').addEventListener('click', async function () { if (!selectedGalleryItem) return; const button = this; clearError(document.getElementById('message-gallery-error')); button.disabled = true; try { const response = await fetch(galleryModal.dataset.sendUrl, { method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/json', Accept: 'text/html' }, body: JSON.stringify({ scope: selectedGalleryItem.scope, file: selectedGalleryItem.name, caption: document.getElementById('message-gallery-caption').value.trim() }) }); appendMessage(await responseText(response)); closeGallery(); } catch (error) { showError(document.getElementById('message-gallery-error'), error.message); button.disabled = false; } });\r\n\t\t\t\tdocument.addEventListener('keydown', event => { if (event.key !== 'Escape') return; if (uploadModal.classList.contains('flex')) closeUpload(); else if (galleryModal.classList.contains('flex')) closeGallery(); else toggleMenu(false); });\r\n\t\t\t})();\r\n\t\t</script>")
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+		} else {
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 57, "<div class=\"p-4 border-t border-stone-200 bg-stone-50 text-center text-sm text-gray-500\">")
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+			if activeConversation.Status == repo.ConversationStatusClosed {
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 58, "Conversa fechada.")
+				if templ_7745c5c3_Err != nil {
+					return templ_7745c5c3_Err
+				}
+			} else if activeConversation.AgentID == nil && activeConversation.Status != repo.ConversationStatusRunning {
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 59, "Aceite a conversa para responder.")
+				if templ_7745c5c3_Err != nil {
+					return templ_7745c5c3_Err
+				}
+			} else if activeConversation.Status == repo.ConversationStatusRunning {
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 60, "Atendimento automático em andamento.")
+				if templ_7745c5c3_Err != nil {
+					return templ_7745c5c3_Err
+				}
+			} else {
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 61, "Conversa atribuída a outro agente.")
+				if templ_7745c5c3_Err != nil {
+					return templ_7745c5c3_Err
+				}
+			}
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 62, "</div>")
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+		}
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 63, "<script>\n           (function () {\n\t\t\t const document = window.conversationDocument;\n\t\t\t let readInFlight = false;\n\t\t\t const shouldAutoScrollAfterSend = quoted => !window.shouldAutoScrollAfterSend || window.shouldAutoScrollAfterSend(quoted);\n\t\t\t const keepsQuotePosition = () => window.getAutoScrollAfterSendMode?.() === 'except_quotes' && window.isReplyingToMessage?.();\n              function scrollChatToBottom(force) {\n                requestAnimationFrame(function () {\n                   var chat = document.getElementById('chatMessages');\n                   if (chat && (force || !keepsQuotePosition())) chat.scrollTop = chat.scrollHeight;\n                });\r\n             }\r\n\t\t\t async function markVisibleMessagesRead() {\r\n\t\t\t\tconst chat = document.getElementById('chatMessages');\r\n\t\t\t\tif (!chat || readInFlight || document.visibilityState !== 'visible') return;\r\n\t\t\t\treadInFlight = true;\r\n\t\t\t\ttry { await fetch(chat.dataset.readUrl, { method: 'POST', credentials: 'same-origin' }); } finally { readInFlight = false; }\r\n\t\t\t }\r\n             scrollChatToBottom(true);\n\t\t\t markVisibleMessagesRead();\r\n\t\t\t document.body.addEventListener('htmx:sseMessage', function (event) {\n\t\t\t\tif (event.detail.type === 'message-status' || event.detail.type === 'message-update') return;\n\t\t\t\tconst template=document.createElement('template');template.innerHTML=event.detail.data||'';const message=template.content.querySelector('[data-message-id]');\n\t\t\t\tif(message?.dataset.fromMe!=='true'||shouldAutoScrollAfterSend(Boolean(message.dataset.messageQuotedId)))scrollChatToBottom();markVisibleMessagesRead();\n\t\t\t });\n\t\t\t document.body.addEventListener('htmx:oobBeforeSwap', function (event) {\n\t\t\t\tconst current = event.detail.target;\n\t\t\t\tif (!current || !current.hasAttribute('data-delivery-status')) return;\n\t\t\t\tconst incoming = event.detail.fragment.querySelector('[data-delivery-status]');\n\t\t\t\tif (incoming && Number(incoming.dataset.deliveryStatus) < Number(current.dataset.deliveryStatus)) event.detail.shouldSwap = false;\n\t\t\t });\n\t\t\t document.addEventListener('visibilitychange', markVisibleMessagesRead);\r\n              document.body.addEventListener('htmx:afterSwap', function (e) {\n                 if (e.detail.target && e.detail.target.id === 'chatMessages') {\n\t\t\t\t\tif(!e.detail.requestConfig)return; // SSE scroll decisions use the message's own quote metadata.\n                    const sentByComposer = e.detail.requestConfig && e.detail.requestConfig.elt && e.detail.requestConfig.elt.id === 'message-composer';\n\t\t\t\t\tconst source=e.detail.requestConfig?.elt;const quoted=Boolean(e.detail.requestConfig?.parameters?.quotedId)||source?.dataset.sentWithQuote==='true';\n                    if (!sentByComposer || shouldAutoScrollAfterSend(quoted)) scrollChatToBottom();\n                 }\n              });\n          })();\r\n       </script><script>\n           (function () {\n           const document = window.conversationDocument;\n           window._audioCurrentlyPlaying = null;\n\r\n           function initAudioPlayer(player) {\r\n               if (player.dataset.audioInitialized === 'true') return;\r\n               const audio = player.querySelector('audio');\r\n               const playBtn = player.querySelector('[data-play-btn]');\r\n               const playIcon = playBtn && playBtn.querySelector('i');\r\n                const progressBar = player.querySelector('[data-progress-bar]');\r\n                const progressTrack = player.querySelector('[data-progress-track]');\r\n                const timeDisplay = player.querySelector('[data-time-display]');\r\n                 const volumeControl = player.querySelector('[data-volume-control]');\n\t\t\t\t const volumeIcon = player.querySelector('[data-volume-icon]');\n                const speedControl = player.querySelector('[data-speed-control]');\r\n                if (!audio || !playBtn || !playIcon || !progressBar || !progressTrack || !timeDisplay || !volumeControl || !speedControl) return;\r\n               player.dataset.audioInitialized = 'true';\r\n\r\n               function formatTime(secs) {\r\n                   if (isNaN(secs) || secs === Infinity) return '0:00';\r\n                   const m = Math.floor(secs / 60);\r\n                   const s = Math.floor(secs % 60).toString().padStart(2, '0');\r\n                   return `${m}:${s}`;\r\n               }\r\n\r\n               function setPlaying(playing) {\r\n                   playIcon.classList.toggle('fa-play', !playing);\r\n                   playIcon.classList.toggle('fa-pause', playing);\r\n               }\r\n\r\n               audio.addEventListener('loadedmetadata', () => {\r\n                   timeDisplay.textContent = formatTime(audio.duration);\r\n               });\r\n                if (audio.readyState >= 1) timeDisplay.textContent = formatTime(audio.duration);\r\n\r\n                const playbackRates = [1, 1.5, 2];\r\n                function updateSpeedControl() {\r\n                    speedControl.textContent = audio.playbackRate + 'x';\r\n                }\r\n\t\t\t\t function updateVolumeControl() { const value = Number(volumeControl.value); audio.volume = value; volumeControl.style.setProperty('--audio-progress', Math.round(value * 100) + '%'); if (volumeIcon) volumeIcon.className = 'fas ' + (value === 0 ? 'fa-volume-xmark' : value < 0.5 ? 'fa-volume-low' : 'fa-volume-high') + ' w-3 text-center text-[11px] ' + (volumeIcon.classList.contains('text-white') ? 'text-white' : 'text-purple-700'); }\n\t\t\t\t updateVolumeControl();\n                 updateSpeedControl();\n\n                 volumeControl.addEventListener('input', () => {\n\t\t\t\t\tupdateVolumeControl();\n                 });\n\r\n                speedControl.addEventListener('click', () => {\r\n                    const current = playbackRates.indexOf(audio.playbackRate);\r\n                    audio.playbackRate = playbackRates[(current + 1) % playbackRates.length];\r\n                    updateSpeedControl();\r\n                });\r\n\r\n               playBtn.addEventListener('click', () => {\r\n                   if (audio.paused) {\r\n                       audio.play().catch(err => {\r\n                           setPlaying(false);\r\n                           if (window._audioCurrentlyPlaying === audio) window._audioCurrentlyPlaying = null;\r\n                           if (err.name !== 'AbortError') console.warn('Audio play error:', err);\r\n                       });\r\n                   } else {\r\n                       audio.pause();\r\n                   }\r\n               });\r\n\r\n               audio.addEventListener('play', () => {\r\n                   const previous = window._audioCurrentlyPlaying;\r\n                   if (previous && previous !== audio) previous.pause();\r\n                   window._audioCurrentlyPlaying = audio;\r\n                   setPlaying(true);\r\n               });\r\n\r\n               audio.addEventListener('pause', () => {\r\n                   setPlaying(false);\r\n                   if (window._audioCurrentlyPlaying === audio) window._audioCurrentlyPlaying = null;\r\n               });\r\n\r\n               audio.addEventListener('timeupdate', () => {\r\n                   if (!audio.duration) return;\r\n                   progressBar.style.width = (audio.currentTime / audio.duration * 100) + '%';\r\n                   timeDisplay.textContent = formatTime(audio.currentTime);\r\n               });\r\n\r\n               audio.addEventListener('ended', () => {\r\n                   setPlaying(false);\r\n                   progressBar.style.width = '0%';\r\n                   timeDisplay.textContent = formatTime(audio.duration);\r\n                   if (window._audioCurrentlyPlaying === audio) window._audioCurrentlyPlaying = null;\r\n               });\r\n\r\n               progressTrack.addEventListener('click', (e) => {\r\n                   if (!audio.duration) return;\r\n                   const rect = progressTrack.getBoundingClientRect();\r\n                   audio.currentTime = ((e.clientX - rect.left) / rect.width) * audio.duration;\r\n               });\r\n           }\r\n\r\n           function initAudioPlayers(root) {\r\n               if (root.matches && root.matches('[data-audio-player]')) initAudioPlayer(root);\r\n               if (root.querySelectorAll) root.querySelectorAll('[data-audio-player]').forEach(initAudioPlayer);\r\n           }\r\n\r\n           function createMessageDateDivider(key, label) {\r\n               const divider = document.createElement('div');\r\n               divider.dataset.messageDateDivider = key;\r\n               divider.className = 'flex items-center gap-3 py-2';\r\n               divider.setAttribute('role', 'separator');\r\n               divider.setAttribute('aria-label', label);\r\n               const left = document.createElement('span');\r\n               left.className = 'h-px flex-1 bg-stone-300/80';\r\n               const text = document.createElement('span');\r\n               text.className = 'rounded-full border border-stone-200 bg-white/90 px-3 py-1 text-[10px] font-bold uppercase tracking-[.12em] text-gray-500 shadow-sm';\r\n               text.textContent = label;\r\n               const right = left.cloneNode();\r\n               divider.append(left, text, right);\r\n               return divider;\r\n           }\r\n\r\n           function initMessageDateDividers(root) {\r\n               const messages = [];\r\n               if (root.matches && root.matches('[data-message-date]')) messages.push(root);\r\n               if (root.querySelectorAll) messages.push(...root.querySelectorAll('[data-message-date]'));\r\n               messages.forEach(message => {\r\n                   const previous = message.previousElementSibling;\r\n                   if (previous && (previous.dataset.messageDate === message.dataset.messageDate || previous.dataset.messageDateDivider === message.dataset.messageDate)) return;\r\n                   message.before(createMessageDateDivider(message.dataset.messageDate, message.dataset.messageDateLabel));\r\n               });\r\n           }\r\n\r\n           initAudioPlayers(document);\r\n\t\t   initMessageDateDividers(document);\r\n           window.initAudioPlayer = initAudioPlayer;\n           const chatMessages = document.getElementById('chatMessages');\n           const messageObserver = new MutationObserver(records => records.forEach(record => record.addedNodes.forEach(node => {\n\t\t\t   if (node.nodeType !== Node.ELEMENT_NODE) return;\r\n\t\t\t   initAudioPlayers(node);\r\n\t\t\t   initMessageDateDividers(node);\r\n           })));\n           if (chatMessages) messageObserver.observe(chatMessages, { childList: true, subtree: true });\n           window.conversationAbort.signal.addEventListener('abort', () => messageObserver.disconnect(), { once: true });\n           })();\n       </script></div><!-- Contact Details Sidebar --><div id=\"contactPanel\" class=\"fixed inset-x-2 bottom-2 top-16 z-40 hidden flex flex-col overflow-hidden rounded-2xl bg-stone-50 shadow-2xl lg:static lg:w-80 lg:shrink-0 lg:shadow-sm\"><!-- Header --><div class=\"p-4 border-b border-stone-200 flex items-center justify-between\"><h2 class=\"text-lg font-medium text-gray-800\">Detalhes do Contato</h2><button class=\"p-2 hover:bg-stone-200 rounded-xl transition-colors\" onclick=\"document.getElementById('contactPanel').classList.toggle('hidden')\"><i class=\"fas fa-times text-gray-600\"></i></button></div><!-- Content --><div class=\"flex-1 overflow-y-auto p-6 space-y-6\"><!-- Profile Section --><div class=\"flex flex-col items-center text-center\"><img src=\"")
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		var templ_7745c5c3_Var38 string
+		templ_7745c5c3_Var38, templ_7745c5c3_Err = templ.ResolveAttributeValue(fmt.Sprintf("/management/api/contacts/%d/avatar", activeConversation.Contact.Id))
+		if templ_7745c5c3_Err != nil {
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/message-single.templ`, Line: 918, Col: 105}
+		}
+		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var38)
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 64, "\" alt=\"Foto do contato\" class=\"w-20 h-20 rounded-full mb-4 shadow-sm\"><h3 class=\"text-lg font-medium text-gray-900\">")
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		var templ_7745c5c3_Var39 string
+		templ_7745c5c3_Var39, templ_7745c5c3_Err = templ.JoinStringErrs(activeConversation.Contact.Name)
+		if templ_7745c5c3_Err != nil {
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/message-single.templ`, Line: 919, Col: 84}
+		}
+		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var39))
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 65, "</h3><p class=\"text-sm text-gray-500\">")
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		var templ_7745c5c3_Var40 string
+		templ_7745c5c3_Var40, templ_7745c5c3_Err = templ.JoinStringErrs(activeConversation.Contact.Number)
+		if templ_7745c5c3_Err != nil {
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/message-single.templ`, Line: 920, Col: 73}
+		}
+		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var40))
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 66, "</p><span class=\"mt-2 inline-block px-3 py-1 bg-purple-100 text-purple-700 text-xs rounded-full\">")
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		var templ_7745c5c3_Var41 string
+		templ_7745c5c3_Var41, templ_7745c5c3_Err = templ.JoinStringErrs(activeConversation.Status)
+		if templ_7745c5c3_Err != nil {
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/message-single.templ`, Line: 921, Col: 125}
+		}
+		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var41))
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 67, "</span></div><!-- Divider --><div class=\"h-px bg-stone-200\"></div><!-- Contact Info --><div class=\"space-y-4\"><div><p class=\"text-xs font-medium text-gray-500 uppercase mb-2\">Telefone</p><div class=\"flex items-center gap-3 p-3 bg-white rounded-xl hover:bg-stone-100 transition-colors cursor-pointer\"><i class=\"fas fa-phone text-purple-600\"></i> <span class=\"text-sm text-gray-800\">")
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		var templ_7745c5c3_Var42 string
+		templ_7745c5c3_Var42, templ_7745c5c3_Err = templ.JoinStringErrs(activeConversation.Contact.Number)
+		if templ_7745c5c3_Err != nil {
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/message-single.templ`, Line: 931, Col: 76}
+		}
+		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var42))
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 68, "</span></div></div><div><p class=\"text-xs font-medium text-gray-500 uppercase mb-2\">Email</p><div class=\"flex items-center gap-3 p-3 bg-white rounded-xl hover:bg-stone-100 transition-colors cursor-pointer\"><i class=\"fas fa-envelope text-purple-600\"></i> <span class=\"text-sm text-gray-800\">")
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		var templ_7745c5c3_Var43 string
+		templ_7745c5c3_Var43, templ_7745c5c3_Err = templ.JoinStringErrs(activeConversation.Contact.Email)
+		if templ_7745c5c3_Err != nil {
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/message-single.templ`, Line: 938, Col: 75}
+		}
+		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var43))
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 69, "</span></div></div></div><!-- Divider --><div class=\"h-px bg-stone-200\"></div><!-- Additional Info --><div class=\"space-y-3\"><div class=\"flex items-center justify-between p-3 bg-white rounded-xl\"><div class=\"flex items-center gap-3\"><i class=\"fas fa-calendar text-purple-600 w-5\"></i><div><p class=\"text-xs text-gray-500\">Atendimento</p><p class=\"text-sm font-medium text-gray-900\">")
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		var templ_7745c5c3_Var44 string
+		templ_7745c5c3_Var44, templ_7745c5c3_Err = templ.JoinStringErrs(activeConversation.Status)
+		if templ_7745c5c3_Err != nil {
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/message-single.templ`, Line: 951, Col: 80}
+		}
+		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var44))
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 70, "</p></div></div></div><div class=\"flex items-center justify-between p-3 bg-white rounded-xl\"><div class=\"flex items-center gap-3\"><i class=\"fas fa-messages text-purple-600 w-5\"></i><div><p class=\"text-xs text-gray-500\">Mensagens</p><p class=\"text-sm font-medium text-gray-900\">")
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		var templ_7745c5c3_Var45 string
+		templ_7745c5c3_Var45, templ_7745c5c3_Err = templ.JoinStringErrs(fmt.Sprintf("%d", len(messages)))
+		if templ_7745c5c3_Err != nil {
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/message-single.templ`, Line: 960, Col: 87}
+		}
+		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var45))
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 71, "</p></div></div></div></div><!-- Divider --><div class=\"h-px bg-stone-200\"></div><div><p class=\"text-xs font-medium text-gray-500 uppercase mb-3\">Histórico interno</p><div class=\"space-y-2\">")
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		if len(events) == 0 {
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 72, "<p class=\"text-xs text-gray-400\">Nenhum registro interno.</p>")
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+		}
+		for _, event := range events {
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 73, "<div class=\"rounded-xl border border-stone-200 bg-white p-3\"><div class=\"flex items-center justify-between gap-2\"><span class=\"text-[10px] font-semibold uppercase text-purple-600\">")
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+			var templ_7745c5c3_Var46 string
+			templ_7745c5c3_Var46, templ_7745c5c3_Err = templ.JoinStringErrs(event.EventType)
+			if templ_7745c5c3_Err != nil {
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/message-single.templ`, Line: 976, Col: 91}
+			}
+			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var46))
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 74, "</span> <time class=\"text-[10px] text-gray-400\">")
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+			var templ_7745c5c3_Var47 string
+			templ_7745c5c3_Var47, templ_7745c5c3_Err = templ.JoinStringErrs(event.CreatedAt.Format("02/01/2006 15:04"))
+			if templ_7745c5c3_Err != nil {
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/message-single.templ`, Line: 977, Col: 92}
+			}
+			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var47))
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 75, "</time></div><p class=\"mt-1 text-xs leading-relaxed text-gray-700 whitespace-pre-wrap\">")
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+			var templ_7745c5c3_Var48 string
+			templ_7745c5c3_Var48, templ_7745c5c3_Err = templ.JoinStringErrs(event.Content)
+			if templ_7745c5c3_Err != nil {
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/message-single.templ`, Line: 979, Col: 94}
+			}
+			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var48))
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 76, "</p></div>")
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+		}
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 77, "</div></div><div class=\"h-px bg-stone-200\"></div><!-- Action Buttons --><div class=\"space-y-2\">")
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		if agent.IsAdmin() && !activeConversation.Contact.IsGroup {
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 78, "<button id=\"conversation-contact-edit-button\" type=\"button\" class=\"w-full px-4 py-3 bg-purple-100 text-purple-700 rounded-xl font-medium hover:bg-purple-200 transition-colors flex items-center justify-center gap-2\"><i class=\"fas fa-pen\"></i>Editar contato</button> ")
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+		}
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 79, "<button class=\"w-full px-4 py-3 bg-purple-100 text-purple-700 rounded-xl font-medium hover:bg-purple-200 transition-colors flex items-center justify-center gap-2\"><i class=\"fas fa-video\"></i> Chamada de Vídeo</button> <button class=\"w-full px-4 py-3 bg-purple-100 text-purple-700 rounded-xl font-medium hover:bg-purple-200 transition-colors flex items-center justify-center gap-2\"><i class=\"fas fa-phone\"></i> Chamada de Áudio</button> <button class=\"w-full px-4 py-3 bg-red-100 text-red-700 rounded-xl font-medium hover:bg-red-200 transition-colors flex items-center justify-center gap-2\"><i class=\"fas fa-trash\"></i> Bloquear Contato</button></div></div></div>")
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		if agent.IsAdmin() && !activeConversation.Contact.IsGroup {
+			templ_7745c5c3_Err = ContactAPIRuntime().Render(ctx, templ_7745c5c3_Buffer)
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 80, " <script>\n\t\t(function () {\n\t\t\tconst document = window.conversationDocument;\n\t\t\tconst modal = document.getElementById('conversation-contact-edit-modal');\n\t\t\tconst openButton = document.getElementById('conversation-contact-edit-button');\n\t\t\tconst closeButton = document.getElementById('conversation-contact-edit-close');\n\t\t\tconst cancelButton = document.getElementById('conversation-contact-edit-cancel');\n\t\t\tconst form = document.getElementById('conversation-contact-edit-form');\n\t\t\tconst errorBox = document.getElementById('conversation-contact-edit-error');\n\t\t\tif (!modal || !openButton || !form) return;\n\t\t\tfunction close() { modal.classList.add('hidden'); modal.classList.remove('flex'); document.body.classList.remove('overflow-hidden'); }\n\t\t\tfunction contactFields() { return { name: document.getElementById('conversation-contact-edit-name').value, company: document.getElementById('conversation-contact-edit-company').value, email: document.getElementById('conversation-contact-edit-email').value, number: document.getElementById('conversation-contact-edit-number').value }; }\n\t\t\topenButton.onclick = () => { form.dataset.initial = JSON.stringify(contactFields()); errorBox.classList.add('hidden'); modal.classList.remove('hidden'); modal.classList.add('flex'); document.body.classList.add('overflow-hidden'); document.getElementById('conversation-contact-edit-name').focus(); };\n\t\t\tcloseButton.onclick = close; cancelButton.onclick = close;\n\t\t\tmodal.onclick = event => { if (event.target === modal) close(); };\n\t\t\tform.onsubmit = async event => { event.preventDefault(); const contact = contactFields(); if (form.dataset.initial === JSON.stringify(contact)) { close(); return; } const saveButton = document.getElementById('conversation-contact-edit-save'); saveButton.disabled = true; errorBox.classList.add('hidden'); try { await window.contactRequest('PUT', '/management/api/contacts/' + document.getElementById('conversation-contact-edit-id').value, contact, 'Não foi possível atualizar o contato.'); window.location.reload(); } catch (error) { window.showContactRequestError(errorBox, error); } finally { saveButton.disabled = false; } };\n\t\t})();\n\t</script>")
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+		}
+		templ_7745c5c3_Err = ConversationMessageEditor(activeConversation).Render(ctx, templ_7745c5c3_Buffer)
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 81, "</div>")
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		return nil
+	})
+}
+
+func Messages(conversations []repo.Conversation, tab, scope string, counts repo.ConversationScopeCounts) templ.Component {
+	return templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
+		templ_7745c5c3_W, ctx := templ_7745c5c3_Input.Writer, templ_7745c5c3_Input.Context
+		if templ_7745c5c3_CtxErr := ctx.Err(); templ_7745c5c3_CtxErr != nil {
+			return templ_7745c5c3_CtxErr
+		}
+		templ_7745c5c3_Buffer, templ_7745c5c3_IsBuffer := templruntime.GetBuffer(templ_7745c5c3_W)
+		if !templ_7745c5c3_IsBuffer {
+			defer func() {
+				templ_7745c5c3_BufErr := templruntime.ReleaseBuffer(templ_7745c5c3_Buffer)
+				if templ_7745c5c3_Err == nil {
+					templ_7745c5c3_Err = templ_7745c5c3_BufErr
+				}
+			}()
+		}
+		ctx = templ.InitializeContext(ctx)
+		templ_7745c5c3_Var49 := templ.GetChildren(ctx)
+		if templ_7745c5c3_Var49 == nil {
+			templ_7745c5c3_Var49 = templ.NopComponent
+		}
+		ctx = templ.ClearChildren(ctx)
+		templ_7745c5c3_Var50 := templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
 			templ_7745c5c3_W, ctx := templ_7745c5c3_Input.Writer, templ_7745c5c3_Input.Context
 			templ_7745c5c3_Buffer, templ_7745c5c3_IsBuffer := templruntime.GetBuffer(templ_7745c5c3_W)
 			if !templ_7745c5c3_IsBuffer {
@@ -410,13 +1040,42 @@ func Messages(conversations []repo.Conversation, tab string) templ.Component {
 				}()
 			}
 			ctx = templ.InitializeContext(ctx)
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 34, "<!-- Main Chat Area - Empty State --> <div class=\"flex-1 bg-stone-50 rounded-2xl shadow-sm flex flex-col items-center justify-center overflow-hidden\"><!-- Empty State Content --><div class=\"text-center space-y-6\"><!-- Icon --><div class=\"inline-block p-6 rounded-3xl\" style=\"background: rgba(97, 35, 204, 0.1);\"><i class=\"fas fa-inbox text-6xl\" style=\"color: #6123cc;\"></i></div><!-- Text --><div><h2 class=\"text-2xl font-bold text-gray-900 mb-2\">Nenhuma conversa selecionada</h2><p class=\"text-gray-500 max-w-md\">Selecione uma conversa na lista ao lado para começar a visualizar mensagens e responder aos seus contatos.</p></div><!-- Quick Actions --><div class=\"flex items-center gap-3 justify-center\"><button class=\"px-6 py-3 rounded-xl font-medium text-white shadow-sm hover:shadow-md transition-all flex items-center gap-2\" style=\"background: linear-gradient(to right, #3b82f6, #6123cc);\"><i class=\"fas fa-pen-square\"></i> Nova Conversa</button> <button class=\"px-6 py-3 rounded-xl font-medium border-2 border-stone-200 text-gray-700 hover:bg-stone-100 transition-colors flex items-center gap-2\"><i class=\"fas fa-search\"></i> Buscar</button></div><!-- Tips --><div class=\"mt-8 bg-white rounded-2xl p-6 max-w-md text-left border border-stone-200\"><h3 class=\"font-medium text-gray-900 mb-3 flex items-center gap-2\"><i class=\"fas fa-lightbulb text-amber-500\"></i> Dica</h3><p class=\"text-sm text-gray-600\">Você pode usar os filtros de departamento e status para encontrar conversas específicas com mais rapidez.</p></div></div></div>")
+			templ_7745c5c3_Err = EmptyConversationPanel().Render(ctx, templ_7745c5c3_Buffer)
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
 			return nil
 		})
-		templ_7745c5c3_Err = messagesDefault(conversations, tab).Render(templ.WithChildren(ctx, templ_7745c5c3_Var20), templ_7745c5c3_Buffer)
+		templ_7745c5c3_Err = messagesDefault(conversations, tab, scope, counts).Render(templ.WithChildren(ctx, templ_7745c5c3_Var50), templ_7745c5c3_Buffer)
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		return nil
+	})
+}
+
+func EmptyConversationPanel() templ.Component {
+	return templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
+		templ_7745c5c3_W, ctx := templ_7745c5c3_Input.Writer, templ_7745c5c3_Input.Context
+		if templ_7745c5c3_CtxErr := ctx.Err(); templ_7745c5c3_CtxErr != nil {
+			return templ_7745c5c3_CtxErr
+		}
+		templ_7745c5c3_Buffer, templ_7745c5c3_IsBuffer := templruntime.GetBuffer(templ_7745c5c3_W)
+		if !templ_7745c5c3_IsBuffer {
+			defer func() {
+				templ_7745c5c3_BufErr := templruntime.ReleaseBuffer(templ_7745c5c3_Buffer)
+				if templ_7745c5c3_Err == nil {
+					templ_7745c5c3_Err = templ_7745c5c3_BufErr
+				}
+			}()
+		}
+		ctx = templ.InitializeContext(ctx)
+		templ_7745c5c3_Var51 := templ.GetChildren(ctx)
+		if templ_7745c5c3_Var51 == nil {
+			templ_7745c5c3_Var51 = templ.NopComponent
+		}
+		ctx = templ.ClearChildren(ctx)
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 82, "<div id=\"conversation-panel\" hx-history=\"false\" class=\"contents\"><!-- Main Chat Area - Empty State --><div class=\"hidden min-w-0 flex-1 flex-col items-center justify-center overflow-hidden rounded-2xl bg-stone-50 shadow-sm lg:flex\"><!-- Empty State Content --><div class=\"text-center space-y-6\"><!-- Icon --><div class=\"inline-block p-6 rounded-3xl\" style=\"background: rgba(97, 35, 204, 0.1);\"><i class=\"fas fa-inbox text-6xl\" style=\"color: #6123cc;\"></i></div><!-- Text --><div><h2 class=\"text-2xl font-bold text-gray-900 mb-2\">Nenhuma conversa selecionada</h2><p class=\"text-gray-500 max-w-md\">Selecione uma conversa na lista ao lado para começar a visualizar mensagens e responder aos seus contatos.</p></div><!-- Quick Actions --><div class=\"flex items-center gap-3 justify-center\"><button type=\"button\" onclick=\"window.openConversationPicker && window.openConversationPicker({})\" class=\"px-6 py-3 rounded-xl font-medium text-white shadow-sm hover:shadow-md transition-all flex items-center gap-2\" style=\"background: linear-gradient(to right, #3b82f6, #6123cc);\"><i class=\"fas fa-pen-square\"></i> Nova Conversa</button> <button type=\"button\" onclick=\"window.openConversationPicker && window.openConversationPicker({ query: document.getElementById('contact-global-search').value.trim() })\" class=\"px-6 py-3 rounded-xl font-medium border-2 border-stone-200 text-gray-700 hover:bg-stone-100 transition-colors flex items-center gap-2\"><i class=\"fas fa-search\"></i> Buscar</button></div><!-- Tips --><div class=\"mt-8 bg-white rounded-2xl p-6 max-w-md text-left border border-stone-200\"><h3 class=\"font-medium text-gray-900 mb-3 flex items-center gap-2\"><i class=\"fas fa-lightbulb text-amber-500\"></i> Dica</h3><p class=\"text-sm text-gray-600\">Você pode usar os filtros de departamento e status para encontrar conversas específicas com mais rapidez.</p></div></div></div></div>")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}

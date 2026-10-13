@@ -1,0 +1,6 @@
+extends:
+  - recommended
+rules:
+  no-path-trailing-slash: off
+  no-ambiguous-paths: off
+  operation-4xx-response: off

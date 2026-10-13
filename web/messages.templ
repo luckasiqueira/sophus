@@ -3,13 +3,21 @@ package web
 import "sophus/internal/repo"
 import "fmt"
 import "strings"
+import "time"
 
 func conversationPreview(conversation repo.Conversation) string {
+	preview:=conversationPreviewContent(conversation)
+	if conversation.LastMessageFromMe{return "Agente: "+preview};return preview
+}
+
+func conversationPreviewContent(conversation repo.Conversation) string {
     if text := strings.TrimSpace(conversation.LastContactMessage); text != "" {
         return text
     }
-    switch conversation.LastContactMediaType {
-    case "image":
+	switch conversation.LastContactMediaType {
+	case "view_once":
+		return "Visualização única"
+	case "image":
         return "Imagem"
     case "video":
         return "Vídeo"
@@ -17,113 +25,242 @@ func conversationPreview(conversation repo.Conversation) string {
         return "Áudio"
     case "document":
         return "Documento"
+    case "sticker":
+        return "Figurinha"
+    case "list":
+        return "Menu em lista"
+    case "buttons":
+        return "Menu com botões"
+    case "poll":
+        return "Enquete"
+    case "location":
+        return "Localização"
+    case "contact":
+        return "Contato recebido"
+    case "interactive":
+        return "Resposta a menu"
+    case "unknown":
+        return "Mensagem recebida · Conteúdo indisponível"
     default:
         return "Nenhuma mensagem recebida"
     }
 }
 
-templ messagesDefault(conversations []repo.Conversation, tab string) {
+func conversationTimeLabel(value time.Time, timezone string, now time.Time) string {
+    if value.IsZero() {
+        return ""
+    }
+	location := now.Location()
+	if configured, err := time.LoadLocation(timezone); err == nil {
+		location = configured
+	}
+	localValue := value.In(location)
+	localNow := now.In(location)
+    if localValue.Year() == localNow.Year() && localValue.YearDay() == localNow.YearDay() {
+        return localValue.Format("15:04")
+    }
+	yesterday := localNow.AddDate(0, 0, -1)
+    if localValue.Year() == yesterday.Year() && localValue.YearDay() == yesterday.YearDay() {
+        return "Ontem"
+    }
+    if localValue.Year() == localNow.Year() {
+        return localValue.Format("02/01")
+    }
+    return localValue.Format("02/01/06")
+}
+
+func conversationPreviewIcon(conversation repo.Conversation) string {
+	switch conversation.LastContactMediaType {
+	case "view_once":
+		return "fa-eye-slash"
+	case "image":
+        return "fa-image"
+    case "video":
+        return "fa-video"
+    case "audio":
+        return "fa-microphone"
+    case "document":
+        return "fa-file-lines"
+    case "sticker":
+        return "fa-face-smile"
+    case "list", "buttons":
+        return "fa-list"
+    case "poll":
+        return "fa-square-poll-vertical"
+    case "location":
+        return "fa-location-dot"
+    case "contact":
+        return "fa-address-card"
+    default:
+        return "fa-comment"
+    }
+}
+
+func selectedConversation(selected []string) string {
+    if len(selected) > 0 {
+        return selected[0]
+    }
+    return ""
+}
+
+func conversationAriaCurrent(conversation repo.Conversation, selected []string) string {
+    if selectedConversation(selected) == conversation.URL.String() {
+        return "page"
+    }
+    return "false"
+}
+
+func conversationDepartmentColor(conversation repo.Conversation) string {
+    color := strings.TrimSpace(conversation.DepartmentColor)
+    if len(color) == 7 && color[0] == '#' {
+        return color
+    }
+    return "#E7E5E4"
+}
+
+func conversationDepartmentStyle(conversation repo.Conversation) string {
+    return fmt.Sprintf("border-color: %s", conversationDepartmentColor(conversation))
+}
+
+func conversationDepartmentTitle(conversation repo.Conversation) string {
+    if conversation.DepartmentName == "" {
+        return "Sem setor"
+    }
+    return "Setor: " + conversation.DepartmentName
+}
+
+func unreadCountLabel(count int) string {
+    if count > 99 {
+        return "99+"
+    }
+    return fmt.Sprintf("%d", count)
+}
+
+templ messagesDefault(conversations []repo.Conversation, tab, scope string, counts repo.ConversationScopeCounts, selected ...string) {
 @base("messages") {
-    <div class="w-96 bg-stone-50 rounded-2xl shadow-sm flex flex-col overflow-hidden">
-        <div class="p-4 border-b border-stone-200">
-            <h1 class="text-xl font-medium text-gray-800">Conversas</h1>
+	<div id="conversation-navigation" class={ "flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden rounded-2xl bg-stone-50 shadow-sm lg:w-80 lg:flex-none", templ.KV("hidden lg:flex", selectedConversation(selected) != "") }>
+		<div class="px-3.5 py-3 border-b border-stone-200 flex items-center justify-between gap-3">
+			<div><h1 class="text-lg font-bold tracking-tight text-gray-900">Conversas</h1><p class="text-[10px] text-gray-400">Atendimento em tempo real</p></div><button id="new-conversation-sidebar" type="button" class="grid h-9 w-9 place-items-center rounded-xl bg-purple-600 text-white shadow-sm transition hover:bg-purple-700 focus:outline-none focus:ring-2 focus:ring-purple-300" title="Nova conversa" aria-label="Nova conversa"><i class="fas fa-plus"></i></button>
         </div>
-        <div class="p-4">
-            <div class="relative">
-                <i class="fas fa-search text-gray-400 absolute left-3 top-1/2 -translate-y-1/2"></i>
-                <input type="text" placeholder="Buscar" class="w-full pl-10 pr-4 py-2.5 bg-stone-100 border border-stone-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-purple-400 transition-all"/>
+        <div class="space-y-2 px-3.5 py-3">
+			<div class="relative">
+				<i class="fas fa-search text-xs text-gray-400 absolute left-3 top-1/2 -translate-y-1/2"></i>
+				<input id="contact-global-search" type="search" placeholder="Buscar contatos" class="w-full pl-9 pr-11 py-2 bg-stone-100 border border-stone-200 rounded-xl text-xs focus:outline-none focus:ring-2 focus:ring-purple-400 transition-all"/>
+				<button id="contact-global-search-button" type="button" class="absolute right-1.5 top-1/2 grid h-8 w-8 -translate-y-1/2 place-items-center rounded-lg text-purple-600 hover:bg-purple-100" aria-label="Pesquisar contatos"><i class="fas fa-arrow-right text-xs"></i></button>
             </div>
+			<form id="conversation-protocol-search" method="get" action="/messages/protocol" hx-get="/messages/protocol" hx-target="#conversation-panel" hx-swap="outerHTML" hx-disabled-elt="find button" hx-on::response-error="var message='Não foi possível pesquisar o protocolo.';try{message=JSON.parse(event.detail.xhr.responseText).error||message}catch(e){};window.showAppNotice&&window.showAppNotice('Busca por protocolo',message,true);" class="relative">
+				<label for="conversation-protocol-input" class="sr-only">Pesquisar conversa por protocolo</label>
+				<span aria-hidden="true" class="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-sm font-semibold text-gray-400">#</span>
+				<input id="conversation-protocol-input" name="protocol" type="text" inputmode="numeric" autocomplete="off" maxlength="21" required placeholder="Buscar por protocolo" class="w-full rounded-xl border border-stone-200 bg-white py-2 pl-8 pr-11 text-xs outline-none focus:border-purple-400 focus:ring-2 focus:ring-purple-100"/>
+				<button type="submit" class="absolute right-1.5 top-1/2 grid h-8 w-8 -translate-y-1/2 place-items-center rounded-lg text-purple-600 hover:bg-purple-100 disabled:opacity-40" aria-label="Pesquisar protocolo"><i class="fas fa-arrow-right text-xs"></i></button>
+			</form>
         </div>
-        <div class="px-4 py-3 flex gap-2">
-            <a href="/messages?tab=active" class={ "flex-1 px-3 py-2 rounded-full text-sm font-medium text-center transition-colors", templ.KV("bg-purple-100 text-purple-700", tab == "active"), templ.KV("bg-stone-100 text-gray-600", tab != "active") }>Ativas</a>
-            <a href="/messages?tab=pending" class={ "flex-1 px-3 py-2 rounded-full text-sm font-medium text-center transition-colors", templ.KV("bg-purple-100 text-purple-700", tab == "pending"), templ.KV("bg-stone-100 text-gray-600", tab != "pending") }>Pendentes</a>
-            <a href="/messages?tab=closed" class={ "flex-1 px-3 py-2 rounded-full text-sm font-medium text-center transition-colors", templ.KV("bg-purple-100 text-purple-700", tab == "closed"), templ.KV("bg-stone-100 text-gray-600", tab != "closed") }>Fechadas</a>
-        </div>
-        @conversationList(conversations, tab)
-        <script>
-            (function () {
-                if (window.conversationListEvents) window.conversationListEvents.close();
-                const events = new EventSource('/sse/conversations');
-                let refreshTimer;
-                events.addEventListener('conversation', function () {
-                    clearTimeout(refreshTimer);
-                    refreshTimer = setTimeout(function () {
-                        const list = document.getElementById('conversation-list');
-                        if (list) htmx.ajax('GET', list.dataset.refreshUrl, { target: '#conversation-list', swap: 'outerHTML' });
-                    }, 100);
-                });
-                window.conversationListEvents = events;
-            })();
-        </script>
+		@conversationSidebar(conversations, tab, scope, counts, selected...)
+		<script>
+			(function () {
+				function openContactSearch() { if (window.openConversationPicker) window.openConversationPicker({ query: document.getElementById('contact-global-search').value.trim() }); }
+				document.getElementById('new-conversation-sidebar').onclick = () => window.openConversationPicker && window.openConversationPicker({});
+				document.getElementById('contact-global-search-button').onclick = openContactSearch;
+				document.getElementById('contact-global-search').addEventListener('keydown', event => { if (event.key === 'Enter') { event.preventDefault(); openContactSearch(); } });
+				document.getElementById('conversation-navigation').addEventListener('click', async event => { const button = event.target.closest('[data-conversation-ignore-url]'); if (!button || button.disabled) return; event.preventDefault(); const confirmed = await window.confirmAction('Encerrar conversa', 'Esta conversa será encerrada e removida da fila de atendimentos pendentes.', { eyebrow: 'Encerrar atendimento', label: 'Encerrar conversa', icon: 'fa-comment-slash' }); if (!confirmed) return; button.disabled = true; try { const response = await fetch(button.dataset.conversationIgnoreUrl, { method: 'POST', credentials: 'same-origin', headers: { Accept: 'text/html' } }); if (!response.ok) throw new Error(); window.refreshConversationSidebar?.(); } catch (_) { window.showAppNotice?.('Não foi possível encerrar', 'Tente novamente em instantes.', true); } finally { if (button.isConnected) button.disabled = false; } });
+			})();
+		</script>
     </div>
-    { children... }
+	{ children... }
+	@ConversationPicker()
+	@ConversationNavigation()
 }
 }
 
-templ ConversationList(conversations []repo.Conversation, tab string) {
-    @conversationList(conversations, tab)
+templ ConversationList(conversations []repo.Conversation, tab, scope string, counts repo.ConversationScopeCounts, selected ...string) {
+    @conversationList(conversations, tab, selected...)
 }
 
-templ conversationList(conversations []repo.Conversation, tab string) {
-        <div id="conversation-list" data-refresh-url={ fmt.Sprintf("/messages/list?tab=%s", tab) } class="flex-1 overflow-y-auto p-2">
+templ ConversationSidebar(conversations []repo.Conversation, tab, scope string, counts repo.ConversationScopeCounts, selected ...string) {
+	@conversationSidebar(conversations, tab, scope, counts, selected...)
+}
+
+templ conversationSidebar(conversations []repo.Conversation, tab, scope string, counts repo.ConversationScopeCounts, selected ...string) {
+	<div id="conversation-sidebar" hx-sync="#conversation-sidebar:replace" data-refresh-url={ fmt.Sprintf("/messages/list?tab=%s&scope=%s&selected=%s", tab, scope, selectedConversation(selected)) } class="flex min-h-0 flex-1 flex-col">
+		<div class="px-3 pb-2">
+			<div class="flex rounded-xl bg-stone-200 p-1">
+				<a href={ fmt.Sprintf("/messages?tab=%s&scope=individual", tab) } hx-get={ fmt.Sprintf("/messages/list?tab=%s&scope=individual&selected=%s", tab, selectedConversation(selected)) } hx-target="#conversation-sidebar" hx-swap="outerHTML" hx-push-url="false" hx-on:click="event.preventDefault()" class={ "flex flex-1 items-center justify-center gap-1.5 rounded-lg px-2 py-2 text-[11px] font-bold transition", templ.KV("bg-white text-purple-700 shadow-sm", scope == "individual"), templ.KV("text-gray-500 hover:text-gray-700", scope != "individual") }>
+					<i class="fas fa-user text-[9px]"></i><span>Individuais</span><span aria-label={ fmt.Sprintf("%d conversas individuais com mensagens não lidas", counts.Individual) } class={ "rounded-full px-1.5 py-0.5 text-[9px]", templ.KV("bg-[#25D366] text-white", counts.Individual > 0), templ.KV("bg-stone-300 text-gray-600", counts.Individual == 0) }>{ fmt.Sprintf("%d", counts.Individual) }</span>
+				</a>
+				<a href={ fmt.Sprintf("/messages?tab=%s&scope=group", tab) } hx-get={ fmt.Sprintf("/messages/list?tab=%s&scope=group&selected=%s", tab, selectedConversation(selected)) } hx-target="#conversation-sidebar" hx-swap="outerHTML" hx-push-url="false" hx-on:click="event.preventDefault()" class={ "flex flex-1 items-center justify-center gap-1.5 rounded-lg px-2 py-2 text-[11px] font-bold transition", templ.KV("bg-white text-purple-700 shadow-sm", scope == "group"), templ.KV("text-gray-500 hover:text-gray-700", scope != "group") }>
+					<i class="fas fa-users text-[9px]"></i><span>Grupos</span><span aria-label={ fmt.Sprintf("%d conversas em grupo com mensagens não lidas", counts.Group) } class={ "rounded-full px-1.5 py-0.5 text-[9px]", templ.KV("bg-[#25D366] text-white", counts.Group > 0), templ.KV("bg-stone-300 text-gray-600", counts.Group == 0) }>{ fmt.Sprintf("%d", counts.Group) }</span>
+				</a>
+			</div>
+		</div>
+		<div class="px-3 py-2 flex gap-1.5 border-y border-stone-100">
+			<a href={ fmt.Sprintf("/messages?tab=active&scope=%s", scope) } hx-get={ fmt.Sprintf("/messages/list?tab=active&scope=%s&selected=%s", scope, selectedConversation(selected)) } hx-target="#conversation-sidebar" hx-swap="outerHTML" hx-push-url="false" hx-on:click="event.preventDefault()" class={ "flex flex-1 items-center justify-center gap-1.5 px-2 py-1.5 rounded-lg text-xs font-semibold text-center transition-colors", templ.KV("bg-purple-100 text-purple-700", tab == "active"), templ.KV("text-gray-500 hover:bg-stone-100", tab != "active") }>
+				Ativas
+				if counts.ActiveUnread > 0 {
+					<span aria-label={ fmt.Sprintf("%d conversas ativas com mensagens não lidas", counts.ActiveUnread) } class="min-w-4 rounded-full bg-[#25D366] px-1 py-0.5 text-[8px] font-black leading-none text-white">{ unreadCountLabel(counts.ActiveUnread) }</span>
+				}
+			</a>
+			<a href={ fmt.Sprintf("/messages?tab=pending&scope=%s", scope) } hx-get={ fmt.Sprintf("/messages/list?tab=pending&scope=%s&selected=%s", scope, selectedConversation(selected)) } hx-target="#conversation-sidebar" hx-swap="outerHTML" hx-push-url="false" hx-on:click="event.preventDefault()" class={ "flex flex-1 items-center justify-center gap-1.5 px-2 py-1.5 rounded-lg text-xs font-semibold text-center transition-colors", templ.KV("bg-purple-100 text-purple-700", tab == "pending"), templ.KV("text-gray-500 hover:bg-stone-100", tab != "pending") }>
+				Pendentes
+				if counts.PendingUnread > 0 {
+					<span aria-label={ fmt.Sprintf("%d conversas pendentes com mensagens não lidas", counts.PendingUnread) } class="min-w-4 rounded-full bg-[#25D366] px-1 py-0.5 text-[8px] font-black leading-none text-white">{ unreadCountLabel(counts.PendingUnread) }</span>
+				}
+			</a>
+			<a href={ fmt.Sprintf("/messages?tab=closed&scope=%s", scope) } hx-get={ fmt.Sprintf("/messages/list?tab=closed&scope=%s&selected=%s", scope, selectedConversation(selected)) } hx-target="#conversation-sidebar" hx-swap="outerHTML" hx-push-url="false" hx-on:click="event.preventDefault()" class={ "flex-1 px-2 py-1.5 rounded-lg text-xs font-semibold text-center transition-colors", templ.KV("bg-purple-100 text-purple-700", tab == "closed"), templ.KV("text-gray-500 hover:bg-stone-100", tab != "closed") }>Fechadas</a>
+		</div>
+		@conversationListItems(conversations, tab, selected...)
+	</div>
+}
+
+templ conversationList(conversations []repo.Conversation, tab string, selected ...string) {
+        @conversationListItems(conversations, tab, selected...)
+}
+
+templ conversationListItems(conversations []repo.Conversation, tab string, selected ...string) {
+        <div id="conversation-list" class="flex-1 overflow-y-auto p-1.5">
             for _, conversation := range conversations {
-                <div class="mb-2 bg-white rounded-2xl hover:shadow-md transition-all border border-stone-200 overflow-hidden">
-                    <a href={ fmt.Sprintf("/messages/%s", conversation.URL.String()) } class="block p-3 cursor-pointer">
-                        <div class="flex items-center gap-3">
-                            <img src="https://i.pravatar.cc/40?img=1" alt="Avatar" class="w-10 h-10 rounded-full"/>
+                <div title={ conversationDepartmentTitle(conversation) } style={ conversationDepartmentStyle(conversation) } class={ "relative rounded-2xl border bg-white shadow-sm transition-all", templ.KV("mb-5", tab == "pending"), templ.KV("mb-1.5", tab != "pending"), templ.KV("bg-purple-50/70 ring-1 ring-purple-100", selectedConversation(selected) == conversation.URL.String()), templ.KV("hover:bg-stone-50 hover:shadow-md", selectedConversation(selected) != conversation.URL.String()) }>
+                    <a href={ fmt.Sprintf("/messages/%s", conversation.URL.String()) } hx-get={ fmt.Sprintf("/messages/%s", conversation.URL.String()) } hx-target="#conversation-panel" hx-swap="outerHTML" hx-push-url="true" hx-sync="#conversation-panel:replace" aria-current={ conversationAriaCurrent(conversation, selected) } class="block cursor-pointer rounded-2xl p-2.5 focus:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-purple-400">
+                        <div class="flex items-start gap-2.5">
+                            <img src={ fmt.Sprintf("/management/api/contacts/%d/avatar", conversation.Contact.Id) } alt="" loading="lazy" decoding="async" width="40" height="40" class="h-10 w-10 shrink-0 rounded-full object-cover ring-1 ring-stone-200"/>
                             <div class="flex-1 min-w-0">
-                                <div class="flex items-center justify-between">
-                                    <span class="text-sm font-medium text-gray-900 truncate">{ conversation.Contact.Name }</span>
-                                    <span class="text-xs text-gray-500">{ conversation.LastContactMessageAt.Format("15:04") }</span>
-                                </div>
-                                <div class="text-xs text-gray-500 mt-1 truncate">{ conversationPreview(conversation) }</div>
-                                <div class="flex items-center gap-2 flex-wrap mt-2">
-                                    if conversation.Status == repo.ConversationStatusRunning {
-                                        <span class="inline-flex items-center gap-1 px-2 py-1 bg-purple-100 text-purple-700 rounded-full text-xs">
-                                            <i class="fas fa-diagram-project"></i>
-                                            Flow
-                                        </span>
-                                    } else {
-                                        <span class="inline-flex items-center gap-1 px-2 py-1 bg-stone-100 text-gray-700 rounded-full text-xs">
-                                            <i class="fas fa-user-circle"></i>
-                                            if conversation.AgentName != "" {
-                                                { conversation.AgentName }
-                                            } else {
-                                                Sem agente
-                                            }
-                                        </span>
-                                    }
-                                    <span class="inline-flex items-center gap-1 px-2 py-1 bg-blue-50 text-blue-700 rounded-full text-xs">
-                                        <i class="fas fa-layer-group"></i>
-                                        if conversation.DepartmentName != "" {
-                                            { conversation.DepartmentName }
-                                        } else {
-                                            Sem setor
+                                <div class="flex items-start justify-between gap-2">
+									<div class="flex min-w-0 flex-1 items-baseline gap-1.5"><span class="min-w-0 truncate text-[13px] font-bold leading-4 text-gray-900">{ conversation.Contact.Name }</span>
+										if conversation.Protocol > 0 {
+											<span class="shrink-0 text-[10px] font-semibold tabular-nums text-gray-400" title={ fmt.Sprintf("Protocolo da conversa: #%d", conversation.Protocol) } aria-label={ fmt.Sprintf("ID da conversa %d", conversation.Protocol) }>#{ fmt.Sprint(conversation.Protocol) }</span>
+										}
+									</div>
+                                    <span class="flex max-w-[7.5rem] shrink-0 flex-col items-end leading-none">
+                                        if conversation.AgentName != "" {
+                                            <span class="mb-1 inline-flex max-w-full items-center gap-1 text-[10px] font-semibold leading-3 text-gray-500">
+                                                <i class="fas fa-user text-[8px] text-gray-400"></i>
+                                                <span class="truncate">{ conversation.AgentName }</span>
+                                            </span>
                                         }
+									<span class="flex items-center gap-1.5">
+										<span class="text-[10px] font-medium leading-3 text-gray-400">{ conversationTimeLabel(conversation.LastContactMessageAt, conversation.Timezone, time.Now()) }</span>
+										if conversation.UnreadCount > 0 && selectedConversation(selected) != conversation.URL.String() {
+											<span aria-label={ fmt.Sprintf("%d mensagens não lidas", conversation.UnreadCount) } class="min-w-5 rounded-full bg-[#25D366] px-1.5 py-0.5 text-center text-[9px] font-black leading-4 text-white">{ unreadCountLabel(conversation.UnreadCount) }</span>
+										}
+									</span>
                                     </span>
                                 </div>
+								<div class={ "mt-0.5 flex items-center gap-1.5 text-[11px] leading-4", templ.KV("font-semibold text-gray-800", conversation.UnreadCount > 0 && selectedConversation(selected) != conversation.URL.String()), templ.KV("text-gray-500", conversation.UnreadCount == 0 || selectedConversation(selected) == conversation.URL.String()) }><i class={ "fas shrink-0 text-[9px] text-gray-400", conversationPreviewIcon(conversation) }></i><span class="truncate">{ conversationPreview(conversation) }</span></div>
+                                if conversation.Status == repo.ConversationStatusRunning {
+                                    <span class="mt-1 inline-flex items-center gap-1 rounded-full bg-purple-100 px-1.5 py-0.5 text-[9px] font-semibold text-purple-700"><i class="fas fa-diagram-project text-[8px]"></i>Flow em execução</span>
+                                }
                             </div>
                         </div>
                     </a>
                     if tab == "pending" {
-                        <div class="px-3 pb-3 flex justify-end gap-2">
-                            <button type="button" hx-post={ fmt.Sprintf("/messages/%s/accept", conversation.URL.String()) } hx-swap="none" class="px-2.5 py-1.5 rounded-lg bg-green-600 text-white hover:bg-green-700 text-xs font-medium">
-                                <i class="fas fa-check mr-1"></i>Aceitar
+                        <div class="absolute bottom-0 right-2.5 z-10 flex translate-y-1/2 gap-1.5">
+							<button type="button" data-conversation-ignore-url={ fmt.Sprintf("/messages/%s/ignore", conversation.URL.String()) } title="Encerrar conversa" aria-label="Encerrar conversa" class="grid h-8 w-8 place-items-center rounded-full border border-red-200 bg-white text-red-600 shadow-sm transition hover:border-red-300 hover:bg-red-50 focus:outline-none focus:ring-2 focus:ring-red-200 disabled:cursor-wait disabled:opacity-60">
+                                <i class="fas fa-times text-[11px]"></i>
                             </button>
-                            <button type="button" hx-post={ fmt.Sprintf("/messages/%s/ignore", conversation.URL.String()) } hx-swap="none" hx-confirm="Recusar e fechar esta conversa?" class="px-2.5 py-1.5 rounded-lg bg-stone-100 text-gray-700 hover:bg-red-50 hover:text-red-700 text-xs font-medium">
-                                <i class="fas fa-times mr-1"></i>Recusar
+                            <button type="button" hx-post={ fmt.Sprintf("/messages/%s/accept", conversation.URL.String()) } hx-swap="none" title="Aceitar conversa" aria-label="Aceitar conversa" class="grid h-8 w-8 place-items-center rounded-full bg-purple-600 text-white shadow-sm transition hover:bg-purple-700 focus:outline-none focus:ring-2 focus:ring-purple-300">
+                                <i class="fas fa-check text-[11px]"></i>
                             </button>
                         </div>
                     }
-                    <div class="bg-blue-100 px-3 py-1 text-center">
-                        <span class="text-xs font-medium text-blue-900">
-                            if conversation.DepartmentName != "" {
-                                { conversation.DepartmentName }
-                            } else {
-                                Sem setor
-                            }
-                        </span>
-                    </div>
                 </div>
             }
             if len(conversations) == 0 {

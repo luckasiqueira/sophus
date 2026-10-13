@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"net/http"
 	"sophus/internal/repo"
 	"sophus/pkg/http/requests"
 	"sophus/utils/env"
@@ -45,6 +46,49 @@ type Status struct {
 	Number    string
 }
 
+type Contact struct {
+	JID          string `json:"Jid"`
+	Found        bool   `json:"Found"`
+	FirstName    string `json:"FirstName"`
+	FullName     string `json:"FullName"`
+	PushName     string `json:"PushName"`
+	BusinessName string `json:"BusinessName"`
+}
+
+func (contact Contact) PreferredName() string {
+	for _, value := range []string{contact.FullName, contact.FirstName, contact.BusinessName, contact.PushName} {
+		if value = strings.TrimSpace(value); value != "" {
+			return value
+		}
+	}
+	return ""
+}
+
+// Found means the identity exists in WhatsApp's cache, not necessarily in the
+// phone's address book. Group participants commonly have only PushName or a
+// resolved business name, which must not make them importable saved contacts.
+func (contact Contact) IsAddressBookContact() bool {
+	return strings.TrimSpace(contact.FullName) != "" || strings.TrimSpace(contact.FirstName) != ""
+}
+
+func (i *InstanceEVO) GetContacts() ([]Contact, error) {
+	r := requests.Request{
+		URL:     repo.ApiBaseURL + "/user/contacts",
+		Headers: map[string]string{"apikey": i.APIToken},
+		Method:  "GET", Timeout: 45 * time.Second, MaxResponseBytes: 16 << 20,
+	}
+	if err := r.Do(); err != nil {
+		return nil, fmt.Errorf("Evolution GO contacts request failed: %w", err)
+	}
+	var response struct {
+		Data []Contact `json:"data"`
+	}
+	if err := json.Unmarshal(r.Response.Body, &response); err != nil {
+		return nil, fmt.Errorf("Evolution GO contacts returned invalid JSON: %w", err)
+	}
+	return response.Data, nil
+}
+
 func (i *InstanceEVO) Create() error {
 	r := requests.Request{
 		URL: repo.ApiBaseURL + "/instance/create",
@@ -53,7 +97,7 @@ func (i *InstanceEVO) Create() error {
 			"token":         i.APIToken,
 			"instanceId":    i.InstanceID.String(),
 			"webhook":       i.WebhookURL,
-			"webhookEvents": []string{"QRCODE", "CONNECTION", "MESSAGE", "BUTTON_CLICK"},
+			"webhookEvents": []string{"QRCODE", "CONNECTION", "MESSAGE", "BUTTON_CLICK", "PICTURE", "READ_RECEIPT"},
 		},
 		Headers: map[string]string{
 			"Content-Type": "application/json",
@@ -88,21 +132,148 @@ func (i *InstanceEVO) Create() error {
 	return nil
 }
 
-func (i *InstanceEVO) Connect() error {
+func (i *InstanceEVO) Delete() error {
 	r := requests.Request{
-		URL: repo.ApiBaseURL + "/instance/connect",
-		Payload: map[string]any{
-			"webhookUrl": i.WebhookURL,
-			"subscribe":  []string{"QRCODE", "CONNECTION", "MESSAGE", "BUTTON_CLICK"},
-			"immediate":  true,
+		URL: repo.ApiBaseURL + "/instance/delete/" + i.InstanceID.String(),
+		Headers: map[string]string{
+			"apikey": env.Backend["WPP_API_GLOBAL_TOKEN"],
 		},
+		Method:           "DELETE",
+		Timeout:          10 * time.Second,
+		MaxResponseBytes: 64 << 10,
+	}
+	err := r.Do()
+	if err == nil || r.StatusCode == http.StatusNotFound {
+		return nil
+	}
+
+	deleteErr := evolutionRequestError("delete instance", &r, err)
+	exists, verifyErr := evolutionInstanceExists(i.InstanceID)
+	if verifyErr != nil {
+		return fmt.Errorf("%w; could not verify remote state: %v", deleteErr, verifyErr)
+	}
+	if !exists {
+		return nil
+	}
+	return deleteErr
+}
+
+func evolutionInstanceExists(instanceID uuid.UUID) (bool, error) {
+	r := requests.Request{
+		URL: repo.ApiBaseURL + "/instance/all",
+		Headers: map[string]string{
+			"apikey": env.Backend["WPP_API_GLOBAL_TOKEN"],
+		},
+		Method:           http.MethodGet,
+		Timeout:          10 * time.Second,
+		MaxResponseBytes: 16 << 20,
+	}
+	if err := r.Do(); err != nil {
+		return false, evolutionRequestError("list instances", &r, err)
+	}
+	var response struct {
+		Data json.RawMessage `json:"data"`
+	}
+	if err := json.Unmarshal(r.Response.Body, &response); err != nil {
+		return false, fmt.Errorf("list instances returned invalid JSON: %w", err)
+	}
+	if len(response.Data) == 0 || string(response.Data) == "null" {
+		return false, fmt.Errorf("list instances response is missing data")
+	}
+	var remoteInstances []struct {
+		ID string `json:"id"`
+	}
+	if err := json.Unmarshal(response.Data, &remoteInstances); err != nil {
+		return false, fmt.Errorf("list instances returned invalid data: %w", err)
+	}
+	for _, instance := range remoteInstances {
+		if instance.ID == instanceID.String() {
+			return true, nil
+		}
+	}
+	return false, nil
+}
+
+func evolutionRequestError(operation string, request *requests.Request, err error) error {
+	body := strings.Join(strings.Fields(string(request.Response.Body)), " ")
+	if len(body) > 2048 {
+		body = body[:2048] + "..."
+	}
+	if body == "" {
+		return fmt.Errorf("Evolution GO %s: %w", operation, err)
+	}
+	return fmt.Errorf("Evolution GO %s: %w: %s", operation, err, body)
+}
+
+func (i *InstanceEVO) Connect() error {
+	payload := map[string]any{
+		"subscribe": []string{"QRCODE", "CONNECTION", "MESSAGE", "BUTTON_CLICK", "PICTURE"},
+		"immediate": true,
+	}
+	if i.WebhookURL != "" {
+		payload["webhookUrl"] = i.WebhookURL
+	}
+	r := requests.Request{
+		URL:     repo.ApiBaseURL + "/instance/connect",
+		Payload: payload,
 		Headers: map[string]string{
 			"Content-Type": "application/json",
 			"apikey":       i.APIToken,
 		},
-		Method: "POST",
+		Method:  "POST",
+		Timeout: 10 * time.Second,
 	}
-	return r.Do()
+	if err := r.Do(); err != nil {
+		return evolutionRequestError("connect instance", &r, err)
+	}
+	return nil
+}
+
+func (i *InstanceEVO) Reconnect() error {
+	return i.ReconnectWithStart(nil)
+}
+
+// ReconnectWithStart invokes start only after acquiring the per-instance gate.
+func (i *InstanceEVO) ReconnectWithStart(start func() error) error {
+	key := i.InstanceID.String() + ":" + i.APIToken
+	if !beginReconnect(key) {
+		return ErrReconnectInProgress
+	}
+	defer endReconnect(key)
+	if start != nil {
+		if err := start(); err != nil {
+			return err
+		}
+	}
+	r := requests.Request{
+		URL: repo.ApiBaseURL + "/instance/reconnect",
+		Headers: map[string]string{
+			"apikey": i.APIToken,
+		},
+		Method:  "POST",
+		Timeout: 10 * time.Second,
+	}
+	err := r.Do()
+	if err == nil {
+		return nil
+	}
+	reconnectErr := evolutionRequestError("reconnect instance", &r, err)
+	// Recover a retained disconnected client without deleting the instance or
+	// changing its credentials. Never do this after an authentication failure.
+	if r.StatusCode != http.StatusInternalServerError && r.StatusCode != http.StatusNotFound {
+		return reconnectErr
+	}
+	status, statusErr := i.GetStatus()
+	if statusErr != nil {
+		return fmt.Errorf("%w; could not verify connection: %v", reconnectErr, statusErr)
+	}
+	if status.Connected {
+		return nil
+	}
+	if err := i.Connect(); err != nil {
+		return fmt.Errorf("%w; connect recovery failed: %v", reconnectErr, err)
+	}
+	return nil
 }
 
 func (i *InstanceEVO) GetQRCode() (QRCode, error) {
@@ -183,21 +354,18 @@ func parseStatus(value interface{}) (Status, bool) {
 	if !ok {
 		return Status{}, false
 	}
-	for _, key := range []string{"connected", "isConnected", "is_connected"} {
-		if connected, exists := object[key].(bool); exists {
-			return Status{Connected: connected, State: connectedState(connected), Number: statusNumber(object)}, true
-		}
+	state, hasState := statusState(object)
+	if hasState && state == "disconnected" {
+		return Status{Connected: false, State: state, Number: statusNumber(object)}, true
 	}
-	for _, key := range []string{"status", "state", "connectionState", "connection_state"} {
-		if raw, exists := object[key].(string); exists {
-			state := strings.ToLower(strings.TrimSpace(raw))
-			switch state {
-			case "connected", "open", "online", "ready":
-				return Status{Connected: true, State: "connected", Number: statusNumber(object)}, true
-			case "disconnected", "close", "closed", "offline", "loggedout", "logged_out":
-				return Status{Connected: false, State: "disconnected", Number: statusNumber(object)}, true
-			}
-		}
+	connected, hasConnected := statusBool(object, "connected", "Connected", "isConnected", "is_connected")
+	loggedIn, hasLoggedIn := statusBool(object, "loggedIn", "LoggedIn", "logged_in", "isLoggedIn", "is_logged_in")
+	if hasConnected || hasLoggedIn {
+		active := (!hasConnected || connected) && (!hasLoggedIn || loggedIn)
+		return Status{Connected: active, State: connectedState(active), Number: statusNumber(object)}, true
+	}
+	if hasState {
+		return Status{Connected: state == "connected", State: state, Number: statusNumber(object)}, true
 	}
 	for _, key := range []string{"data", "instance", "connection"} {
 		if nested, exists := object[key]; exists {
@@ -210,6 +378,33 @@ func parseStatus(value interface{}) (Status, bool) {
 		}
 	}
 	return Status{}, false
+}
+
+func statusBool(object map[string]interface{}, keys ...string) (bool, bool) {
+	for _, key := range keys {
+		if value, exists := object[key].(bool); exists {
+			return value, true
+		}
+	}
+	return false, false
+}
+
+func statusState(object map[string]interface{}) (string, bool) {
+	for _, key := range []string{"status", "state", "connectionState", "connection_state"} {
+		raw, exists := object[key].(string)
+		if !exists {
+			continue
+		}
+		switch strings.ToLower(strings.TrimSpace(raw)) {
+		case "connected", "open", "online", "ready":
+			return "connected", true
+		case "disconnected", "close", "closed", "offline", "loggedout", "logged_out":
+			return "disconnected", true
+		case "connecting", "pairing", "qrcode", "qr_code":
+			return "connecting", true
+		}
+	}
+	return "", false
 }
 
 func statusNumber(object map[string]interface{}) string {

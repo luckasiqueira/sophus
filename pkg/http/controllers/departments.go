@@ -3,6 +3,7 @@ package controllers
 import (
 	"database/sql"
 	"errors"
+	"regexp"
 	"strings"
 
 	"sophus/internal/repo"
@@ -11,6 +12,35 @@ import (
 
 	"github.com/kataras/iris/v12"
 )
+
+const defaultDepartmentColor = "#6123CC"
+
+var departmentColorPattern = regexp.MustCompile(`^#[0-9A-Fa-f]{6}$`)
+
+type departmentInput struct {
+	Name  string `json:"name" form:"name"`
+	Color string `json:"color" form:"color"`
+}
+
+type agentDepartmentsInput struct {
+	DepartmentIds []int `json:"departmentIds" form:"departmentIds"`
+}
+
+func readDepartmentRequest(ctx iris.Context, target any) error {
+	if strings.HasPrefix(strings.ToLower(ctx.GetHeader("Content-Type")), "application/json") {
+		return ctx.ReadJSON(target)
+	}
+	return ctx.ReadForm(target)
+}
+
+func normalizeDepartmentInput(input departmentInput) (departmentInput, bool) {
+	input.Name = strings.TrimSpace(input.Name)
+	input.Color = strings.ToUpper(strings.TrimSpace(input.Color))
+	if input.Color == "" {
+		input.Color = defaultDepartmentColor
+	}
+	return input, input.Name != "" && len(input.Name) <= 80 && departmentColorPattern.MatchString(input.Color)
+}
 
 func DepartmentSettingsPage(ctx iris.Context) {
 	agent, err := middlewares.AgentIdentifier(ctx)
@@ -44,19 +74,54 @@ func CreateDepartment(ctx iris.Context) {
 	if !ok {
 		return
 	}
-	var body struct {
-		Name string `json:"name"`
-	}
-	if err := ctx.ReadJSON(&body); err != nil || strings.TrimSpace(body.Name) == "" {
-		ctx.StopWithJSON(iris.StatusBadRequest, iris.Map{"error": "nome é obrigatório"})
+	var body departmentInput
+	if err := readDepartmentRequest(ctx, &body); err != nil {
+		ctx.StopWithJSON(iris.StatusBadRequest, iris.Map{"error": "dados inválidos"})
 		return
 	}
-	department, err := repo.CreateDepartment(agent.CompanyId, strings.TrimSpace(body.Name))
+	body, valid := normalizeDepartmentInput(body)
+	if !valid {
+		ctx.StopWithJSON(iris.StatusBadRequest, iris.Map{"error": "nome ou cor inválidos"})
+		return
+	}
+	department, err := repo.CreateDepartment(agent.CompanyId, body.Name, body.Color)
 	if err != nil {
 		ctx.StopWithJSON(iris.StatusConflict, iris.Map{"error": err.Error()})
 		return
 	}
 	ctx.StatusCode(iris.StatusCreated)
+	ctx.JSON(iris.Map{"data": department})
+}
+
+func UpdateDepartment(ctx iris.Context) {
+	agent, ok := requireAdmin(ctx)
+	if !ok {
+		return
+	}
+	id, err := ctx.Params().GetInt("id")
+	if err != nil {
+		ctx.StopWithStatus(iris.StatusBadRequest)
+		return
+	}
+	var body departmentInput
+	if err := readDepartmentRequest(ctx, &body); err != nil {
+		ctx.StopWithJSON(iris.StatusBadRequest, iris.Map{"error": "dados inválidos"})
+		return
+	}
+	body, valid := normalizeDepartmentInput(body)
+	if !valid {
+		ctx.StopWithJSON(iris.StatusBadRequest, iris.Map{"error": "nome ou cor inválidos"})
+		return
+	}
+	department, err := repo.UpdateDepartment(id, agent.CompanyId, body.Name, body.Color)
+	if errors.Is(err, sql.ErrNoRows) {
+		ctx.StopWithStatus(iris.StatusNotFound)
+		return
+	}
+	if err != nil {
+		ctx.StopWithJSON(iris.StatusConflict, iris.Map{"error": err.Error()})
+		return
+	}
 	ctx.JSON(iris.Map{"data": department})
 }
 
@@ -92,10 +157,8 @@ func UpdateAgentDepartments(ctx iris.Context) {
 		ctx.StopWithStatus(iris.StatusBadRequest)
 		return
 	}
-	var body struct {
-		DepartmentIds []int `json:"departmentIds"`
-	}
-	if err := ctx.ReadJSON(&body); err != nil {
+	var body agentDepartmentsInput
+	if err := readDepartmentRequest(ctx, &body); err != nil {
 		ctx.StopWithStatus(iris.StatusBadRequest)
 		return
 	}

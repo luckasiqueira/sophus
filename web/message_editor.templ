@@ -1,0 +1,59 @@
+package web
+
+import "sophus/internal/repo"
+
+templ ConversationMessageEditor(conversation repo.Conversation) {
+	<dialog id="conversation-message-editor" aria-labelledby="conversation-message-editor-title" class="m-auto w-[min(40rem,calc(100vw-2rem))] rounded-3xl border-0 bg-white p-0 text-gray-900 shadow-2xl backdrop:bg-stone-950/60 backdrop:backdrop-blur-sm">
+		<form id="conversation-message-editor-form" class="flex max-h-[85dvh] flex-col">
+			<header class="flex items-center justify-between border-b border-stone-100 px-5 py-4 sm:px-7"><div><p class="text-[10px] font-bold uppercase tracking-[.18em] text-purple-600">Mensagem enviada</p><h2 id="conversation-message-editor-title" class="mt-1 text-xl font-black">Editar mensagem</h2></div><button type="button" data-message-editor-close aria-label="Fechar editor" class="grid h-9 w-9 place-items-center rounded-xl text-gray-400 hover:bg-stone-100"><i class="fas fa-xmark"></i></button></header>
+			<div class="space-y-4 overflow-y-auto p-5 sm:p-7"><p class="text-sm text-gray-500">A alteração também será enviada ao WhatsApp. O horário original da mensagem será mantido.</p><div id="conversation-message-editor-error" role="alert" class="hidden rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-700"></div><label for="conversation-message-editor-text" class="block text-sm font-bold text-gray-700">Texto da mensagem</label><textarea id="conversation-message-editor-text" rows="7" maxlength="65536" required class="w-full resize-y rounded-xl border border-stone-200 p-4 text-sm outline-none focus:border-purple-400 focus:ring-2 focus:ring-purple-100"></textarea></div>
+			<footer class="flex justify-end gap-3 border-t border-stone-100 px-5 py-4 sm:px-7"><button type="button" data-message-editor-close class="rounded-xl border border-stone-200 px-4 py-2.5 text-sm font-bold text-gray-600 hover:bg-stone-50">Cancelar</button><button id="conversation-message-editor-save" type="submit" class="rounded-xl bg-purple-600 px-4 py-2.5 text-sm font-bold text-white hover:bg-purple-700 disabled:opacity-60"><i class="fas fa-floppy-disk mr-2"></i>Salvar edição</button></footer>
+		</form>
+	</dialog>
+	<script>
+		(function () {
+			const document = window.conversationDocument;
+			const panel = document.getElementById('conversation-panel');
+			const dialog = document.getElementById('conversation-message-editor');
+			const form = document.getElementById('conversation-message-editor-form');
+			const input = document.getElementById('conversation-message-editor-text');
+			const errorBox = document.getElementById('conversation-message-editor-error');
+			const save = document.getElementById('conversation-message-editor-save');
+			const signal = window.conversationAbort.signal;
+			let target = null, initial = '', busy = false;
+			function editable(button) {
+				return panel.dataset.canEditMessages === 'true' && Number(button.dataset.editExpires) > Date.now() && button.closest('[data-message-conversation]')?.dataset.messageConversation === panel.dataset.conversationId;
+			}
+			function refresh() { panel.querySelectorAll('[data-edit-message-id]').forEach(button => { const allowed = editable(button); button.classList.toggle('hidden', !allowed); button.disabled = !allowed; }); }
+			function close() { if (!busy && dialog.open) dialog.close(); }
+			panel.addEventListener('click', event => {
+				const button = event.target.closest('[data-edit-message-id]');
+				if (!button || !editable(button) || busy) return;
+				target = button.dataset.editMessageId; initial = button.dataset.editMessageText;
+				input.value = initial; errorBox.classList.add('hidden'); dialog.showModal(); input.focus(); input.setSelectionRange(input.value.length, input.value.length);
+			}, { signal });
+			dialog.querySelectorAll('[data-message-editor-close]').forEach(button => button.addEventListener('click', close, { signal }));
+			dialog.addEventListener('cancel', event => { if (busy) event.preventDefault(); }, { signal });
+			dialog.addEventListener('click', event => { if (event.target === dialog) close(); }, { signal });
+			form.addEventListener('submit', async event => {
+				event.preventDefault(); if (busy || !target) return;
+				if (!input.value.trim()) { errorBox.textContent = 'Informe o texto da mensagem.'; errorBox.classList.remove('hidden'); return; }
+				if (input.value === initial) { close(); return; }
+				busy = true; save.disabled = true; input.disabled = true; errorBox.classList.add('hidden');
+				dialog.querySelectorAll('[data-message-editor-close]').forEach(button => button.disabled = true);
+				try {
+					const response = await fetch('/messages/' + encodeURIComponent(panel.dataset.conversationUrl) + '/edit', { method: 'POST', credentials: 'same-origin', signal, headers: { Accept: 'application/json', 'Content-Type': 'application/json' }, body: JSON.stringify({ messageId: target, text: input.value, expectedText: initial }) });
+					const payload = await response.json(); if (!response.ok) throw new Error(payload.error || 'Não foi possível editar a mensagem.');
+					if (payload.data.html && window.htmx) htmx.swap('#chatMessages', payload.data.html, { swapStyle: 'beforeend' });
+					dialog.close();
+				} catch (error) { if (!signal.aborted) { errorBox.textContent = error.message; errorBox.classList.remove('hidden'); } }
+				finally { busy = false; save.disabled = false; input.disabled = false; dialog.querySelectorAll('[data-message-editor-close]').forEach(button => button.disabled = false); }
+			}, { signal });
+			const observer = new MutationObserver(refresh); const chat = panel.querySelector('#chatMessages');
+			if (chat) observer.observe(chat, { childList: true, subtree: true });
+			const timer = setInterval(refresh, 10000);
+			signal.addEventListener('abort', () => { observer.disconnect(); clearInterval(timer); if (dialog.open) dialog.close(); }, { once: true });
+			refresh();
+		})();
+	</script>
+}

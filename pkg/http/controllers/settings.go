@@ -4,13 +4,13 @@ import (
 	"database/sql"
 	"errors"
 	"strings"
+	"time"
 
 	"sophus/internal/repo"
 	"sophus/pkg/http/middlewares"
 	"sophus/web"
 
 	"github.com/kataras/iris/v12"
-	"golang.org/x/crypto/bcrypt"
 )
 
 func SaaSSettingsPage(ctx iris.Context) {
@@ -108,6 +108,10 @@ func UpdateSaaSProfile(ctx iris.Context) {
 		return
 	}
 	body.Name = strings.TrimSpace(body.Name)
+	if body.Password != "" || body.CurrentPassword != "" {
+		writeJSONError(ctx, iris.StatusBadRequest, "a alteração de senha do super admin não está disponível no painel")
+		return
+	}
 	body.Email = admin.Email
 	if body.Name == "" || len(body.Name) > 80 {
 		writeJSONError(ctx, iris.StatusBadRequest, "nome é obrigatório e deve ter até 80 caracteres")
@@ -117,26 +121,8 @@ func UpdateSaaSProfile(ctx iris.Context) {
 		writeJSONError(ctx, iris.StatusBadRequest, "email inválido")
 		return
 	}
-	passwordHash := ""
-	sensitiveChange := body.Password != ""
-	if sensitiveChange && bcrypt.CompareHashAndPassword([]byte(admin.Password), []byte(body.CurrentPassword)) != nil {
-		writeJSONError(ctx, iris.StatusUnauthorized, "senha atual inválida")
-		return
-	}
-	if body.Password != "" {
-		if len(body.Password) < 8 {
-			writeJSONError(ctx, iris.StatusBadRequest, "a nova senha deve ter pelo menos 8 caracteres")
-			return
-		}
-		hash, err := bcrypt.GenerateFromPassword([]byte(body.Password), bcrypt.DefaultCost)
-		if err != nil {
-			writeJSONError(ctx, iris.StatusInternalServerError, "não foi possível proteger a nova senha")
-			return
-		}
-		passwordHash = string(hash)
-	}
 	updated, err := repo.UpdatePlatformAdminProfile(admin.Id, repo.UpdatePlatformAdminProfileInput{
-		Name: body.Name, Email: body.Email, PasswordHash: passwordHash,
+		Name: body.Name, Email: body.Email,
 	})
 	if err != nil {
 		if errors.Is(err, repo.ErrAgentEmailInUse) || isUniqueViolation(err) {
@@ -217,6 +203,22 @@ func UpdateCompanySettings(ctx iris.Context) {
 		writeJSONError(ctx, iris.StatusBadRequest, "retenção de mídia inválida")
 		return
 	}
+	operations := input.Operations
+	if !repo.ValidMessageEditPolicy(operations.MessageEditPolicy) {
+		writeJSONError(ctx, iris.StatusBadRequest, "permissão de edição de mensagens inválida")
+		return
+	}
+	_, startErr := time.Parse("15:04", operations.BusinessHoursStart)
+	_, endErr := time.Parse("15:04", operations.BusinessHoursEnd)
+	_, lunchStartErr := time.Parse("15:04", operations.BusinessHoursLunchStart)
+	_, lunchEndErr := time.Parse("15:04", operations.BusinessHoursLunchEnd)
+	if len(operations.MessageSignatureTemplate) > 160 || len(operations.OutsideHoursMessage) > 1000 || len(operations.WelcomeMessage) > 1000 ||
+		operations.AutoCloseMinutes < 0 || operations.AutoCloseMinutes > 43200 || operations.ConversationRetentionDays < 0 || operations.ConversationRetentionDays > 3650 ||
+		operations.MaxAttachmentMB < 1 || operations.MaxAttachmentMB > 50 ||
+		(operations.AutoAssignStrategy != "least_loaded" && operations.AutoAssignStrategy != "random") || startErr != nil || endErr != nil || lunchStartErr != nil || lunchEndErr != nil || !validBusinessDays(operations.BusinessHoursDays) || !validAttachmentTypes(operations.AllowedAttachmentTypes) {
+		writeJSONError(ctx, iris.StatusBadRequest, "configurações operacionais inválidas")
+		return
+	}
 	settings, err := repo.UpdateCompanySettings(agent.CompanyId, input)
 	if err != nil {
 		switch {
@@ -236,4 +238,32 @@ func UpdateCompanySettings(ctx iris.Context) {
 		return
 	}
 	ctx.JSON(iris.Map{"data": settings})
+}
+
+func validBusinessDays(values []int) bool {
+	if len(values) == 0 || len(values) > 7 {
+		return false
+	}
+	seen := map[int]bool{}
+	for _, value := range values {
+		if value < 0 || value > 6 || seen[value] {
+			return false
+		}
+		seen[value] = true
+	}
+	return true
+}
+
+func validAttachmentTypes(values []string) bool {
+	if len(values) == 0 || len(values) > 4 {
+		return false
+	}
+	seen := map[string]bool{}
+	for _, value := range values {
+		if seen[value] || (value != "image" && value != "video" && value != "audio" && value != "document") {
+			return false
+		}
+		seen[value] = true
+	}
+	return true
 }

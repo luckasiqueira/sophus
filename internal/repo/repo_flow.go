@@ -4,6 +4,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"errors"
+	"strings"
 	"time"
 
 	"github.com/lib/pq"
@@ -216,7 +217,7 @@ func StartFlowExecution(e FlowExecution) (int, bool, error) {
 
 	result, err := tx.Exec(`UPDATE conversations conversation SET status = $1, "updatedAt" = now()
 		FROM connections connection
-		WHERE conversation.id = $2 AND conversation.status = $3
+		WHERE conversation.id = $2 AND conversation.status = $3 AND conversation."agentId" IS NULL
 		AND connection.id = conversation."connectionId" AND connection."companyId" = $4`,
 		ConversationStatusRunning, e.ConversationId, ConversationStatusOpen, e.CompanyId)
 	if err != nil {
@@ -478,7 +479,7 @@ func UpdateConversationStatus(conversationID, executionID int, status string) er
 
 func ClaimConversationForFlow(conversationId int) (bool, error) {
 	result, err := db.Exec(`UPDATE conversations SET status = $1, "updatedAt" = now()
-		WHERE id = $2 AND status = $3`, ConversationStatusRunning, conversationId, ConversationStatusOpen)
+		WHERE id = $2 AND status = $3 AND "agentId" IS NULL`, ConversationStatusRunning, conversationId, ConversationStatusOpen)
 	if err != nil {
 		return false, err
 	}
@@ -584,13 +585,13 @@ func AssignConversationSmart(conversationID, executionID, companyID int, departm
 
 func GetConversationById(id int) (Conversation, error) {
 	var c Conversation
-	stmt, err := db.Prepare(`SELECT id, status, "contactId", "connectionId", "agentId", "departmentId", url, "createdAt", "updatedAt"
+	stmt, err := db.Prepare(`SELECT id, status, "contactId", "connectionId", "agentId", "departmentId", url, "createdAt", "updatedAt", protocol
 		FROM conversations WHERE id = $1`)
 	if err != nil {
 		return c, err
 	}
 	defer stmt.Close()
-	err = stmt.QueryRow(id).Scan(&c.Id, &c.Status, &c.Contact.Id, &c.ConnectionID, &c.AgentID, &c.DepartmentID, &c.URL, &c.CreatedAt, &c.UpdatedAt)
+	err = stmt.QueryRow(id).Scan(&c.Id, &c.Status, &c.Contact.Id, &c.ConnectionID, &c.AgentID, &c.DepartmentID, &c.URL, &c.CreatedAt, &c.UpdatedAt, &c.Protocol)
 	return c, err
 }
 
@@ -598,11 +599,12 @@ func GetFlowConditionMetadata(conversationID, companyID int) (FlowConditionMetad
 	var metadata FlowConditionMetadata
 	var tags pq.StringArray
 	err := db.QueryRow(`SELECT COALESCE(ct.name, ''), COALESCE(ct.number, ''), COALESCE(ct.email, ''),
-		COALESCE(cv.tags, ARRAY[]::text[]), COALESCE(d.name, ''), COALESCE(co.type, 'whatsapp_qrcode')
+		COALESCE(contact_tags.tags, ARRAY[]::text[]), COALESCE(d.name, ''), COALESCE(co.type, 'whatsapp_qrcode')
 		FROM conversations cv
 		INNER JOIN contacts ct ON ct.id = cv."contactId"
 		INNER JOIN connections co ON co.id = cv."connectionId" AND co."companyId" = $2
 		LEFT JOIN departments d ON d.id = cv."departmentId"
+		LEFT JOIN LATERAL (SELECT array_agg(tag.name ORDER BY lower(tag.name)) tags FROM contact_tag_assignments assignment JOIN company_tags tag ON tag.id = assignment."tagId" WHERE assignment."contactId" = ct.id AND tag."companyId" = $2) contact_tags ON true
 		WHERE cv.id = $1`, conversationID, companyID).Scan(
 		&metadata.ContactName,
 		&metadata.ContactNumber,
@@ -616,28 +618,43 @@ func GetFlowConditionMetadata(conversationID, companyID int) (FlowConditionMetad
 }
 
 func UpdateConversationTag(conversationID, executionID, companyID int, operation, tag string) ([]string, error) {
-	var expression string
-	switch operation {
-	case "add":
-		expression = `CASE WHEN EXISTS (
-			SELECT 1 FROM unnest(conversation.tags) existing_tag WHERE lower(existing_tag) = lower($4)
-		) THEN conversation.tags ELSE array_append(conversation.tags, $4) END`
-	case "remove":
-		expression = `ARRAY(
-			SELECT existing_tag FROM unnest(conversation.tags) existing_tag WHERE lower(existing_tag) <> lower($4)
-		)`
-	default:
+	tag = strings.TrimSpace(tag)
+	if operation != "add" && operation != "remove" {
 		return nil, errors.New("invalid tag operation")
 	}
-	query := `UPDATE conversations conversation SET tags = ` + expression + `, "updatedAt" = now()
-		FROM connections connection
-		WHERE conversation.id = $1 AND connection.id = conversation."connectionId" AND connection."companyId" = $2
-		AND EXISTS (SELECT 1 FROM flow_executions execution
-			WHERE execution.id = $3 AND execution."conversationId" = conversation.id
-			AND execution."companyId" = $2 AND execution.status IN ('running', 'waiting'))
-		RETURNING conversation.tags`
+	tx, err := db.Begin()
+	if err != nil {
+		return nil, err
+	}
+	defer tx.Rollback()
+	var contactID int
+	err = tx.QueryRow(`SELECT conversation."contactId" FROM conversations conversation JOIN connections connection ON connection.id = conversation."connectionId"
+		WHERE conversation.id = $1 AND connection."companyId" = $2 AND EXISTS (SELECT 1 FROM flow_executions execution WHERE execution.id = $3 AND execution."conversationId" = conversation.id AND execution."companyId" = $2 AND execution.status IN ('running','waiting')) FOR UPDATE OF conversation`, conversationID, companyID, executionID).Scan(&contactID)
+	if err != nil {
+		return nil, err
+	}
+	if operation == "add" {
+		var tagID int64
+		err = tx.QueryRow(`INSERT INTO company_tags ("companyId", name) VALUES ($1, $2) ON CONFLICT ("companyId", (lower(btrim(name)))) DO UPDATE SET name = company_tags.name RETURNING id`, companyID, tag).Scan(&tagID)
+		if err != nil {
+			return nil, err
+		}
+		if _, err = tx.Exec(`INSERT INTO contact_tag_assignments ("contactId", "tagId") VALUES ($1, $2) ON CONFLICT DO NOTHING`, contactID, tagID); err != nil {
+			return nil, err
+		}
+	} else {
+		if _, err = tx.Exec(`DELETE FROM contact_tag_assignments assignment USING company_tags catalog WHERE assignment."contactId" = $1 AND assignment."tagId" = catalog.id AND catalog."companyId" = $2 AND lower(catalog.name) = lower($3)`, contactID, companyID, tag); err != nil {
+			return nil, err
+		}
+	}
 	var tags pq.StringArray
-	if err := db.QueryRow(query, conversationID, companyID, executionID, tag).Scan(&tags); err != nil {
+	if err = tx.QueryRow(`SELECT COALESCE(array_agg(catalog.name ORDER BY lower(catalog.name)), ARRAY[]::text[]) FROM contact_tag_assignments assignment JOIN company_tags catalog ON catalog.id = assignment."tagId" WHERE assignment."contactId" = $1 AND catalog."companyId" = $2`, contactID, companyID).Scan(&tags); err != nil {
+		return nil, err
+	}
+	if _, err = tx.Exec(`UPDATE conversations SET tags = $2, "updatedAt" = now() WHERE "contactId" = $1`, contactID, tags); err != nil {
+		return nil, err
+	}
+	if err = tx.Commit(); err != nil {
 		return nil, err
 	}
 	return []string(tags), nil
@@ -653,7 +670,7 @@ func UpdateFlowContact(conversationID, executionID, companyID int, field, value 
 	default:
 		return errors.New("invalid contact field")
 	}
-	query := `UPDATE contacts contact SET ` + column + ` = $4
+	query := `UPDATE contacts contact SET ` + column + ` = $4, "avatarRefreshRequestedAt" = now()
 		FROM conversations conversation
 		JOIN connections connection ON connection.id = conversation."connectionId"
 		WHERE conversation.id = $1 AND contact.id = conversation."contactId" AND connection."companyId" = $2

@@ -12,6 +12,7 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"strconv"
 	"strings"
 	"time"
 )
@@ -203,6 +204,98 @@ func (c *MercadoPagoClient) getPreference(ctx context.Context, preferenceID, ext
 	return CreatePreferenceResponse{ID: preference.ID, InitPoint: preference.InitPoint}, true, nil
 }
 
+// UpdatePreferenceAmount keeps the existing checkout link while updating its
+// price and expiration in the payment provider.
+func (c *MercadoPagoClient) UpdatePreferenceAmount(ctx context.Context, preferenceID, externalReference, checkoutKey, title string, amountCents int64, dueDate time.Time) error {
+	if amountCents <= 0 || !dueDate.After(time.Now()) {
+		return errors.New("invalid preference price or expiration")
+	}
+	if _, matches, err := c.getPreference(ctx, preferenceID, externalReference, checkoutKey); err != nil {
+		return err
+	} else if !matches {
+		return errors.New("preference identity does not match payment")
+	}
+	body, err := json.Marshal(map[string]any{
+		"items":              []map[string]any{{"title": title, "quantity": 1, "unit_price": json.Number(fmt.Sprintf("%d.%02d", amountCents/100, amountCents%100)), "currency_id": "BRL"}},
+		"external_reference": externalReference,
+		"metadata":           map[string]string{"checkout_key": checkoutKey},
+		"expires":            true,
+		"expiration_date_to": dueDate.UTC().Format(time.RFC3339),
+	})
+	if err != nil {
+		return err
+	}
+	_, err = c.do(ctx, http.MethodPut, "/checkout/preferences/"+url.PathEscape(preferenceID), bytes.NewReader(body), true)
+	if err != nil {
+		return err
+	}
+	return c.verifyPreferenceState(ctx, preferenceID, externalReference, checkoutKey, amountCents, false)
+}
+
+func (c *MercadoPagoClient) ExpirePreference(ctx context.Context, preferenceID, externalReference, checkoutKey string) error {
+	if _, matches, err := c.getPreference(ctx, preferenceID, externalReference, checkoutKey); err != nil {
+		return err
+	} else if !matches {
+		return errors.New("preference identity does not match payment")
+	}
+	body, err := json.Marshal(map[string]any{
+		"expires":              true,
+		"expiration_date_from": time.Now().UTC().Add(-24 * time.Hour).Format(time.RFC3339),
+		"expiration_date_to":   time.Now().UTC().Add(-time.Minute).Format(time.RFC3339),
+	})
+	if err != nil {
+		return err
+	}
+	_, err = c.do(ctx, http.MethodPut, "/checkout/preferences/"+url.PathEscape(preferenceID), bytes.NewReader(body), true)
+	if err != nil {
+		return err
+	}
+	return c.verifyPreferenceState(ctx, preferenceID, externalReference, checkoutKey, 0, true)
+}
+
+func (c *MercadoPagoClient) verifyPreferenceState(ctx context.Context, id, externalReference, checkoutKey string, amountCents int64, expired bool) error {
+	body, err := c.do(ctx, http.MethodGet, "/checkout/preferences/"+url.PathEscape(id), nil, false)
+	if err != nil {
+		return err
+	}
+	var preference struct {
+		ID                string `json:"id"`
+		ExternalReference string `json:"external_reference"`
+		Metadata          struct {
+			CheckoutKey string `json:"checkout_key"`
+		} `json:"metadata"`
+		Expires          bool   `json:"expires"`
+		ExpirationDateTo string `json:"expiration_date_to"`
+		Items            []struct {
+			UnitPrice json.Number `json:"unit_price"`
+		} `json:"items"`
+	}
+	if err := json.Unmarshal(body, &preference); err != nil {
+		return err
+	}
+	if preference.ID != id || preference.ExternalReference != externalReference || preference.Metadata.CheckoutKey != checkoutKey || !preference.Expires {
+		return errors.New("payment preference identity or expiration does not match")
+	}
+	end, err := time.Parse(time.RFC3339, preference.ExpirationDateTo)
+	if err != nil {
+		return err
+	}
+	if expired {
+		if !end.Before(time.Now()) {
+			return errors.New("payment preference remains active")
+		}
+		return nil
+	}
+	if !end.After(time.Now()) || len(preference.Items) != 1 {
+		return errors.New("payment preference is expired or missing its item")
+	}
+	price, err := strconv.ParseFloat(preference.Items[0].UnitPrice.String(), 64)
+	if err != nil || int64(price*100+0.5) != amountCents {
+		return errors.New("payment preference amount does not match")
+	}
+	return nil
+}
+
 func (c *MercadoPagoClient) GetPayment(ctx context.Context, providerPaymentID string) (Payment, error) {
 	if strings.TrimSpace(providerPaymentID) == "" {
 		return Payment{}, errors.New("provider payment ID is required")
@@ -272,6 +365,29 @@ func (c *MercadoPagoClient) VerifyWebhookSignature(dataID, requestID, signatureH
 	mac := hmac.New(sha256.New, []byte(c.webhookSecret))
 	_, _ = io.WriteString(mac, manifest)
 	return hmac.Equal(mac.Sum(nil), provided)
+}
+
+func MercadoPagoWebhookTimestampFresh(signatureHeader string, now time.Time, tolerance time.Duration) bool {
+	var raw string
+	for _, part := range strings.Split(signatureHeader, ",") {
+		key, value, ok := strings.Cut(strings.TrimSpace(part), "=")
+		if ok && strings.EqualFold(strings.TrimSpace(key), "ts") {
+			raw = strings.TrimSpace(value)
+			break
+		}
+	}
+	value, err := strconv.ParseInt(raw, 10, 64)
+	if err != nil || value <= 0 {
+		return false
+	}
+	var timestamp time.Time
+	if value > 1_000_000_000_000 {
+		timestamp = time.UnixMilli(value)
+	} else {
+		timestamp = time.Unix(value, 0)
+	}
+	delta := now.Sub(timestamp)
+	return delta >= -tolerance && delta <= tolerance
 }
 
 func (c *MercadoPagoClient) do(ctx context.Context, method, path string, body io.Reader, hasBody bool) ([]byte, error) {

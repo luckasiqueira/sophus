@@ -1,0 +1,387 @@
+package web
+
+import (
+    "fmt"
+    "sophus/internal/repo"
+)
+
+templ Instances(connectionsList []repo.ConnectionEVO) {
+    @base("instances") {
+    <div class="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden rounded-2xl bg-stone-50 shadow-sm">
+                <!-- Header -->
+                <div class="mx-auto flex w-full max-w-[1280px] flex-wrap items-center justify-between gap-3 border-b border-stone-200 p-4 sm:p-6">
+                    <div>
+                        <h1 class="text-2xl font-bold text-gray-900 sm:text-3xl">Conexões WhatsApp</h1>
+                        <p class="text-sm text-gray-500 mt-1">Gerencie suas contas de WhatsApp conectadas ao sistema</p>
+                    </div>
+                    // <button onclick="document.getElementById('qrcodeModal').classList.remove('hidden')" class="px-6 py-3 rounded-xl font-medium text-white shadow-sm hover:shadow-md transition-all flex items-center gap-2" style="background: linear-gradient(to right, #3b82f6, #6123cc);">
+                    <button hx-get="/instances/create" hx-target="#connections" hx-swap="afterend" class="flex items-center gap-2 rounded-xl px-4 py-2.5 font-medium text-white shadow-sm transition-all hover:shadow-md sm:px-6 sm:py-3" style="background: linear-gradient(to right, #3b82f6, #6123cc);">
+                        <i class="fas fa-plus"></i>
+                        Adicionar Conexão
+                    </button>
+                </div>
+
+                <!-- Content -->
+                <div class="mx-auto min-h-0 w-full max-w-[1280px] flex-1 overflow-y-auto p-4 sm:p-6" id="connections">
+                    @instanceList(connectionsList)
+                </div>
+				<div id="instance-import-toast" class="fixed bottom-5 right-5 z-[80] hidden max-w-sm items-start gap-3 rounded-2xl bg-gray-950 px-5 py-4 text-sm text-white shadow-2xl" role="status"><i class="fas fa-circle-check mt-0.5 text-emerald-400"></i><span></span></div>
+				<div id="instance-rename-modal" class="fixed inset-0 z-[90] hidden items-end justify-center bg-stone-950/60 p-0 backdrop-blur-sm sm:items-center sm:p-5" role="dialog" aria-modal="true" aria-labelledby="instance-rename-title">
+					<div class="max-h-[100dvh] w-full max-w-md overflow-y-auto rounded-t-3xl bg-white shadow-2xl sm:max-h-[calc(100dvh-2.5rem)] sm:rounded-3xl">
+						<header class="flex items-start gap-4 border-b border-stone-100 px-6 py-5"><span class="grid h-11 w-11 shrink-0 place-items-center rounded-2xl bg-purple-100 text-purple-700"><i class="fas fa-pen"></i></span><div class="min-w-0 flex-1"><p class="text-[10px] font-bold uppercase tracking-[.2em] text-purple-600">Identificação</p><h2 id="instance-rename-title" class="mt-1 text-lg font-black text-gray-950">Renomear conexão</h2><p class="mt-1 text-xs text-gray-500">Use um nome curto que identifique a operação deste WhatsApp.</p></div><button type="button" data-close-instance-modal="instance-rename-modal" class="grid h-9 w-9 shrink-0 place-items-center rounded-xl text-gray-400 hover:bg-stone-100 hover:text-gray-700" aria-label="Fechar"><i class="fas fa-xmark"></i></button></header>
+						<form id="instance-rename-form" class="px-6 py-5"><div id="instance-rename-error" class="mb-4 hidden rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700" role="alert"></div><label for="instance-rename-name" class="mb-2 block text-sm font-bold text-gray-700">Nome da conexão</label><input id="instance-rename-name" required maxlength="120" autocomplete="off" class="w-full rounded-xl border border-stone-200 bg-stone-50 px-4 py-3 text-sm outline-none transition focus:border-purple-400 focus:bg-white focus:ring-2 focus:ring-purple-100"/><div class="mt-6 flex flex-col-reverse gap-3 sm:flex-row sm:justify-end"><button type="button" data-close-instance-modal="instance-rename-modal" class="rounded-xl border border-stone-200 px-5 py-3 text-sm font-bold text-gray-700 hover:bg-stone-50">Cancelar</button><button id="instance-rename-submit" type="submit" class="rounded-xl bg-purple-700 px-5 py-3 text-sm font-bold text-white shadow-sm hover:bg-purple-800 disabled:cursor-wait disabled:opacity-60"><i class="fas fa-check mr-2"></i>Salvar nome</button></div></form>
+					</div>
+				</div>
+				<div id="instance-delete-modal" class="fixed inset-0 z-[90] hidden items-end justify-center bg-stone-950/60 p-0 backdrop-blur-sm sm:items-center sm:p-5" role="dialog" aria-modal="true" aria-labelledby="instance-delete-title" aria-describedby="instance-delete-description">
+					<div class="max-h-[100dvh] w-full max-w-md overflow-y-auto rounded-t-3xl bg-white shadow-2xl sm:max-h-[calc(100dvh-2.5rem)] sm:rounded-3xl">
+						<header class="flex items-start gap-4 border-b border-stone-100 px-6 py-5"><span class="grid h-11 w-11 shrink-0 place-items-center rounded-2xl bg-red-50 text-red-600"><i class="fas fa-trash"></i></span><div class="min-w-0 flex-1"><p class="text-[10px] font-bold uppercase tracking-[.2em] text-red-600">Ação permanente</p><h2 id="instance-delete-title" class="mt-1 text-lg font-black text-gray-950">Remover conexão?</h2><p id="instance-delete-description" class="mt-1 text-sm leading-relaxed text-gray-500">A conexão <strong id="instance-delete-name" class="font-bold text-gray-800"></strong> será removida e precisará ser configurada novamente.</p></div><button type="button" data-close-instance-modal="instance-delete-modal" class="grid h-9 w-9 shrink-0 place-items-center rounded-xl text-gray-400 hover:bg-stone-100 hover:text-gray-700" aria-label="Fechar"><i class="fas fa-xmark"></i></button></header>
+					<div class="px-6 py-5"><div id="instance-delete-error" class="mb-4 hidden rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700" role="alert"></div><div class="flex gap-3 rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm leading-relaxed text-amber-900"><i class="fas fa-triangle-exclamation mt-0.5 text-amber-600"></i><p>Escolha o que fazer com as conversas desta conexão. Esta ação não pode ser desfeita.</p></div><fieldset class="mt-5 space-y-3"><legend class="text-sm font-bold text-gray-800">Histórico de conversas</legend><label class="flex cursor-pointer items-start gap-3 rounded-2xl border border-purple-200 bg-purple-50 p-4"><input type="radio" name="instance-delete-history" value="keep" checked class="mt-0.5 accent-purple-600"/><span><span class="block text-sm font-bold text-purple-900">Manter histórico</span><span class="mt-1 block text-xs leading-relaxed text-purple-700">As conversas serão preservadas sem conexão vinculada e ficarão disponíveis somente para consulta.</span></span></label><label class="flex cursor-pointer items-start gap-3 rounded-2xl border border-red-200 bg-red-50 p-4"><input type="radio" name="instance-delete-history" value="delete" class="mt-0.5 accent-red-600"/><span><span class="block text-sm font-bold text-red-900">Excluir histórico</span><span class="mt-1 block text-xs leading-relaxed text-red-700">Remove permanentemente as conversas e mensagens desta conexão.</span></span></label></fieldset><div class="mt-6 flex flex-col-reverse gap-3 sm:flex-row sm:justify-end"><button type="button" data-close-instance-modal="instance-delete-modal" class="rounded-xl border border-stone-200 px-5 py-3 text-sm font-bold text-gray-700 hover:bg-stone-50">Cancelar</button><button id="instance-delete-submit" type="button" class="rounded-xl bg-red-600 px-5 py-3 text-sm font-bold text-white shadow-sm hover:bg-red-700 disabled:cursor-wait disabled:opacity-60"><i class="fas fa-trash mr-2"></i>Remover conexão</button></div></div>
+					</div>
+				</div>
+				<div id="instance-import-modal" class="fixed inset-0 z-[90] hidden items-end justify-center bg-stone-950/60 p-0 backdrop-blur-sm sm:items-center sm:p-5" role="dialog" aria-modal="true" aria-labelledby="instance-import-title">
+					<div class="w-full max-w-md rounded-t-3xl bg-white shadow-2xl sm:rounded-3xl"><header class="flex items-start gap-4 border-b border-stone-100 px-6 py-5"><span class="grid h-11 w-11 shrink-0 place-items-center rounded-2xl bg-purple-100 text-purple-700"><i class="fas fa-address-book"></i></span><div class="min-w-0 flex-1"><p class="text-[10px] font-bold uppercase tracking-[.2em] text-purple-600">WhatsApp conectado</p><h2 id="instance-import-title" class="mt-1 text-lg font-black text-gray-950">Importar contatos</h2><p class="mt-1 text-sm leading-relaxed text-gray-500">Os contatos de <strong id="instance-import-name" class="font-bold text-gray-800"></strong> serão adicionados ou atualizados.</p></div><button type="button" data-close-instance-modal="instance-import-modal" class="grid h-9 w-9 shrink-0 place-items-center rounded-xl text-gray-400 hover:bg-stone-100 hover:text-gray-700" aria-label="Fechar"><i class="fas fa-xmark"></i></button></header><div class="px-6 py-5"><div id="instance-import-error" class="mb-4 hidden rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700" role="alert"></div><div class="flex gap-3 rounded-2xl border border-purple-100 bg-purple-50 p-4 text-sm leading-relaxed text-purple-900"><i class="fas fa-circle-info mt-0.5 text-purple-600"></i><p>Contatos já existentes não serão duplicados. Nomes e empresas ausentes poderão ser completados.</p></div><div class="mt-6 flex flex-col-reverse gap-3 sm:flex-row sm:justify-end"><button type="button" data-close-instance-modal="instance-import-modal" class="rounded-xl border border-stone-200 px-5 py-3 text-sm font-bold text-gray-700 hover:bg-stone-50">Cancelar</button><button id="instance-import-submit" type="button" class="rounded-xl bg-purple-700 px-5 py-3 text-sm font-bold text-white shadow-sm hover:bg-purple-800 disabled:cursor-wait disabled:opacity-60"><i class="fas fa-file-import mr-2"></i>Importar contatos</button></div></div></div>
+				</div>
+                <script>
+                    (function () {
+                        if (window.instanceStatusEvents) window.instanceStatusEvents.close();
+                        const events = new EventSource('/instances/events');
+                        let refreshTimer;
+                        function refreshInstances() {
+                            clearTimeout(refreshTimer);
+                            refreshTimer = setTimeout(function () {
+                                htmx.ajax('GET', '/instances/list', { target: '#instance-list', swap: 'outerHTML' });
+                            }, 100);
+                        }
+                        events.addEventListener('instance-status', refreshInstances);
+                        events.addEventListener('ready', refreshInstances);
+                        if (window.instanceStatusRefreshTimer) clearInterval(window.instanceStatusRefreshTimer);
+                        window.instanceStatusRefreshTimer = setInterval(refreshInstances, 15000);
+                        window.instanceStatusEvents = events;
+						document.body.addEventListener('htmx:responseError', event => {
+							if (!event.detail.elt || !event.detail.elt.hasAttribute('data-instance-reconnect')) return;
+							let message = 'Não foi possível reconectar o WhatsApp. Tente novamente em instantes.';
+							try { message = JSON.parse(event.detail.xhr.responseText).error || message; } catch (_) {}
+							if (window.showAppNotice) window.showAppNotice('Reconexão do WhatsApp', message, true);
+						});
+						const renameModal = document.getElementById('instance-rename-modal');
+						const deleteModal = document.getElementById('instance-delete-modal');
+						const importModal = document.getElementById('instance-import-modal');
+						let previousFocus = null;
+						function openInstanceModal(modal, focus) { previousFocus = document.activeElement; modal.classList.remove('hidden'); modal.classList.add('flex'); document.body.classList.add('overflow-hidden'); setTimeout(() => focus.focus(), 30); }
+						function closeInstanceModal(modal) { modal.classList.add('hidden'); modal.classList.remove('flex'); if (!document.querySelector('#instance-rename-modal.flex, #instance-delete-modal.flex, #instance-import-modal.flex')) document.body.classList.remove('overflow-hidden'); if (previousFocus && previousFocus.isConnected) previousFocus.focus(); }
+						document.getElementById('connections').addEventListener('click', function (event) {
+							const rename = event.target.closest('[data-instance-rename]'); const remove = event.target.closest('[data-instance-delete]'); const importContacts = event.target.closest('[data-import-contacts]'); if (!rename && !remove && !importContacts) return;
+							const button = rename || remove || importContacts; const details = button.closest('details'); if (details) details.open = false;
+							if (rename) { renameModal.dataset.endpoint = rename.dataset.instanceRename; renameModal.dataset.originalName = rename.dataset.instanceName; document.getElementById('instance-rename-name').value = rename.dataset.instanceName; document.getElementById('instance-rename-error').classList.add('hidden'); openInstanceModal(renameModal, document.getElementById('instance-rename-name')); return; }
+							if (importContacts) { importModal.dataset.endpoint = importContacts.dataset.importContacts; document.getElementById('instance-import-name').textContent = importContacts.dataset.instanceName; document.getElementById('instance-import-error').classList.add('hidden'); openInstanceModal(importModal, document.getElementById('instance-import-submit')); return; }
+							deleteModal.dataset.endpoint = remove.dataset.instanceDelete; document.getElementById('instance-delete-name').textContent = remove.dataset.instanceName; document.getElementById('instance-delete-error').classList.add('hidden'); openInstanceModal(deleteModal, document.getElementById('instance-delete-submit'));
+						});
+						document.querySelectorAll('[data-close-instance-modal]').forEach(button => button.addEventListener('click', () => closeInstanceModal(document.getElementById(button.dataset.closeInstanceModal))));
+						[renameModal, deleteModal, importModal].forEach(modal => modal.addEventListener('click', event => { if (event.target === modal) closeInstanceModal(modal); }));
+						document.addEventListener('keydown', event => { if (event.key !== 'Escape') return; if (renameModal.classList.contains('flex')) closeInstanceModal(renameModal); else if (deleteModal.classList.contains('flex')) closeInstanceModal(deleteModal); else if (importModal.classList.contains('flex')) closeInstanceModal(importModal); });
+						document.getElementById('instance-rename-form').addEventListener('submit', async function (event) {
+							event.preventDefault(); const name = document.getElementById('instance-rename-name').value.trim(); if (!name) return; if (name === renameModal.dataset.originalName) { closeInstanceModal(renameModal); return; }
+							const submit = document.getElementById('instance-rename-submit'); const errorBox = document.getElementById('instance-rename-error'); submit.disabled = true; errorBox.classList.add('hidden');
+							try { const response = await fetch(renameModal.dataset.endpoint, { method: 'PUT', credentials: 'same-origin', headers: { 'Content-Type': 'application/x-www-form-urlencoded', Accept: 'application/json' }, body: 'name=' + encodeURIComponent(name) }); const payload = await response.json().catch(() => ({})); if (!response.ok) throw new Error(payload.error || 'Não foi possível renomear a instância.'); closeInstanceModal(renameModal); htmx.ajax('GET', '/instances/list', { target: '#instance-list', swap: 'outerHTML' }); } catch (error) { errorBox.textContent = error.message; errorBox.classList.remove('hidden'); } finally { submit.disabled = false; }
+						});
+						document.getElementById('instance-delete-submit').addEventListener('click', async function () {
+							const submit = this; const errorBox = document.getElementById('instance-delete-error'); submit.disabled = true; errorBox.classList.add('hidden');
+							try { const history = document.querySelector('input[name="instance-delete-history"]:checked').value; const response = await fetch(deleteModal.dataset.endpoint + '?history=' + encodeURIComponent(history), { method: 'DELETE', credentials: 'same-origin', headers: { Accept: 'application/json' } }); const payload = await response.json().catch(() => ({})); if (!response.ok) throw new Error(payload.error || 'Não foi possível remover a instância.'); closeInstanceModal(deleteModal); htmx.ajax('GET', '/instances/list', { target: '#instance-list', swap: 'outerHTML' }); } catch (error) { errorBox.textContent = error.message; errorBox.classList.remove('hidden'); } finally { submit.disabled = false; }
+						});
+						document.getElementById('instance-import-submit').addEventListener('click', async function () {
+							const submit = this; const errorBox = document.getElementById('instance-import-error'); submit.disabled = true; errorBox.classList.add('hidden');
+							try { const response = await fetch(importModal.dataset.endpoint, { method: 'POST', credentials: 'same-origin', headers: { Accept: 'application/json' } }); const payload = await response.json().catch(() => ({})); if (!response.ok) throw new Error(payload.error || 'Não foi possível importar os contatos.'); const result = payload.data || {}; closeInstanceModal(importModal); const toast = document.getElementById('instance-import-toast'); toast.querySelector('span').textContent = (result.imported || 0) + ' contato(s) importado(s), ' + (result.updated || 0) + ' atualizado(s) e ' + (result.skipped || 0) + ' já existente(s).' + (result.excluded ? ' ' + result.excluded + ' fora da agenda ignorado(s).' : ''); toast.classList.remove('hidden'); toast.classList.add('flex'); setTimeout(() => { toast.classList.add('hidden'); toast.classList.remove('flex'); }, 5000); } catch (error) { errorBox.textContent = error.message; errorBox.classList.remove('hidden'); } finally { submit.disabled = false; }
+						});
+                    })();
+                </script>
+            </div>
+    }
+}
+
+templ InstanceList(connectionsList []repo.ConnectionEVO) {
+    @instanceList(connectionsList)
+}
+
+templ instanceList(connectionsList []repo.ConnectionEVO) {
+                    <div id="instance-list" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                        for _, connection := range connectionsList {
+                        <div class={ "bg-white rounded-2xl p-6 shadow-sm border-t-4 hover:shadow-lg transition-all flex flex-col", templ.KV("border-green-300", connection.Status == repo.ConnectionStatusConnected), templ.KV("border-amber-300", connection.Status == repo.ConnectionStatusConnecting || connection.Status == repo.ConnectionStatusCreating), templ.KV("border-red-300 bg-red-50/30", connection.Status != repo.ConnectionStatusConnected && connection.Status != repo.ConnectionStatusConnecting && connection.Status != repo.ConnectionStatusCreating) }>
+                            <div class="flex items-center justify-between mb-4">
+                                switch connection.Status {
+                                    case repo.ConnectionStatusConnected:
+                                <div class="w-12 h-12 bg-green-100 rounded-2xl flex items-center justify-center">
+                                    <i class="fab fa-whatsapp text-green-600 text-2xl"></i>
+                                </div>
+                                <span class="inline-flex items-center gap-1 px-2 py-1 bg-green-100 text-green-700 rounded-full text-xs font-medium">
+                                    <i class="fas fa-circle text-green-600 text-xs"></i>
+                                    Conectado
+                                </span>
+                                    case repo.ConnectionStatusConnecting, repo.ConnectionStatusCreating:
+                                <div class="w-12 h-12 bg-amber-100 rounded-2xl flex items-center justify-center">
+                                    <i class="fas fa-circle-notch fa-spin text-amber-600 text-2xl"></i>
+                                </div>
+                                <span class="inline-flex items-center gap-1 px-2 py-1 bg-amber-100 text-amber-700 rounded-full text-xs font-medium">Conectando</span>
+                                    default:
+                                <div class="w-12 h-12 bg-red-100 rounded-2xl flex items-center justify-center">
+                                    <i class="fas fa-link-slash text-red-500 text-xl"></i>
+                                </div>
+                                <span class="inline-flex items-center gap-1 px-2 py-1 bg-red-100 text-red-700 rounded-full text-xs font-medium">Desconectado</span>
+                                }
+                            </div>
+                            <h3 class="text-base font-bold text-gray-900 mb-1">{ connection.Name }</h3>
+                            <p class="text-xs text-gray-600 mb-4">{ connection.Number }</p>
+                            <div class="space-y-2 text-xs text-gray-500 mb-4 flex-1">
+                                //<div><i class="fas fa-sync-alt mr-1 text-green-600"></i>Há 2 minutos</div>
+                                //<div><i class="fas fa-envelope mr-1"></i>847 mensagens</div>
+                                //<div><i class="fas fa-users mr-1"></i>23 contatos</div>
+                            </div>
+                            <div class="flex gap-2">
+								if connection.Status == repo.ConnectionStatusConnected {
+									<button type="button" data-import-contacts={ fmt.Sprintf("/instances/%d/contacts/import", connection.Id) } data-instance-name={ connection.Name } class="flex-1 p-2 bg-purple-50 hover:bg-purple-100 rounded-lg transition-colors text-xs font-medium text-purple-700 disabled:cursor-wait disabled:opacity-60">
+										<i class="fas fa-address-book mr-1"></i>Importar contatos
+									</button>
+								} else if connection.Status == repo.ConnectionStatusConnecting || connection.Status == repo.ConnectionStatusCreating {
+									<button type="button" disabled class="flex-1 p-2 bg-amber-50 rounded-lg text-xs font-medium text-amber-700 opacity-70"><i class="fas fa-circle-notch fa-spin mr-1"></i>Aguardando conexão</button>
+								} else {
+                                    <button data-instance-reconnect hx-post={ fmt.Sprintf("/instances/%d/reconnect", connection.Id) } hx-disabled-elt="this" hx-target="#connections" hx-swap="afterend" class="flex-1 p-2 bg-red-100 hover:bg-red-200 rounded-lg transition-colors text-xs font-medium text-red-700 disabled:opacity-50">
+                                        <i class="fas fa-qrcode mr-1"></i>Reconectar
+                                    </button>
+                                }
+								<details class="relative"><summary class="list-none cursor-pointer p-2 bg-stone-100 hover:bg-stone-200 rounded-lg transition-colors"><i class="fas fa-ellipsis-v text-gray-600 text-xs"></i></summary><div class="absolute bottom-11 right-0 z-20 w-48 rounded-xl border border-stone-200 bg-white p-1.5 shadow-xl"><button type="button" data-instance-rename={ fmt.Sprintf("/instances/%d", connection.Id) } data-instance-name={ connection.Name } class="w-full rounded-lg px-3 py-2 text-left text-xs font-semibold text-gray-700 hover:bg-stone-50"><i class="fas fa-pen mr-2 text-purple-600"></i>Renomear</button><button type="button" data-instance-delete={ fmt.Sprintf("/instances/%d", connection.Id) } data-instance-name={ connection.Name } class="w-full rounded-lg px-3 py-2 text-left text-xs font-semibold text-red-700 hover:bg-red-50"><i class="fas fa-trash mr-2"></i>Remover</button></div></details>
+                            </div>
+                        </div>
+                        }
+                    </div>
+}
+
+templ InstanceReconnectPopup(connectionID int, name string) {
+    <div id="createConnectionModal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+        <div id="createConnectionModalArea" class="bg-white rounded-3xl shadow-2xl max-w-md w-full">
+            @InstanceQRCodePanel(connectionID, name)
+        </div>
+    </div>
+}
+
+templ InstanceCreatePopup() {
+<!-- Create Connection Modal -->
+    <div id="createConnectionModal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+        <div id="createConnectionModalArea" class="bg-white rounded-3xl shadow-2xl max-w-md w-full">
+            <!-- Header -->
+            <div class="p-6 flex items-center justify-between rounded-t-3xl" style="background: linear-gradient(to right, #3b82f6, #6123cc);">
+                <h2 class="text-xl font-bold text-white flex items-center gap-2">
+                    <i class="fas fa-plus"></i>
+                    Nova Conexão
+                </h2>
+                <button onclick="document.getElementById('createConnectionModal').remove()" class="p-2 hover:bg-white hover:bg-opacity-20 rounded-lg transition-colors">
+                    <i class="fas fa-times text-white text-lg"></i>
+                </button>
+            </div>
+
+            <!-- Form -->
+            <form hx-post="/instances/create" hx-target="#createConnectionModalArea" hx-swap="innerHTML" hx-on::response-error="var r=event.detail.xhr.responseText;try{r=JSON.parse(r).error||r}catch(e){};var box=document.getElementById('connectionCreateError');box.textContent=r;box.classList.remove('hidden')" class="p-6">
+                <div id="connectionCreateError" class="hidden mb-4 p-3 bg-red-50 text-red-700 rounded-xl text-xs">
+                    Não foi possível criar a conexão. Verifique os dados e tente novamente.
+                </div>
+                <div class="mb-4">
+                    <label class="block text-sm font-medium text-gray-700 mb-2">Nome da conexão</label>
+                    <input type="text" name="connection_name" placeholder="Ex: Suporte, Vendas, Financeiro" required class="w-full px-4 py-3 bg-stone-50 border border-stone-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-purple-400 transition-all">
+                    <p class="text-xs text-gray-500 mt-1.5">Use um nome que ajude a identificar essa conexão depois</p>
+                </div>
+
+                <div class="mb-6 relative" id="connTypeWrapper">
+                    <label class="block text-sm font-medium text-gray-700 mb-2">Tipo de conexão</label>
+
+                    // Radios live as siblings before the trigger so CSS can react to them
+                    <input type="radio" name="connection_type" id="deptApi" value="api_oficial" disabled class="hidden peer/api"/>
+                    <input type="radio" name="connection_type" id="deptQr" value="whatsapp_qrcode" required class="hidden peer/qr" onclick="document.getElementById('connTypeLabel').textContent='WhatsApp QRCode'; document.getElementById('deptToggle').checked=false;"/>
+
+                    // Pure CSS toggle: checkbox opens/closes the list
+                    <input type="checkbox" id="deptToggle" class="hidden peer"/>
+                    <label for="deptToggle" class="cursor-pointer w-full px-4 py-3 bg-stone-50 border border-stone-200 rounded-xl text-sm transition-all flex items-center justify-between hover:border-purple-300 peer-checked:ring-2 peer-checked:ring-purple-400 peer-checked:rounded-b-none">
+                        <span class="conn-placeholder text-gray-400">Selecione o tipo de conexão</span>
+                        <span class="conn-selected hidden text-gray-900 font-medium items-center gap-2">
+                            <i class="fas fa-check-circle text-purple-600"></i>
+                            <span id="connTypeLabel"></span>
+                        </span>
+                        <i class="fas fa-chevron-down text-gray-400 text-xs transition-transform peer-checked:rotate-180"></i>
+                    </label>
+
+                    <div class="hidden peer-checked:flex absolute left-0 right-0 top-full flex-col bg-white rounded-b-xl shadow-lg border border-t-0 border-stone-200 overflow-hidden z-20 py-1.5">
+                        <label for="deptApi" aria-disabled="true" class="cursor-not-allowed w-full px-4 py-2.5 text-left text-sm text-gray-400 flex items-center gap-2.5">
+                            <span class="w-2 h-2 shrink-0 rounded-full bg-stone-300"></span>
+                            API Oficial (Cloud Meta API)
+                            <span class="ml-auto rounded-full bg-stone-100 px-2 py-1 text-[10px] font-bold text-gray-400">Indisponível</span>
+                        </label>
+
+                        <label for="deptQr" class="cursor-pointer w-full px-4 py-2.5 text-left text-sm text-gray-700 hover:bg-purple-50 hover:text-purple-700 transition-colors flex items-center gap-2.5 peer-checked/qr:bg-purple-50 peer-checked/qr:text-purple-700 peer-checked/qr:font-medium">
+                            <span class="w-2 h-2 rounded-full bg-green-400"></span>
+                            WhatsApp QRCode
+                            <i class="fas fa-check ml-auto text-purple-600 opacity-0 peer-checked/qr:opacity-100"></i>
+                        </label>
+                    </div>
+                </div>
+                <style>
+                    /* When either radio is checked, swap the placeholder for the "selected" label on the trigger button */
+                    #connTypeWrapper:has(#deptApi:checked) .conn-placeholder,
+                    #connTypeWrapper:has(#deptQr:checked) .conn-placeholder {
+                        display: none;
+                    }
+                    #connTypeWrapper:has(#deptApi:checked) .conn-selected,
+                    #connTypeWrapper:has(#deptQr:checked) .conn-selected {
+                        display: flex;
+                    }
+                </style>
+
+                <div class="flex gap-3">
+                    <button type="button" onclick="document.getElementById('createConnectionModal').remove()" class="flex-1 py-2.5 rounded-xl font-medium text-gray-700 text-sm bg-stone-100 hover:bg-stone-200 transition-colors">
+                        Cancelar
+                    </button>
+                    <button type="submit" class="flex-1 py-2.5 rounded-xl font-medium text-white text-sm shadow-sm hover:shadow-md transition-all" style="background: linear-gradient(to right, #3b82f6, #6123cc);">
+                        Continuar
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+}
+
+templ InstanceQRCodePanel(connectionID int, name string) {
+    <div id="qrConnectionPanel" data-events-url={ fmt.Sprintf("/instances/%d/qrcode/events", connectionID) }>
+        <div class="p-6 flex items-center justify-between rounded-t-3xl" style="background: linear-gradient(to right, #3b82f6, #6123cc);">
+            <div>
+                <h2 class="text-xl font-bold text-white flex items-center gap-2">
+                    <i class="fas fa-qrcode"></i>
+                    Conectar WhatsApp
+                </h2>
+                <p class="text-xs text-purple-100 mt-1">{ name }</p>
+            </div>
+            <button type="button" onclick="window.closeQRCodeModal()" class="p-2 hover:bg-white hover:bg-opacity-20 rounded-lg transition-colors">
+                <i class="fas fa-times text-white text-lg"></i>
+            </button>
+        </div>
+        <div class="p-6 text-center">
+            <div id="qrWaiting" class="py-10 text-gray-500">
+                <i class="fas fa-circle-notch fa-spin text-3xl text-purple-600 mb-3"></i>
+                <p class="text-sm font-medium">Gerando QR Code...</p>
+            </div>
+            <div id="qrContent" class="hidden">
+                <div class="inline-flex p-3 bg-white border border-stone-200 rounded-2xl shadow-sm">
+                    <img id="qrImage" alt="QR Code para conectar o WhatsApp" class="w-64 h-64 object-contain"/>
+                </div>
+                <div class="mt-4 flex items-center justify-center gap-2 text-sm">
+                    <i class="fas fa-clock text-purple-600"></i>
+                    <span>Tempo restante:</span>
+                    <strong id="qrCountdown" class="text-purple-700">--s</strong>
+                </div>
+                <p id="qrAttempt" class="text-xs text-gray-500 mt-1"></p>
+                <details class="mt-4 text-left">
+                    <summary class="cursor-pointer text-xs font-medium text-gray-500 hover:text-purple-700">Exibir código do QR</summary>
+                    <code id="qrCodeText" class="block mt-2 p-3 bg-stone-100 rounded-lg text-[10px] text-gray-600 break-all max-h-24 overflow-y-auto"></code>
+                </details>
+                <p class="text-xs text-gray-500 mt-4">No WhatsApp, acesse Aparelhos conectados e leia este código.</p>
+            </div>
+            <div id="qrExpired" class="hidden py-8 text-amber-700">
+                <i class="fas fa-clock text-3xl mb-3"></i>
+                <p class="text-sm font-medium">QR Code expirado</p>
+                <p class="text-xs mt-1">Aguardando um novo código da Evolution GO...</p>
+            </div>
+            <div id="qrConnected" class="hidden py-8 text-green-700">
+                <div class="w-16 h-16 mx-auto bg-green-100 rounded-full flex items-center justify-center mb-4">
+                    <i class="fas fa-check text-3xl"></i>
+                </div>
+                <p class="text-base font-bold">WhatsApp conectado</p>
+                <p id="qrConnectedNumber" class="text-xs mt-1"></p>
+                <button type="button" onclick="window.location.reload()" class="mt-5 px-5 py-2.5 rounded-xl bg-green-600 hover:bg-green-700 text-white text-sm font-medium">
+                    Concluir
+                </button>
+            </div>
+            <div id="qrStreamError" class="hidden mt-4 p-3 bg-red-50 text-red-700 rounded-xl text-xs">
+                A conexão com as atualizações foi interrompida. Tentando reconectar...
+            </div>
+        </div>
+    </div>
+    <script>
+        (function () {
+            if (window._qrEventSource) window._qrEventSource.close();
+            if (window._qrCountdownTimer) clearInterval(window._qrCountdownTimer);
+
+            var panel = document.getElementById('qrConnectionPanel');
+            var source = new EventSource(panel.dataset.eventsUrl);
+            window._qrEventSource = source;
+
+            function setRemaining(expiresAt) {
+                if (window._qrCountdownTimer) clearInterval(window._qrCountdownTimer);
+                function update() {
+                    var remaining = Math.max(0, Math.ceil((expiresAt - Date.now()) / 1000));
+                    document.getElementById('qrCountdown').textContent = remaining + 's';
+                    if (remaining === 0) {
+                        clearInterval(window._qrCountdownTimer);
+                        document.getElementById('qrContent').classList.add('hidden');
+                        document.getElementById('qrExpired').classList.remove('hidden');
+                    }
+                }
+                update();
+                window._qrCountdownTimer = setInterval(update, 1000);
+            }
+
+            source.addEventListener('qrcode', function (event) {
+                var data = JSON.parse(event.data);
+                var image = data.qrcode || '';
+                document.getElementById('qrImage').src = image.startsWith('data:') ? image : 'data:image/png;base64,' + image;
+                document.getElementById('qrCodeText').textContent = data.code || '';
+                document.getElementById('qrAttempt').textContent = data.maxCount ? 'Tentativa ' + data.count + ' de ' + data.maxCount : '';
+                document.getElementById('qrWaiting').classList.add('hidden');
+                document.getElementById('qrExpired').classList.add('hidden');
+                document.getElementById('qrStreamError').classList.add('hidden');
+                document.getElementById('qrContent').classList.remove('hidden');
+                setRemaining(data.expiresAt);
+            });
+
+            source.addEventListener('connection', function (event) {
+                var data = JSON.parse(event.data);
+                if (data.status === 'connected') {
+                    source.close();
+                    if (window._qrCountdownTimer) clearInterval(window._qrCountdownTimer);
+                    document.getElementById('qrWaiting').classList.add('hidden');
+                    document.getElementById('qrContent').classList.add('hidden');
+                    document.getElementById('qrExpired').classList.add('hidden');
+                    document.getElementById('qrStreamError').classList.add('hidden');
+                    document.getElementById('qrConnectedNumber').textContent = data.number || '';
+                    document.getElementById('qrConnected').classList.remove('hidden');
+                    return;
+                }
+                if (data.status === 'qrtimeout') {
+                    document.getElementById('qrWaiting').classList.add('hidden');
+                    document.getElementById('qrContent').classList.add('hidden');
+                    document.getElementById('qrExpired').classList.remove('hidden');
+                    return;
+                }
+                if (data.status === 'disconnected' || data.status === 'loggedout') {
+                    if (window._qrCountdownTimer) clearInterval(window._qrCountdownTimer);
+                    document.getElementById('qrWaiting').classList.add('hidden');
+                    document.getElementById('qrContent').classList.add('hidden');
+                    document.getElementById('qrExpired').classList.add('hidden');
+                    var errorBox = document.getElementById('qrStreamError');
+                    errorBox.textContent = data.status === 'loggedout' ? 'A sessão do WhatsApp foi encerrada.' : 'A instância foi desconectada.';
+                    errorBox.classList.remove('hidden');
+                }
+            });
+
+            source.onopen = function () {
+                document.getElementById('qrStreamError').classList.add('hidden');
+            };
+
+            source.onerror = function () {
+                document.getElementById('qrStreamError').classList.remove('hidden');
+            };
+
+            window.closeQRCodeModal = function () {
+                source.close();
+                if (window._qrCountdownTimer) clearInterval(window._qrCountdownTimer);
+                var modal = document.getElementById('createConnectionModal');
+                if (modal) modal.remove();
+            };
+        })();
+    </script>
+}
+

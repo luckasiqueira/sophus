@@ -2,111 +2,481 @@ package components
 
 import "sophus/internal/repo"
 import "fmt"
+import "net/url"
+import "regexp"
+import "strings"
+import "time"
+import "unicode"
 
-templ MessageSent(msg repo.MessageData, companyId int) {
-    <div class="flex gap-3 justify-end">
-        <div class="flex-1 flex flex-col items-end">
-            <div class="rounded-2xl rounded-tr-none p-4 max-w-2xl shadow-sm" style="background: linear-gradient(to right, #3b82f6, #9333ea);">
-                <div class="text-base font-semibold text-white mb-2">{ msg.Text }</div>
-                if msg.MediaType != "text" && msg.MediaType != "" {
-                    <div class="flex gap-2 mt-3">
-                        if msg.MediaType == "image" {
-                            <img src={ fmt.Sprintf("/medias/%d/%s", companyId, msg.MediaPath) } alt="Image" class="w-200 h-200 rounded-xl object-cover"/>
-                        }
-                        if msg.MediaType == "video" {
-                            <div class="relative bg-black rounded-xl overflow-hidden w-full">
-                                <video class="w-64 h-64 object-contain" controls preload="metadata">
-                                    <source src={ fmt.Sprintf("/medias/%d/%s", companyId, msg.MediaPath) } type="video/mp4"/>
-                                </video>
-                                <a
-                                    href={ fmt.Sprintf("/medias/%d/%s", companyId, msg.MediaPath) }
-                                    download
-                                    class="absolute top-2 right-2 w-8 h-8 bg-black bg-opacity-50 hover:bg-opacity-75 rounded-lg flex items-center justify-center transition-colors"
-                                >
-                                    <i class="fas fa-download text-white text-xs"></i>
-                                </a>
-                            </div>
-                        }
-                        if msg.MediaType == "audio" {
-                            <div class="flex items-center gap-3" data-audio-player onload="initAudioPlayer(this)">
-                                <audio src={ fmt.Sprintf("/medias/%d/%s", companyId, msg.MediaPath) } preload="metadata"></audio>
-                                <button data-play-btn class="w-10 h-10 rounded-full bg-white bg-opacity-20 hover:bg-opacity-30 transition-colors flex items-center justify-center flex-shrink-0">
-                                    <i class="fas fa-play text-white text-sm"></i>
-                                </button>
-                                <div class="flex-1">
-                                    <div class="relative w-40 h-2 bg-white bg-opacity-30 rounded-full cursor-pointer" data-progress-track>
-                                        <div class="h-2 bg-white rounded-full transition-all" style="width: 0%" data-progress-bar></div>
-                                    </div>
-                                    <div class="text-xs text-white text-opacity-80 mt-1" data-time-display>0:00</div>
-                                </div>
-                                <a
-                                    href={ fmt.Sprintf("/medias/%d/%s", companyId, msg.MediaPath) }
-                                    download
-                                    class="w-8 h-8 rounded-full bg-white bg-opacity-20 hover:bg-opacity-30 transition-colors flex items-center justify-center flex-shrink-0"
-                                >
-                                    <i class="fas fa-download text-white text-xs"></i>
-                                </a>
-                            </div>
-                        }
-                    </div>
-                }
-            </div>
-            <div class="text-xs text-gray-500 mt-1 mr-2">{ msg.UpdatedAt.Format("15:04:05 02-01-2006") }</div>
+func messageTimeLabel(value time.Time, timezone, layout string) string {
+    if location, err := time.LoadLocation(timezone); err == nil {
+        value = value.In(location)
+    }
+    return value.Format(layout)
+}
+
+func messageDateKey(value time.Time, timezone string) string {
+    return messageTimeLabel(value, timezone, "2006-01-02")
+}
+
+func messageDateLabel(value time.Time, timezone string, now time.Time) string {
+    location := now.Location()
+    if configured, err := time.LoadLocation(timezone); err == nil {
+        location = configured
+    }
+    messageDate := value.In(location)
+    today := now.In(location)
+    if messageDate.Year() == today.Year() && messageDate.YearDay() == today.YearDay() {
+        return "Hoje"
+    }
+    yesterday := today.AddDate(0, 0, -1)
+    if messageDate.Year() == yesterday.Year() && messageDate.YearDay() == yesterday.YearDay() {
+        return "Ontem"
+    }
+    return messageDate.Format("02/01/2006")
+}
+
+func MessageDateKey(msg repo.MessageData) string {
+    return messageDateKey(msg.UpdatedAt, msg.Timezone)
+}
+
+func MessageDateLabel(msg repo.MessageData) string {
+    return messageDateLabel(msg.UpdatedAt, msg.Timezone, time.Now())
+}
+
+func messageDOMID(messageID string) string {
+    return strings.Map(func(character rune) rune {
+        if unicode.IsLetter(character) || unicode.IsDigit(character) || character == '-' || character == '_' {
+            return character
+        }
+        return '-'
+    }, messageID)
+}
+
+func quotedMessageSummary(msg repo.MessageData) string {
+    if text := strings.TrimSpace(msg.QuotedText); text != "" {
+        return text
+    }
+    switch msg.QuotedMediaType {
+    case "image":
+        return "Imagem"
+    case "video":
+        return "Vídeo"
+    case "audio":
+        return "Áudio"
+    case "document":
+        return "Documento"
+    case "view_once":
+        return "Visualização única"
+    case "sticker", "list", "buttons", "poll", "location", "contact", "interactive":
+        return receivedMessageLabel(msg.QuotedMediaType)
+    default:
+        return "Mensagem"
+    }
+}
+
+func replyMessageSummary(msg repo.MessageData) string {
+    return quotedMessageSummary(repo.MessageData{QuotedText: msg.Text, QuotedMediaType: msg.MediaType})
+}
+
+func messageSearchText(msg repo.MessageData) string {
+    value := fmt.Sprintf("%s %s", msg.Text, msg.MediaType)
+    if quoted := strings.TrimSpace(msg.QuotedText); quoted != "" {
+        value += " " + quoted
+    }
+    return value
+}
+
+func messageTimestamp(msg repo.MessageData) time.Time {
+	if !msg.CreatedAt.IsZero() {
+		return msg.CreatedAt
+	}
+	return msg.UpdatedAt
+}
+
+func quotedMessageSender(msg repo.MessageData) string {
+	if msg.QuotedFromMe {
+		return "Você"
+	}
+	if name := strings.TrimSpace(msg.QuotedSenderName); name != "" {
+		return name
+	}
+	return "Contato"
+}
+
+type messageLink struct {
+	URL   string
+	Start int
+	End   int
+}
+
+type messageTextSegment struct {
+	Text string
+	URL  string
+}
+
+var messageURLPattern = regexp.MustCompile(`https?://[^\s<>"']+`)
+
+func messageLinks(text string) []messageLink {
+	links := []messageLink{}
+	for _, match := range messageURLPattern.FindAllStringIndex(text, -1) {
+		value := strings.TrimRight(text[match[0]:match[1]], ".,;:!?")
+		parsed, err := url.Parse(value)
+		if err != nil || (parsed.Scheme != "http" && parsed.Scheme != "https") || parsed.Host == "" {
+			continue
+		}
+		links = append(links, messageLink{URL: value, Start: match[0], End: match[0] + len(value)})
+	}
+	return links
+}
+
+func messageLinkHost(value string) string {
+	parsed, err := url.Parse(value)
+	if err != nil || parsed.Hostname() == "" {
+		return value
+	}
+	return parsed.Hostname()
+}
+
+func messageTextSegments(text string) []messageTextSegment {
+	segments := []messageTextSegment{}
+	previous := 0
+	for _, link := range messageLinks(text) {
+		if link.Start > previous {
+			segments = append(segments, messageTextSegment{Text: text[previous:link.Start]})
+		}
+		segments = append(segments, messageTextSegment{Text: link.URL, URL: link.URL})
+		previous = link.End
+	}
+	if previous < len(text) {
+		segments = append(segments, messageTextSegment{Text: text[previous:]})
+	}
+	return segments
+}
+
+func groupSenderName(msg repo.MessageData) string {
+    name := strings.TrimSpace(msg.SenderName)
+    if name == "" || name == "Contato salvo automaticamente" {
+        return "Participante"
+    }
+    return name
+}
+
+func groupSenderLabel(msg repo.MessageData) string {
+    number := strings.TrimSpace(msg.SenderNumber)
+    if number == "" {
+        return groupSenderName(msg)
+    }
+    return fmt.Sprintf("%s (+%s)", groupSenderName(msg), number)
+}
+
+func groupSenderInitial(msg repo.MessageData) string {
+    name := []rune(groupSenderName(msg))
+    if len(name) == 0 {
+        return "?"
+    }
+    return strings.ToUpper(string(name[0]))
+}
+
+func messageMediaScope(msg repo.MessageData) string {
+    if msg.MediaScope == "flows" {
+        return "flows"
+    }
+    return "messages"
+}
+
+func messageMediaURL(msg repo.MessageData, action string) string {
+    return fmt.Sprintf("/management/api/media/%s/%s/%s", messageMediaScope(msg), msg.MediaPath, action)
+}
+
+templ quotedMessage(msg repo.MessageData, sent bool) {
+	if msg.QuotedId != "" {
+		<button type="button" data-quoted-message-id={ msg.QuotedId } class={ "mb-2 block w-full rounded-xl border-l-4 px-3 py-2 text-left transition hover:brightness-95 focus:outline-none focus-visible:ring-2 focus-visible:ring-purple-300", templ.KV("border-white/70 bg-white/15 text-white", sent), templ.KV("border-purple-500 bg-stone-50 text-gray-700", !sent) }>
+			<div class={ "text-[11px] font-bold", templ.KV("text-white/90", sent), templ.KV("text-purple-700", !sent) }>
+				{ quotedMessageSender(msg) }
+			</div>
+			<div class={ "max-w-md truncate text-xs", templ.KV("text-white/80", sent), templ.KV("text-gray-500", !sent) }>{ quotedMessageSummary(msg) }</div>
+		</button>
+	}
+}
+
+templ messageText(text, className, linkClass string) {
+	<div class={ className }>
+		for _, segment := range messageTextSegments(text) {
+			if segment.URL != "" {
+				<a href={ segment.URL } target="_blank" rel="noopener noreferrer" class={ linkClass }>{ segment.Text }</a>
+			} else {
+				{ segment.Text }
+			}
+		}
+	</div>
+}
+
+templ messageLinkPreview(text string, sent bool) {
+	if links := messageLinks(text); len(links) > 0 {
+		<a href={ links[0].URL } target="_blank" rel="noopener noreferrer" class={ "mt-3 flex items-center gap-3 rounded-xl border p-3 transition", templ.KV("border-white/20 bg-white/10 text-white hover:bg-white/20", sent), templ.KV("border-purple-100 bg-purple-50 text-gray-700 hover:bg-purple-100", !sent) }>
+			<span class={ "grid h-9 w-9 shrink-0 place-items-center rounded-lg", templ.KV("bg-white/15", sent), templ.KV("bg-white text-purple-700 shadow-sm", !sent) }><i class="fas fa-link text-sm"></i></span>
+			<span class="min-w-0 flex-1"><span class={ "block truncate text-xs font-black", templ.KV("text-white", sent), templ.KV("text-gray-900", !sent) }>{ messageLinkHost(links[0].URL) }</span><span class={ "mt-0.5 block truncate text-[11px]", templ.KV("text-white/75", sent), templ.KV("text-gray-500", !sent) }>{ links[0].URL }</span></span>
+			<i class="fas fa-arrow-up-right-from-square text-xs opacity-70"></i>
+		</a>
+	}
+}
+
+templ messageActions(msg repo.MessageData, conversationURL string) {
+    if msg.MessageId != "" && conversationURL != "" {
+        <div class="group/actions relative flex shrink-0 items-center gap-1 self-center opacity-100 transition-opacity sm:opacity-0 sm:group-hover/message:opacity-100 focus-within:opacity-100">
+            <form hx-post={ fmt.Sprintf("/messages/%s/react", conversationURL) } hx-target={ fmt.Sprintf("#message-reactions-%s", messageDOMID(msg.MessageId)) } hx-swap="outerHTML" class="relative">
+                <input type="hidden" name="messageId" value={ msg.MessageId }/>
+                <button type="button" class="grid h-8 w-8 place-items-center rounded-full bg-white text-gray-400 shadow-sm hover:text-purple-600" aria-label="Reagir à mensagem"><i class="far fa-face-smile"></i></button>
+				<div class="absolute bottom-full left-1/2 z-20 mb-0 hidden -translate-x-1/2 gap-1 rounded-full border border-stone-200 bg-white p-1.5 shadow-xl group-hover/actions:flex focus-within:flex">
+                    <button type="submit" name="reaction" value="👍" class="grid h-8 w-8 place-items-center rounded-full text-lg hover:bg-stone-100" aria-label="Curtir">👍</button>
+                    <button type="submit" name="reaction" value="❤️" class="grid h-8 w-8 place-items-center rounded-full text-lg hover:bg-stone-100" aria-label="Amei">❤️</button>
+                    <button type="submit" name="reaction" value="😂" class="grid h-8 w-8 place-items-center rounded-full text-lg hover:bg-stone-100" aria-label="Risos">😂</button>
+                    <button type="submit" name="reaction" value="😮" class="grid h-8 w-8 place-items-center rounded-full text-lg hover:bg-stone-100" aria-label="Surpresa">😮</button>
+                    <button type="submit" name="reaction" value="😢" class="grid h-8 w-8 place-items-center rounded-full text-lg hover:bg-stone-100" aria-label="Triste">😢</button>
+                    <button type="submit" name="reaction" value="🙏" class="grid h-8 w-8 place-items-center rounded-full text-lg hover:bg-stone-100" aria-label="Agradecer">🙏</button>
+                </div>
+            </form>
+            <button type="button" data-reply-message-id={ msg.MessageId } data-reply-text={ replyMessageSummary(msg) } class="grid h-8 w-8 place-items-center rounded-full bg-white text-gray-400 shadow-sm hover:text-purple-600" aria-label="Responder à mensagem"><i class="fas fa-reply"></i></button>
+			if repo.MessageCanBeEdited(msg, time.Now()) {
+				<button type="button" data-edit-message-id={msg.MessageId} data-edit-message-text={msg.Text} data-edit-expires={fmt.Sprint(msg.CreatedAt.Add(repo.WhatsAppMessageEditWindow).UnixMilli())} class="hidden grid h-8 w-8 place-items-center rounded-full bg-white text-gray-400 shadow-sm hover:text-purple-600" aria-label="Editar mensagem" title="Editar mensagem"><i class="fas fa-pen"></i></button>
+			}
         </div>
-        <img src="https://i.pravatar.cc/40?img=1" alt="Avatar" class="w-8 h-8 rounded-full flex-shrink-0"/>
+    }
+}
+
+templ messageReactionsContent(msg repo.MessageData, conversationURL string) {
+    for _, reaction := range msg.Reactions {
+		if conversationURL == "" {
+			<span class="inline-flex items-center gap-1 rounded-full border border-stone-200 bg-white px-2 py-0.5 text-xs shadow-sm"><span>{ reaction.Emoji }</span><span class="font-bold text-gray-600">{ fmt.Sprint(reaction.Count) }</span></span>
+		} else {
+        <form hx-post={ fmt.Sprintf("/messages/%s/react", conversationURL) } hx-target={ fmt.Sprintf("#message-reactions-%s", messageDOMID(msg.MessageId)) } hx-swap="outerHTML" class="inline-flex">
+            <input type="hidden" name="messageId" value={ msg.MessageId }/>
+            <button type="submit" name="reaction" value={ reaction.Emoji } class={ "inline-flex items-center gap-1 rounded-full border bg-white px-2 py-0.5 text-xs shadow-sm", templ.KV("border-purple-400 ring-1 ring-purple-200", reaction.Mine), templ.KV("border-stone-200", !reaction.Mine) }>
+                <span>{ reaction.Emoji }</span><span class="font-bold text-gray-600">{ fmt.Sprintf("%d", reaction.Count) }</span>
+            </button>
+        </form>
+		}
+    }
+}
+
+templ MessageReactions(msg repo.MessageData, conversationURL string, oob bool) {
+    if oob {
+        <div id={ fmt.Sprintf("message-reactions-%s", messageDOMID(msg.MessageId)) } hx-swap-oob="outerHTML" class="mt-1 flex min-h-1 flex-wrap gap-1">
+            @messageReactionsContent(msg, conversationURL)
+        </div>
+    } else {
+        <div id={ fmt.Sprintf("message-reactions-%s", messageDOMID(msg.MessageId)) } class="mt-1 flex min-h-1 flex-wrap gap-1">
+            @messageReactionsContent(msg, conversationURL)
+        </div>
+    }
+}
+
+templ MessageDateDivider(msg repo.MessageData) {
+    <div data-message-date-divider={ MessageDateKey(msg) } class="flex items-center gap-3 py-2" role="separator" aria-label={ MessageDateLabel(msg) }>
+        <span class="h-px flex-1 bg-stone-300/80"></span>
+        <span class="rounded-full border border-stone-200 bg-white/90 px-3 py-1 text-[10px] font-bold uppercase tracking-[.12em] text-gray-500 shadow-sm">{ MessageDateLabel(msg) }</span>
+        <span class="h-px flex-1 bg-stone-300/80"></span>
     </div>
 }
 
-templ MessageReceived(msg repo.MessageData, companyId int) {
-    <div class="flex gap-3">
-        <img src="https://i.pravatar.cc/40?img=1" alt="Avatar" class="w-8 h-8 rounded-full flex-shrink-0"/>
-        <div class="flex-1">
-            <div class="bg-white rounded-2xl rounded-tl-none p-4 max-w-2xl shadow-sm">
-                <div class="text-base font-semibold text-gray-600 mb-2">{ msg.Text }</div>
-                if msg.MediaType != "text" && msg.MediaType != "" {
-                    <div class="mt-2">
-                        if msg.MediaType == "image" {
-                            <img src={ fmt.Sprintf("/medias/%d/%s", companyId, msg.MediaPath) } alt="Image" class="w-200 h-200 rounded-xl object-cover"/>
-                        }
-                        if msg.MediaType == "video" {
-                            <div class="relative bg-black rounded-xl overflow-hidden w-full">
-                                <video class="w-full max-h-64 object-contain" controls preload="metadata">
-                                    <source src={ fmt.Sprintf("/medias/%d/%s", companyId, msg.MediaPath) } type="video/mp4"/>
-                                </video>
-                                <a
-                                    href={ fmt.Sprintf("/medias/%d/%s", companyId, msg.MediaPath) }
-                                    download
-                                    class="absolute top-2 right-2 w-8 h-8 bg-black bg-opacity-50 hover:bg-opacity-75 rounded-lg flex items-center justify-center transition-colors"
-                                >
-                                    <i class="fas fa-download text-white text-xs"></i>
-                                </a>
-                            </div>
-                        }
-                        if msg.MediaType == "audio" {
-                            <div class="flex items-center gap-3" data-audio-player onload="initAudioPlayer(this)">
-                                <audio src={ fmt.Sprintf("/medias/%d/%s", companyId, msg.MediaPath) } preload="metadata"></audio>
-                                <button data-play-btn class="w-10 h-10 rounded-full bg-purple-100 hover:bg-purple-200 transition-colors flex items-center justify-center flex-shrink-0">
-                                    <i class="fas fa-play text-purple-600 text-sm"></i>
-                                </button>
-                                <div class="flex-1">
-                                    <div class="relative w-40 h-2 bg-stone-200 rounded-full cursor-pointer" data-progress-track>
-                                        <div class="h-2 bg-purple-600 rounded-full transition-all" style="width: 0%" data-progress-bar></div>
-                                    </div>
-                                    <div class="text-xs text-gray-500 mt-1" data-time-display>0:00</div>
-                                </div>
-                                <a
-                                    href={ fmt.Sprintf("/medias/%d/%s", companyId, msg.MediaPath) }
-                                    download
-                                    class="w-8 h-8 rounded-full bg-stone-100 hover:bg-stone-200 transition-colors flex items-center justify-center flex-shrink-0"
-                                >
-                                    <i class="fas fa-download text-gray-500 text-xs"></i>
-                                </a>
-                            </div>
-                        }
+templ messageMedia(msg repo.MessageData, sent bool) {
+	if structuredMessage(msg) {
+		@MessageStructured(msg,sent,messageDisplayData(msg))
+	}
+	if msg.MediaType == "view_once" {
+		<div class={ "mt-3 flex items-center gap-2 rounded-xl px-3 py-2 text-sm font-semibold", templ.KV("bg-white/15 text-white", sent), templ.KV("bg-purple-50 text-purple-700", !sent) }><i class="fas fa-eye-slash"></i> Mídia de visualização única</div>
+	}
+    if msg.MediaPath != "" && msg.MediaType != "" && msg.MediaType != "text" && msg.MediaType != "view_once" {
+        <div class="mt-3">
+			if msg.MediaType == "image" {
+				<button type="button" data-conversation-media-preview data-media-kind="image" data-media-name={ msg.MediaPath } data-media-content={ messageMediaURL(msg, "content") } data-media-download={ messageMediaURL(msg, "download") } class="block max-w-sm overflow-hidden rounded-xl text-left">
+					<img src={ messageMediaURL(msg, "content") } alt="Imagem anexada" loading="lazy" decoding="async" class="max-h-64 w-full object-cover"/>
+				</button>
+			} else if msg.MediaType == "sticker" {
+				<button type="button" data-conversation-media-preview data-media-kind="image" data-media-name={ msg.MediaPath } data-media-content={ messageMediaURL(msg,"content") } data-media-download={ messageMediaURL(msg,"download") } aria-label="Visualizar figurinha" class="block rounded-xl text-left"><img src={ messageMediaURL(msg,"content") } alt="Figurinha recebida" loading="lazy" decoding="async" class="h-36 w-36 object-contain"/></button>
+			} else if msg.MediaType == "video" {
+				<button type="button" data-conversation-media-preview data-media-kind="video" data-media-name={ msg.MediaPath } data-media-content={ messageMediaURL(msg, "content") } data-media-download={ messageMediaURL(msg, "download") } class="relative block max-w-sm overflow-hidden rounded-xl bg-black text-left">
+					<video src={ messageMediaURL(msg, "content") } class="max-h-64 w-full object-contain" muted preload="metadata"></video><span class="absolute inset-0 grid place-items-center bg-black/20 text-white"><i class="fas fa-play grid h-11 w-11 place-items-center rounded-full bg-black/55 pl-0.5"></i></span>
+				</button>
+            } else if msg.MediaType == "audio" {
+                <div class="flex flex-wrap items-center gap-3" data-audio-player>
+                    <audio src={ messageMediaURL(msg, "content") } preload="metadata"></audio>
+                    <button type="button" data-play-btn class={ "grid h-10 w-10 shrink-0 place-items-center rounded-full transition-colors", templ.KV("bg-white/20 hover:bg-white/30", sent), templ.KV("bg-purple-100 hover:bg-purple-200", !sent) }><i class={ "fas fa-play text-sm", templ.KV("text-white", sent), templ.KV("text-purple-600", !sent) }></i></button>
+                    <div class="min-w-0 flex-1">
+                        <div class={ "relative h-2 w-40 cursor-pointer rounded-full", templ.KV("bg-white/30", sent), templ.KV("bg-stone-200", !sent) } data-progress-track><div class={ "h-2 rounded-full transition-all", templ.KV("bg-white", sent), templ.KV("bg-purple-600", !sent) } style="width: 0%" data-progress-bar></div></div>
+                        <div class={ "mt-1 text-xs", templ.KV("text-white/80", sent), templ.KV("text-gray-500", !sent) } data-time-display>0:00</div>
                     </div>
+					<div class="flex items-center gap-2">
+						<label class={ "flex items-center gap-2 rounded-full px-2.5 py-1.5", templ.KV("bg-white/15", sent), templ.KV("border border-purple-100 bg-purple-50", !sent) } title="Volume"><i data-volume-icon class={ "fas fa-volume-high w-3 text-center text-[11px]", templ.KV("text-white", sent), templ.KV("text-purple-700", !sent) }></i><input data-volume-control type="range" min="0" max="1" step="0.05" value="1" aria-label="Volume do áudio" class={ "audio-volume-control w-24 cursor-pointer", templ.KV("audio-volume-control-dark", sent), templ.KV("audio-volume-control-light", !sent) }/></label>
+						<button data-speed-control type="button" class={ "rounded-lg px-1.5 py-1 text-[10px] font-black transition", templ.KV("bg-white/20 text-white hover:bg-white/30", sent), templ.KV("bg-stone-100 text-gray-600 hover:bg-stone-200", !sent) } aria-label="Velocidade do áudio" title="Velocidade do áudio">1x</button>
+					</div>
+                    <a href={ messageMediaURL(msg, "download") } class={ "grid h-8 w-8 shrink-0 place-items-center rounded-full", templ.KV("bg-white/20 text-white hover:bg-white/30", sent), templ.KV("bg-stone-100 text-gray-500 hover:bg-stone-200", !sent) } aria-label="Baixar áudio"><i class="fas fa-download text-xs"></i></a>
+                </div>
+			} else if msg.MediaType == "document" {
+				<button type="button" data-conversation-media-preview data-media-kind="document" data-media-mime={ messageDisplayData(msg).MimeType } data-media-name={ msg.MediaPath } data-media-content={ messageMediaURL(msg, "content") } data-media-download={ messageMediaURL(msg, "download") } class={ "flex min-w-0 items-center gap-3 rounded-xl border p-3 text-left transition sm:min-w-64", templ.KV("border-white/20 bg-white/10 text-white hover:bg-white/20", sent), templ.KV("border-stone-200 bg-stone-50 text-gray-700 hover:bg-stone-100", !sent) }>
+					<span class={ "grid h-11 w-11 shrink-0 place-items-center rounded-xl", templ.KV("bg-white/15", sent), templ.KV("bg-purple-100 text-purple-700", !sent) }><i class="fas fa-file-lines"></i></span>
+					<span class="min-w-0 flex-1"><span class="block text-sm font-bold">Documento</span><span class={ "block truncate text-xs", templ.KV("text-white/70", sent), templ.KV("text-gray-500", !sent) }>
+						if messageDisplayData(msg).FileName!="" {
+							{ messageDisplayData(msg).FileName }
+						} else {
+							{ msg.MediaPath }
+						}
+					</span></span>
+					<i class="fas fa-up-right-and-down-left-from-center text-sm"></i>
+				</button>
+			} else if !structuredMessage(msg) {
+				<a href={ messageMediaURL(msg,"download") } class={ "flex items-center gap-2 rounded-xl border p-3 text-sm font-semibold",templ.KV("border-white/20 text-white",sent),templ.KV("border-stone-200 text-gray-700",!sent) }><i class="fas fa-file-arrow-down"></i>Baixar arquivo recebido</a>
+			}
+        </div>
+    }
+	if !structuredMessage(msg) && msg.MediaType!="view_once" && msg.MediaPath=="" && (strings.TrimSpace(msg.Text)=="" || msg.MediaType!="" && msg.MediaType!="text" && msg.MediaType!="flow" && msg.MediaType!="interactive") {
+		@MessageUnavailable(msg,sent)
+	}
+}
+
+func messageDeliveryLabel(msg repo.MessageData) string {
+    if msg.DeliveryStatus >= 3 {
+        if msg.IsGroup { return "Lida por participante" }
+        return "Lida"
+    }
+    if msg.DeliveryStatus == 2 {
+        if msg.IsGroup { return "Entregue a participante" }
+        return "Entregue"
+    }
+    return "Enviada"
+}
+
+templ MessageDeliveryStatus(msg repo.MessageData, oob bool) {
+    <span id={ fmt.Sprintf("message-status-%s", messageDOMID(msg.MessageId)) } if oob { hx-swap-oob="outerHTML" } data-delivery-status={ fmt.Sprint(msg.DeliveryStatus) } title={ messageDeliveryLabel(msg) } aria-label={ messageDeliveryLabel(msg) } class={ "inline-flex items-center text-xs", templ.KV("text-sky-300", msg.DeliveryStatus >= 3), templ.KV("text-white/70", msg.DeliveryStatus < 3) }>
+        if msg.DeliveryStatus >= 2 {
+            <i class="fas fa-check-double" aria-hidden="true"></i>
+        } else {
+            <i class="fas fa-check" aria-hidden="true"></i>
+        }
+    </span>
+}
+
+templ MessageEditLabel(msg repo.MessageData) {
+	if messageDisplayData(msg).Edited {
+		<span data-message-edited> Editada · </span>
+	}
+}
+
+templ MessageSent(msg repo.MessageData, companyId int, conversationURL string, oob ...bool) {
+	<div id={"message-"+messageDOMID(msg.MessageId)} if len(oob)>0 && oob[0] { hx-swap-oob="outerHTML" } class="group/message flex gap-2 justify-end transition" data-from-me="true" data-message-quoted-id={msg.QuotedId} data-message-conversation={fmt.Sprint(msg.ConversationId)} data-message-id={ msg.MessageId } data-message-search={ messageSearchText(msg) } data-message-date={ MessageDateKey(msg) } data-message-date-label={ MessageDateLabel(msg) }>
+		@messageActions(msg, conversationURL)
+		<div class="flex min-w-0 flex-1 flex-col items-end">
+			<div class="max-w-full rounded-2xl rounded-tr-none p-3 shadow-sm sm:max-w-2xl sm:p-4" style="background: linear-gradient(to right, #3b82f6, #9333ea);">
+				@quotedMessage(msg, true)
+                if strings.TrimSpace(msg.Text) != "" && !structuredMessage(msg) {
+					@messageText(msg.Text, "whitespace-pre-wrap break-words text-base font-semibold text-white", "font-bold text-white underline decoration-white/60 underline-offset-2 hover:decoration-2")
                 }
+				@messageLinkPreview(msg.Text, true)
+                @messageMedia(msg, true)
+				<div class="mt-2 flex items-center justify-end gap-1.5 text-right text-[11px] font-semibold leading-none text-white/90">@MessageEditLabel(msg)<time data-message-time datetime={ messageTimestamp(msg).Format(time.RFC3339) } class="inline-flex items-center gap-1"><i class="far fa-clock text-[9px]" aria-hidden="true"></i>{ messageTimeLabel(messageTimestamp(msg), msg.Timezone, "15:04") }</time>@MessageDeliveryStatus(msg, false)</div>
             </div>
-            <div class="text-xs text-gray-500 mt-1 ml-2">{ msg.UpdatedAt.Format("15:04 02/01/2006") }</div>
+			@MessageReactions(msg, conversationURL, false)
         </div>
     </div>
+}
+
+templ MessageReceived(msg repo.MessageData, companyId, contactId int, conversationURL string, oob ...bool) {
+	<div id={"message-"+messageDOMID(msg.MessageId)} if len(oob)>0 && oob[0] { hx-swap-oob="outerHTML" } class="group/message flex gap-2 transition" data-message-conversation={fmt.Sprint(msg.ConversationId)} data-message-id={ msg.MessageId } data-message-search={ messageSearchText(msg) } data-message-date={ MessageDateKey(msg) } data-message-date-label={ MessageDateLabel(msg) }>
+        if msg.IsGroup && msg.SenderContactId > 0 {
+            <img src={ fmt.Sprintf("/management/api/contacts/%d/avatar", msg.SenderContactId) } alt={ fmt.Sprintf("Foto de %s", groupSenderName(msg)) } loading="lazy" decoding="async" class="w-8 h-8 rounded-full flex-shrink-0 object-cover ring-1 ring-purple-100"/>
+        } else if msg.IsGroup {
+            <div aria-hidden="true" class="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-purple-100 text-xs font-bold text-purple-700 ring-1 ring-purple-200">{ groupSenderInitial(msg) }</div>
+        } else {
+            <img src={ fmt.Sprintf("/management/api/contacts/%d/avatar", contactId) } alt="Foto do contato" loading="lazy" decoding="async" class="w-8 h-8 rounded-full flex-shrink-0 object-cover"/>
+        }
+		<div class="min-w-0 flex-1">
+			<div class="max-w-full rounded-2xl rounded-tl-none bg-white p-3 shadow-sm sm:max-w-2xl sm:p-4">
+				if msg.IsGroup {
+					<div class="mb-1.5 flex items-center justify-between gap-3 text-xs"><span class="min-w-0 truncate font-bold text-purple-700">{ groupSenderLabel(msg) }</span><time data-message-time class="shrink-0 font-semibold text-gray-500" datetime={ messageTimestamp(msg).Format(time.RFC3339) }><i class="far fa-clock mr-1 text-[9px]" aria-hidden="true"></i>{ messageTimeLabel(messageTimestamp(msg), msg.Timezone, "15:04") }</time></div>
+				}
+				@quotedMessage(msg, false)
+                if strings.TrimSpace(msg.Text) != "" && !structuredMessage(msg) {
+					@messageText(msg.Text, "whitespace-pre-wrap break-words text-base font-semibold text-gray-600", "font-bold text-purple-700 underline decoration-purple-300 underline-offset-2 hover:decoration-2")
+                }
+				@messageLinkPreview(msg.Text, false)
+                @messageMedia(msg, false)
+				<div class="mt-2 flex items-center justify-end gap-1.5 text-right text-[11px] font-semibold leading-none text-gray-500">@MessageEditLabel(msg)<time data-message-time datetime={ messageTimestamp(msg).Format(time.RFC3339) } class="inline-flex items-center gap-1"><i class="far fa-clock text-[9px]" aria-hidden="true"></i>{ messageTimeLabel(messageTimestamp(msg), msg.Timezone, "15:04") }</time></div>
+			</div>
+			@MessageReactions(msg, conversationURL, false)
+		</div>
+		@messageActions(msg, conversationURL)
+	</div>
+}
+
+templ MessageSearchPreview(msg repo.MessageData, contactName string, selected bool) {
+	<article data-search-context-id={ fmt.Sprint(msg.Id) } if selected { data-search-context-selected="true" } class={ "rounded-2xl border p-3 sm:p-4", templ.KV("border-amber-400 bg-amber-50 ring-2 ring-amber-400 ring-offset-2",selected), templ.KV("border-purple-100 bg-purple-50",!selected && msg.IsFromMe), templ.KV("border-stone-200 bg-white",!selected && !msg.IsFromMe) }>
+		<div class="mb-2 flex flex-wrap items-center justify-between gap-2 text-xs"><span class="font-bold text-purple-700">
+			if msg.IsFromMe {
+				Você
+			} else if msg.IsGroup {
+				{ groupSenderLabel(msg) }
+			} else {
+				{ contactName }
+			}
+		</span><time class="text-gray-500">{ messageTimeLabel(msg.CreatedAt,msg.Timezone,"02/01/2006 às 15:04") }</time></div>
+		if selected {
+			<p class="mb-2 text-[10px] font-black uppercase tracking-wider text-amber-700">Resultado encontrado</p>
+		}
+		if msg.QuotedId!="" {
+			<div class="mb-2 rounded-lg border-l-4 border-purple-300 bg-stone-50 px-3 py-2 text-xs text-gray-500"><p class="font-bold">{ quotedMessageSender(msg) }</p><p class="truncate">{ quotedMessageSummary(msg) }</p></div>
+		}
+		if strings.TrimSpace(msg.Text)!="" && !structuredMessage(msg) {
+			@messageText(msg.Text,"whitespace-pre-wrap break-words text-sm text-gray-700","font-bold text-purple-700 underline")
+		}
+		if msg.MediaPath!="" && msg.MediaType!="view_once" && (msg.MediaType=="image" || msg.MediaType=="sticker") {
+			<img src={ messageMediaURL(msg,"content") } alt={ receivedMessageLabel(msg.MediaType) } class="mt-3 max-h-64 max-w-full rounded-xl object-contain" loading="lazy" decoding="async"/>
+		} else if msg.MediaPath!="" && msg.MediaType=="video" {
+			<video src={ messageMediaURL(msg,"content") } controls preload="metadata" class="mt-3 max-h-64 max-w-full rounded-xl"></video>
+		} else if msg.MediaPath!="" && msg.MediaType=="audio" {
+			<audio src={ messageMediaURL(msg,"content") } controls preload="metadata" class="mt-3 w-full"></audio>
+		} else if msg.MediaPath!="" && msg.MediaType=="document" {
+			<a href={ messageMediaURL(msg,"download") } class="mt-3 inline-flex items-center gap-2 rounded-lg bg-stone-100 px-3 py-2 text-xs font-bold text-purple-700"><i class="fas fa-file-arrow-down"></i>Baixar documento</a>
+		} else {
+			@messageMedia(msg,false)
+		}
+	</article>
+}
+
+templ MessageReceivedGallery(messages []repo.MessageData, companyId, contactId int, conversationURL string) {
+	if len(messages) > 0 {
+		<div class="group/message flex gap-2 transition" data-message-conversation={fmt.Sprint(messages[0].ConversationId)} data-message-id={ messages[0].MessageId } data-message-search={ messageSearchText(messages[0]) } data-message-date={ MessageDateKey(messages[0]) } data-message-date-label={ MessageDateLabel(messages[0]) }>
+			if messages[0].IsGroup && messages[0].SenderContactId > 0 {
+				<img src={ fmt.Sprintf("/management/api/contacts/%d/avatar", messages[0].SenderContactId) } alt={ fmt.Sprintf("Foto de %s", groupSenderName(messages[0])) } class="h-8 w-8 shrink-0 rounded-full object-cover ring-1 ring-purple-100"/>
+			} else if messages[0].IsGroup {
+				<div aria-hidden="true" class="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-purple-100 text-xs font-bold text-purple-700 ring-1 ring-purple-200">{ groupSenderInitial(messages[0]) }</div>
+			} else {
+				<img src={ fmt.Sprintf("/management/api/contacts/%d/avatar", contactId) } alt="Foto do contato" class="h-8 w-8 shrink-0 rounded-full object-cover"/>
+			}
+			<div class="min-w-0 flex-1">
+				<div class="max-w-full rounded-2xl rounded-tl-none bg-white p-3 shadow-sm sm:max-w-2xl sm:p-4">
+					if messages[0].IsGroup {
+						<div class="mb-1.5 flex items-center justify-between gap-3 text-xs"><span class="min-w-0 truncate font-bold text-purple-700">{ groupSenderLabel(messages[0]) }</span><time data-message-time class="shrink-0 font-semibold text-gray-500" datetime={ messageTimestamp(messages[len(messages)-1]).Format(time.RFC3339) }><i class="far fa-clock mr-1 text-[9px]" aria-hidden="true"></i>{ messageTimeLabel(messageTimestamp(messages[len(messages)-1]), messages[len(messages)-1].Timezone, "15:04") }</time></div>
+					}
+					<div class="grid grid-cols-2 gap-1.5 overflow-hidden rounded-xl bg-stone-100">
+						for _, message := range messages {
+							if message.MediaType == "image" {
+								<button type="button" data-message-id={ message.MessageId } data-conversation-media-preview data-media-kind="image" data-media-name={ message.MediaPath } data-media-content={ messageMediaURL(message, "content") } data-media-download={ messageMediaURL(message, "download") } class="relative aspect-square overflow-hidden bg-stone-200 text-left"><img src={ messageMediaURL(message, "content") } alt="Imagem recebida" loading="lazy" class="h-full w-full object-cover transition hover:scale-105"/></button>
+							} else if message.MediaType == "video" {
+								<button type="button" data-message-id={ message.MessageId } data-conversation-media-preview data-media-kind="video" data-media-name={ message.MediaPath } data-media-content={ messageMediaURL(message, "content") } data-media-download={ messageMediaURL(message, "download") } class="relative aspect-square overflow-hidden bg-black text-left"><video src={ messageMediaURL(message, "content") } class="h-full w-full object-cover" muted preload="metadata"></video><span class="absolute inset-0 grid place-items-center bg-black/25 text-white"><i class="fas fa-play grid h-9 w-9 place-items-center rounded-full bg-black/55 pl-0.5"></i></span></button>
+							}
+						}
+					</div>
+					for _, message := range messages {
+						if strings.TrimSpace(message.Text) != "" {
+							<div class="mt-2 whitespace-pre-wrap break-words text-base font-semibold text-gray-600">{ message.Text }</div>
+						}
+					}
+					<div class="mt-2 flex items-center justify-end gap-1.5 text-right text-[11px] font-semibold leading-none text-gray-500"><time data-message-time datetime={ messageTimestamp(messages[len(messages)-1]).Format(time.RFC3339) } class="inline-flex items-center gap-1"><i class="far fa-clock text-[9px]" aria-hidden="true"></i>{ messageTimeLabel(messageTimestamp(messages[len(messages)-1]), messages[len(messages)-1].Timezone, "15:04") }</time></div>
+				</div>
+				@MessageReactions(messages[0], conversationURL, false)
+			</div>
+			@messageActions(messages[0], conversationURL)
+		</div>
+	}
 }

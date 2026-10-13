@@ -19,6 +19,77 @@ func TestValidateFlowDataAcceptsQuickWinNodes(t *testing.T) {
 	}
 }
 
+func TestValidateFlowDataAcceptsExtensionNodes(t *testing.T) {
+	raw := json.RawMessage(`{"nodes":[
+		{"id":"field","type":"setContactField","data":{"fieldKey":"customerTier","fieldType":"text","value":"gold"}},
+		{"id":"summary","type":"conversationSummary","data":{"credentialId":1,"maxMessages":30,"saveResponseTo":"conversationSummary"}},
+		{"id":"nps","type":"npsEvaluation","data":{"message":"Dê uma nota de 0 a 10","saveScoreTo":"npsScore","timeout":3600}}
+	],"edges":[]}`)
+	if err := ValidateFlowData(raw); err != nil {
+		t.Fatalf("expected extension nodes to be valid: %v", err)
+	}
+}
+
+func TestFlowExtensionHelpers(t *testing.T) {
+	if got := httpResponseHandle(map[string]interface{}{"status": 204}); got != "success" {
+		t.Fatalf("HTTP 204 handle = %q", got)
+	}
+	if got := httpResponseHandle(map[string]interface{}{"status": 500}); got != "failure" {
+		t.Fatalf("HTTP 500 handle = %q", got)
+	}
+	if got := httpResponseHandle(map[string]interface{}{"error": true}); got != "failure" {
+		t.Fatalf("HTTP error handle = %q", got)
+	}
+	for score, want := range map[int]string{0: "detractor", 6: "detractor", 7: "passive", 8: "passive", 9: "promoter", 10: "promoter"} {
+		if got := npsCategory(score); got != want {
+			t.Fatalf("npsCategory(%d) = %q, want %q", score, got, want)
+		}
+	}
+	number, err := flowCustomFieldValue(FlowNode{Data: map[string]interface{}{"fieldType": "number", "value": "{{score}}"}}, ExecutionContext{"score": 9})
+	if err != nil || number != float64(9) {
+		t.Fatalf("numeric custom field = %#v, %v", number, err)
+	}
+}
+
+func TestHTTPRequestRoutingKeepsLegacyContinuation(t *testing.T) {
+	engine := &Engine{}
+	edges := []FlowEdge{{Source: "http", Target: "next", SourceHandle: "success"}}
+	node := FlowNode{ID: "http", Type: NodeHTTPRequest, Data: map[string]interface{}{}}
+
+	handle := httpRequestOutputHandle(node, edges, "failure")
+	if handle != "" {
+		t.Fatalf("legacy HTTP failure handle = %q, want regular continuation", handle)
+	}
+	next, err := engine.getNextNode(node.ID, string(node.Type), edges, nil, nil, handle, "")
+	if err != nil || next != "next" {
+		t.Fatalf("legacy HTTP failure route = %q, %v, want next", next, err)
+	}
+}
+
+func TestHTTPRequestRoutingUsesExplicitStatusBranches(t *testing.T) {
+	engine := &Engine{}
+	edges := []FlowEdge{
+		{Source: "http", Target: "success-node", SourceHandle: "success"},
+		{Source: "http", Target: "failure-node", SourceHandle: "failure"},
+	}
+	node := FlowNode{ID: "http", Type: NodeHTTPRequest, Data: map[string]interface{}{"routeByStatus": true}}
+
+	handle := httpRequestOutputHandle(node, edges, "failure")
+	next, err := engine.getNextNode(node.ID, string(node.Type), edges, nil, nil, handle, "")
+	if err != nil || next != "failure-node" {
+		t.Fatalf("branched HTTP failure route = %q, %v, want failure-node", next, err)
+	}
+}
+
+func TestHTTPRequestRoutingInfersBranchesFromFailureEdge(t *testing.T) {
+	edges := []FlowEdge{{Source: "http", Target: "failure-node", SourceHandle: "failure"}}
+	node := FlowNode{ID: "http", Type: NodeHTTPRequest, Data: map[string]interface{}{}}
+
+	if handle := httpRequestOutputHandle(node, edges, "failure"); handle != "failure" {
+		t.Fatalf("inferred HTTP failure handle = %q, want failure", handle)
+	}
+}
+
 func TestValidateFlowDataRejectsInvalidQuickWinNodes(t *testing.T) {
 	tests := []string{
 		`{"variableName":"_private","value":"x"}`,

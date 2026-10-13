@@ -1,0 +1,102 @@
+package components
+
+import "encoding/json"
+import "fmt"
+import "math"
+import "sophus/internal/repo"
+
+func structuredMessage(msg repo.MessageData) bool {
+	switch msg.MediaType { case "list","buttons","poll","contact","location": return true }
+	return false
+}
+
+func messageDisplayData(msg repo.MessageData) repo.MessageDisplay {
+	var display repo.MessageDisplay
+	_ = json.Unmarshal(msg.DisplayData,&display)
+	return display
+}
+
+func receivedMessageLabel(kind string) string {
+	switch kind {case "list":return "Menu em lista";case "buttons":return "Menu com botões";case "poll":return "Enquete";case "contact":return "Contato recebido";case "location":return "Localização";case "sticker":return "Figurinha";case "image":return "Imagem";case "video":return "Vídeo";case "audio":return "Áudio";case "document":return "Documento";case "interactive":return "Resposta a menu";default:return "Mensagem recebida"}
+}
+
+func receivedLocationURL(display repo.MessageDisplay) string {
+	if display.Latitude==nil||display.Longitude==nil{return ""}
+	lat,lon:=*display.Latitude,*display.Longitude
+	if math.IsNaN(lat)||math.IsNaN(lon)||lat < -90||lat>90||lon < -180||lon>180{return ""}
+	return fmt.Sprintf("https://www.google.com/maps?q=%.6f,%.6f",lat,lon)
+}
+
+templ MessageStructured(msg repo.MessageData, sent bool, display repo.MessageDisplay) {
+	<div class={ "mt-2 overflow-hidden rounded-xl border p-3 text-sm", templ.KV("border-white/25 bg-white/10 text-white",sent), templ.KV("border-purple-100 bg-purple-50/50 text-gray-800",!sent) }>
+		<p class={ "text-[10px] font-bold uppercase tracking-wider",templ.KV("text-white/70",sent),templ.KV("text-purple-600",!sent) }><i class="fas fa-message mr-1"></i>{ receivedMessageLabel(msg.MediaType) }</p>
+		if display.Title != "" {
+			<h3 class="mt-2 break-words font-bold">{ display.Title }</h3>
+		}
+		if display.Body != "" {
+			<p class="mt-2 whitespace-pre-wrap break-words leading-relaxed">{ display.Body }</p>
+		}
+		if msg.MediaType == "list" {
+			<details class="group/list mt-3"><summary class={ "flex cursor-pointer list-none items-center justify-between gap-3 rounded-lg px-3 py-2 text-xs font-bold",templ.KV("bg-white/15 hover:bg-white/25",sent),templ.KV("bg-white text-purple-700 shadow-sm hover:bg-purple-100",!sent) }><span><i class="fas fa-list mr-2"></i>
+				if display.ButtonText != "" {
+					{ display.ButtonText }
+				} else {
+					Ver opções
+				}
+			</span><i class="fas fa-chevron-down transition group-open/list:rotate-180"></i></summary>
+			<div class="mt-2 max-h-72 space-y-3 overflow-y-auto">
+				for _, section := range display.Sections {
+					<section>
+						if section.Title != "" {
+							<p class="px-2 py-1 text-xs font-bold">{ section.Title }</p>
+						}
+						<ul class="space-y-1">
+							for _, row := range section.Rows {
+								<li class={ "rounded-lg border px-3 py-2",templ.KV("border-white/15 bg-white/10",sent),templ.KV("border-stone-100 bg-white",!sent) }><p class="break-words text-xs font-semibold">{ row.Title }</p>
+									if row.Description != "" {
+										<p class="mt-1 whitespace-pre-wrap break-words text-xs opacity-75">{ row.Description }</p>
+									}
+								</li>
+							}
+						</ul>
+					</section>
+				}
+				if len(display.Sections)==0 {
+					<p class="p-2 text-xs opacity-70">Opções indisponíveis no conteúdo recebido.</p>
+				}
+			</div></details>
+		}
+		if len(display.Buttons)>0 {
+			<div class="mt-3 space-y-1">
+				for _, button := range display.Buttons {
+					<div class={ "rounded-lg border px-3 py-2 text-center text-xs font-semibold",templ.KV("border-white/20 bg-white/10",sent),templ.KV("border-purple-100 bg-white text-purple-700",!sent) }>{ button.Title }</div>
+				}
+			</div>
+		}
+		for _, contact := range display.Contacts {
+			<div class={ "mt-3 flex items-center gap-3 rounded-lg p-3",templ.KV("bg-white/10",sent),templ.KV("bg-white",!sent) }><i class="fas fa-address-card text-lg"></i><div class="min-w-0"><p class="break-words text-xs font-bold">{ contact.Title }</p><p class="mt-1 break-words text-xs opacity-75">{ contact.Description }</p></div></div>
+		}
+		if msg.MediaType=="location" && receivedLocationURL(display)!="" {
+			<a href={ receivedLocationURL(display) } target="_blank" rel="noopener noreferrer" class="mt-3 inline-flex items-center gap-2 rounded-lg bg-white px-3 py-2 text-xs font-bold text-purple-700"><i class="fas fa-location-dot"></i>Abrir no mapa</a>
+		}
+		if display.Footer != "" {
+			<p class="mt-3 whitespace-pre-wrap break-words text-[11px] opacity-70">{ display.Footer }</p>
+		}
+	</div>
+}
+
+templ MessageUnavailable(msg repo.MessageData, sent bool) {
+	<div class={ "mt-2 flex flex-wrap items-center gap-2 rounded-xl px-3 py-2 text-xs",templ.KV("bg-white/10 text-white/80",sent),templ.KV("bg-stone-50 text-gray-500",!sent) }><i class="fas fa-circle-info"></i>
+		if messageDisplayData(msg).MediaUnavailableReason=="storage_quota_exceeded" {
+			{ receivedMessageLabel(msg.MediaType) } · Arquivo não salvo: limite de armazenamento da empresa atingido.
+		} else if msg.MediaType=="" || msg.MediaType=="text" {
+			Mensagem sem conteúdo disponível.
+		} else {
+			{ receivedMessageLabel(msg.MediaType) } · Conteúdo indisponível.
+		}
+		if msg.MediaRetryURL!="" {
+			<button type="button" data-media-retry data-retry-url={msg.MediaRetryURL} data-message-db-id={fmt.Sprint(msg.Id)} class={"ml-auto rounded-lg px-2 py-1 font-bold underline underline-offset-2 disabled:opacity-50",templ.KV("text-white",sent),templ.KV("text-purple-700",!sent)}>Tentar carregar</button>
+			<p data-media-retry-error role="alert" class="hidden w-full pt-1"></p>
+		}
+	</div>
+}

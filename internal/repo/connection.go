@@ -2,11 +2,13 @@ package repo
 
 import (
 	"database/sql"
-	"fmt"
+	"errors"
 	"time"
 
 	"github.com/google/uuid"
 )
+
+var ErrConnectionInUse = errors.New("connection is in use")
 
 const (
 	ConnectionStatusCreating     = "creating"
@@ -49,12 +51,12 @@ func CreateConnection(c ConnectionEVO) (int, error) {
 		return 0, err
 	}
 	var connectionLimit, connectionCount int
-	err = tx.QueryRow(`SELECT p."connectionLimit", COUNT(c.id)
+	err = tx.QueryRow(`SELECT limits."connectionLimit", COUNT(c.id)
 		FROM subscriptions s
-		JOIN plans p ON p.id = s."planId"
+		JOIN subscription_effective_limits limits ON limits."subscriptionId"=s.id
 		LEFT JOIN connections c ON c."companyId" = s."companyId"
 		WHERE s."companyId" = $1 AND s.status IN ('trialing', 'active', 'past_due')
-		GROUP BY p."connectionLimit"`, c.CompanyID).Scan(&connectionLimit, &connectionCount)
+		GROUP BY limits."connectionLimit"`, c.CompanyID).Scan(&connectionLimit, &connectionCount)
 	if err != nil {
 		if err == sql.ErrNoRows {
 			return 0, err
@@ -93,6 +95,58 @@ func UpdateConnectionQRCode(id int, qrcode string) (bool, error) {
 func UpdateConnectionStatus(id int, status string) error {
 	_, err := db.Exec(`UPDATE connections SET status = $1 WHERE id = $2`, status, id)
 	return err
+}
+
+func RenameConnection(companyID, id int, name string) (bool, error) {
+	result, err := db.Exec(`UPDATE connections SET name = $1 WHERE id = $2 AND "companyId" = $3`, name, id, companyID)
+	if err != nil {
+		return false, err
+	}
+	rows, err := result.RowsAffected()
+	return rows == 1, err
+}
+
+func DeleteConnection(companyID, id int, deleteHistory bool) (bool, error) {
+	tx, err := db.Begin()
+	if err != nil {
+		return false, err
+	}
+	defer tx.Rollback()
+	var exists bool
+	if err := tx.QueryRow(`SELECT EXISTS(SELECT 1 FROM connections WHERE id = $1 AND "companyId" = $2 FOR UPDATE)`, id, companyID).Scan(&exists); err != nil {
+		return false, err
+	}
+	if !exists {
+		return false, nil
+	}
+	if deleteHistory {
+		if _, err := tx.Exec(`DELETE FROM conversations WHERE "connectionId" = $1`, id); err != nil {
+			return false, err
+		}
+	} else {
+		if _, err := tx.Exec(`UPDATE conversations SET "connectionId" = NULL, status = 'closed' WHERE "connectionId" = $1`, id); err != nil {
+			return false, err
+		}
+	}
+	result, err := tx.Exec(`DELETE FROM connections WHERE id = $1 AND "companyId" = $2`, id, companyID)
+	if err != nil {
+		return false, err
+	}
+	rows, err := result.RowsAffected()
+	if err != nil || rows != 1 {
+		return false, err
+	}
+	return true, tx.Commit()
+}
+
+func ConnectionInUse(companyID, id int) (bool, error) {
+	var used bool
+	err := db.QueryRow(`SELECT EXISTS(
+		SELECT 1 FROM conversations conversation
+		JOIN connections connection ON connection.id = conversation."connectionId"
+		WHERE conversation."connectionId" = $1 AND connection."companyId" = $2
+	)`, id, companyID).Scan(&used)
+	return used, err
 }
 
 func ReconcileConnectionStatus(id int, status, number string) (bool, error) {
@@ -149,8 +203,19 @@ func GetConnectionByAPI(apiToken string) (ConnectionEVO, error) {
 	return c, err
 }
 
+func GetConnectionByID(companyID, id int) (ConnectionEVO, error) {
+	var connection ConnectionEVO
+	err := db.QueryRow(`SELECT id, name, number, status, "companyId", COALESCE(qrcode,''), "createdAt",
+		"instanceId", webhook, COALESCE("apiToken", ''), "connectionKey"
+		FROM connections WHERE id = $1 AND "companyId" = $2`, id, companyID).Scan(
+		&connection.Id, &connection.Name, &connection.Number, &connection.Status, &connection.CompanyID,
+		&connection.QRCode, &connection.CreatedAt, &connection.InstanceID, &connection.Webhook, &connection.APIToken,
+		&connection.ConnectionKey)
+	return connection, err
+}
+
 func GetConnectionByWebhook(webhookId string) (ConnectionEVO, error) {
-	stmt, err := db.Prepare(`SELECT "id", "status", "instanceId", "connectionKey", "companyId", COALESCE("apiToken", '') FROM connections WHERE "webhook" = $1`)
+	stmt, err := webhookDB.Prepare(`SELECT "id", "status", "instanceId", "connectionKey", "companyId", COALESCE("apiToken", '') FROM connections WHERE "webhook" = $1`)
 	if err != nil {
 		return ConnectionEVO{}, err
 	}
@@ -160,20 +225,18 @@ func GetConnectionByWebhook(webhookId string) (ConnectionEVO, error) {
 	return c, err
 }
 
-func GetConnectionByConversationURL(url uuid.UUID) (ConnectionEVO, error) {
+func GetConnectionByConversation(conversationID, companyID int) (ConnectionEVO, error) {
 	stmt, err := db.Prepare(`SELECT c."id", c."status", c."instanceId", c."connectionKey", c."companyId", COALESCE(c."apiToken", '')
 		FROM conversations cv
 		INNER JOIN connections c
 			ON c.id = cv."connectionId"
-		WHERE cv."url" = $1`)
+		WHERE cv.id = $1 AND c."companyId" = $2`)
 	if err != nil {
-		fmt.Println(err)
 		return ConnectionEVO{}, err
 	}
 	defer stmt.Close()
 	var c ConnectionEVO
-	err = stmt.QueryRow(url).Scan(&c.Id, &c.Status, &c.InstanceID, &c.ConnectionKey, &c.CompanyID, &c.APIToken)
-	fmt.Println(err)
+	err = stmt.QueryRow(conversationID, companyID).Scan(&c.Id, &c.Status, &c.InstanceID, &c.ConnectionKey, &c.CompanyID, &c.APIToken)
 	return c, err
 }
 

@@ -3,6 +3,7 @@ package middlewares
 import (
 	"errors"
 	"strings"
+	"time"
 
 	"sophus/internal/repo"
 	"sophus/utils/env"
@@ -16,13 +17,27 @@ var secret = []byte(strings.TrimSpace(env.Backend["SALT_JWT"]))
 const agentContextKey = "authenticatedAgent"
 
 func AuthUser(ctx iris.Context) {
+	started := time.Now()
+	if HasSupportCookie(ctx) && !supportExitRequest(ctx) {
+		agent, err := identifySupportAgent(ctx)
+		if err != nil {
+			supportAuthenticationFailure(ctx)
+			return
+		}
+		ctx.Values().Set(agentContextKey, agent)
+		ServerTiming(ctx, "auth", started)
+		ctx.Next()
+		return
+	}
 	if admin, err := identifyPlatformAdmin(ctx); err == nil {
 		ctx.Values().Set(platformAdminContextKey, admin)
+		ServerTiming(ctx, "auth", started)
 		ctx.Next()
 		return
 	}
 	if agent, err := identifyAgent(ctx); err == nil {
 		ctx.Values().Set(agentContextKey, agent)
+		ServerTiming(ctx, "auth", started)
 		ctx.Next()
 		return
 	}
@@ -34,8 +49,13 @@ func AuthUser(ctx iris.Context) {
 }
 
 func AuthLogin(ctx iris.Context) {
+	started := time.Now()
 	agent, err := identifyAgent(ctx)
 	if err != nil {
+		if HasSupportCookie(ctx) {
+			supportAuthenticationFailure(ctx)
+			return
+		}
 		// StatusFound (302), never Permanent(301/308): a permanent redirect
 		// here gets cached by the browser itself, so once someone hits this
 		// while logged out, the browser will keep bouncing them to /login
@@ -45,10 +65,15 @@ func AuthLogin(ctx iris.Context) {
 		return
 	}
 	ctx.Values().Set(agentContextKey, agent)
+	ServerTiming(ctx, "auth", started)
 	ctx.Next()
 }
 
 func IsValidJWT(ctx iris.Context) bool {
+	if HasSupportCookie(ctx) {
+		_, err := identifySupportAgent(ctx)
+		return err == nil
+	}
 	token := ctx.GetCookie("token")
 	if token == "" {
 		return false
@@ -74,7 +99,22 @@ func AgentIdentifier(ctx iris.Context) (repo.Agent, error) {
 	return agent, nil
 }
 
+func OptionalAgent(ctx iris.Context) (repo.Agent, bool) {
+	if agent, ok := ctx.Values().Get(agentContextKey).(repo.Agent); ok {
+		return agent, true
+	}
+	agent, err := identifyAgent(ctx)
+	if err != nil {
+		return repo.Agent{}, false
+	}
+	ctx.Values().Set(agentContextKey, agent)
+	return agent, true
+}
+
 func identifyAgent(ctx iris.Context) (repo.Agent, error) {
+	if HasSupportCookie(ctx) {
+		return identifySupportAgent(ctx)
+	}
 	if len(secret) == 0 {
 		return repo.Agent{}, errors.New("JWT secret is empty")
 	}
@@ -97,21 +137,18 @@ func identifyAgent(ctx iris.Context) (repo.Agent, error) {
 	if claims.Id <= 0 {
 		return repo.Agent{}, errors.New("invalid agent claims")
 	}
-	agent, err := repo.GetAgentById(claims.Id)
+	session, err := repo.GetSessionAgent(claims.Id)
 	if err != nil {
 		return repo.Agent{}, err
 	}
+	agent := session.Agent
 	if claims.Version != agent.SessionVersion {
 		return repo.Agent{}, errors.New("agent session is no longer valid")
 	}
 	if !agent.IsActive {
 		return repo.Agent{}, errors.New("agent is inactive")
 	}
-	companyActive, err := repo.IsCompanyActive(agent.CompanyId)
-	if err != nil {
-		return repo.Agent{}, err
-	}
-	if !companyActive {
+	if !session.CompanyActive {
 		return repo.Agent{}, errors.New("company is inactive")
 	}
 	return agent, nil

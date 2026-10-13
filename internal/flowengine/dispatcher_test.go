@@ -26,3 +26,20 @@ func TestMatchesTriggerExactRequiresValue(t *testing.T) {
 		t.Fatal("exact trigger should not match an empty value")
 	}
 }
+
+func TestHumanOwnedConversationSkipsFlowDispatch(t *testing.T) {
+	agentID := 42
+	conversation := repo.Conversation{Status: repo.ConversationStatusOpen, AgentID: &agentID}
+	if shouldDispatchIncomingAutomation(conversation) {
+		t.Fatal("human-owned open conversation must not dispatch automation")
+	}
+	handleIncomingMessage(conversation, repo.ConnectionEVO{}, "olá", "Cliente", "text", true)
+	conversation.Status = repo.ConversationStatusPending
+	if shouldDispatchIncomingAutomation(conversation) {
+		t.Fatal("human-owned pending conversation must not dispatch automation")
+	}
+	conversation.AgentID = nil
+	if !shouldDispatchIncomingAutomation(conversation) {
+		t.Fatal("unassigned conversation should remain eligible for automation")
+	}
+}

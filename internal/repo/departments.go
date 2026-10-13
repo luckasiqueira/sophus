@@ -8,6 +8,7 @@ import (
 type Department struct {
 	Id        int       `json:"id"`
 	Name      string    `json:"name"`
+	Color     string    `json:"color"`
 	CompanyId int       `json:"companyId"`
 	IsActive  bool      `json:"isActive"`
 	CreatedAt time.Time `json:"createdAt"`
@@ -21,7 +22,7 @@ type AgentAssignmentOption struct {
 }
 
 func GetDepartmentsByCompany(companyID int) ([]Department, error) {
-	rows, err := db.Query(`SELECT id, name, "companyId", "isActive", "createdAt", "updatedAt"
+	rows, err := db.Query(`SELECT id, name, color, "companyId", "isActive", "createdAt", "updatedAt"
 		FROM departments WHERE "companyId" = $1 AND "isActive" = true ORDER BY name`, companyID)
 	if err != nil {
 		return nil, err
@@ -30,7 +31,7 @@ func GetDepartmentsByCompany(companyID int) ([]Department, error) {
 	departments := []Department{}
 	for rows.Next() {
 		var department Department
-		if err := rows.Scan(&department.Id, &department.Name, &department.CompanyId, &department.IsActive, &department.CreatedAt, &department.UpdatedAt); err != nil {
+		if err := rows.Scan(&department.Id, &department.Name, &department.Color, &department.CompanyId, &department.IsActive, &department.CreatedAt, &department.UpdatedAt); err != nil {
 			return nil, err
 		}
 		departments = append(departments, department)
@@ -38,11 +39,21 @@ func GetDepartmentsByCompany(companyID int) ([]Department, error) {
 	return departments, rows.Err()
 }
 
-func CreateDepartment(companyID int, name string) (Department, error) {
+func CreateDepartment(companyID int, name, color string) (Department, error) {
 	var department Department
-	err := db.QueryRow(`INSERT INTO departments (name, "companyId") VALUES ($1, $2)
-		RETURNING id, name, "companyId", "isActive", "createdAt", "updatedAt"`, name, companyID).Scan(
-		&department.Id, &department.Name, &department.CompanyId, &department.IsActive, &department.CreatedAt, &department.UpdatedAt,
+	err := db.QueryRow(`INSERT INTO departments (name, color, "companyId") VALUES ($1, $2, $3)
+		RETURNING id, name, color, "companyId", "isActive", "createdAt", "updatedAt"`, name, color, companyID).Scan(
+		&department.Id, &department.Name, &department.Color, &department.CompanyId, &department.IsActive, &department.CreatedAt, &department.UpdatedAt,
+	)
+	return department, err
+}
+
+func UpdateDepartment(id, companyID int, name, color string) (Department, error) {
+	var department Department
+	err := db.QueryRow(`UPDATE departments SET name = $1, color = $2, "updatedAt" = now()
+		WHERE id = $3 AND "companyId" = $4
+		RETURNING id, name, color, "companyId", "isActive", "createdAt", "updatedAt"`, name, color, id, companyID).Scan(
+		&department.Id, &department.Name, &department.Color, &department.CompanyId, &department.IsActive, &department.CreatedAt, &department.UpdatedAt,
 	)
 	return department, err
 }
@@ -89,6 +100,7 @@ func GetAgentAssignmentOptions(companyID int) ([]AgentAssignmentOption, error) {
 }
 
 func ReplaceAgentDepartments(agentID, companyID int, departmentIDs []int) error {
+	defer invalidateSessionCache()
 	tx, err := db.Begin()
 	if err != nil {
 		return err

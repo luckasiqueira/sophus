@@ -1,6 +1,12 @@
 package repo
 
-import "database/sql"
+import (
+	"database/sql"
+	"encoding/json"
+	"sophus/internal/objectcache"
+	"strconv"
+	"time"
+)
 
 func GetPlatformSettings() (PlatformSettings, error) {
 	return scanPlatformSettings(db.QueryRow(`SELECT id, "paymentProvider", "allowCompanyPaymentOverride",
@@ -9,6 +15,7 @@ func GetPlatformSettings() (PlatformSettings, error) {
 }
 
 func UpdatePlatformSettings(input UpdatePlatformSettingsInput) (PlatformSettings, error) {
+	defer invalidateSettingsCache()
 	if !IsValidPaymentProvider(input.PaymentProvider) {
 		return PlatformSettings{}, ErrInvalidPaymentProvider
 	}
@@ -39,13 +46,12 @@ func UpdatePlatformAdminProfile(id int, input UpdatePlatformAdminProfileInput) (
 	admin, err := scanPlatformAdmin(tx.QueryRow(`UPDATE platform_admins SET
 		name = $1,
 		email = $2,
-		password = COALESCE(NULLIF($3, ''), password),
 		"sessionVersion" = "sessionVersion" + CASE
-			WHEN lower(email) <> lower($2) OR NULLIF($3, '') IS NOT NULL THEN 1 ELSE 0 END,
+			WHEN lower(email) <> lower($2) THEN 1 ELSE 0 END,
 		"updatedAt" = now()
-		WHERE id = $4
+		WHERE id = $3
 		RETURNING id, name, email, password, "isActive", "sessionVersion", "createdAt", "updatedAt"`,
-		input.Name, input.Email, input.PasswordHash, id))
+		input.Name, input.Email, id))
 	if err != nil {
 		return PlatformAdmin{}, err
 	}
@@ -76,7 +82,7 @@ func lockPlatformAdminEmail(tx *sql.Tx, email string, excludeAdminID int) error 
 
 func GetCompanySettings(companyID int) (CompanySettings, error) {
 	return scanCompanySettings(db.QueryRow(`SELECT c.id, c.name, c.email, c."isActive", c.timezone,
-		c."paymentProviderOverride", c."mediaRetentionDays", ps."paymentProvider", ps."allowCompanyPaymentOverride",
+		c."paymentProviderOverride", c."mediaRetentionDays", c."operationSettings", ps."paymentProvider", ps."allowCompanyPaymentOverride",
 		ps."defaultTimezone", ps."subscriptionGraceDays", c."createdAt", c."updatedAt"
 		FROM companies c
 		CROSS JOIN platform_settings ps
@@ -84,6 +90,7 @@ func GetCompanySettings(companyID int) (CompanySettings, error) {
 }
 
 func UpdateCompanySettings(companyID int, input UpdateCompanySettingsInput) (CompanySettings, error) {
+	defer invalidateSettingsCache()
 	if input.PaymentProviderOverride != nil && !IsValidPaymentProvider(*input.PaymentProviderOverride) {
 		return CompanySettings{}, ErrInvalidPaymentProvider
 	}
@@ -109,22 +116,29 @@ func UpdateCompanySettings(companyID int, input UpdateCompanySettingsInput) (Com
 	var settings CompanySettings
 	var override sql.NullString
 	var retention sql.NullInt64
+	operations := normalizeCompanyOperationSettings(input.Operations)
+	operationsJSON, err := json.Marshal(operations)
+	if err != nil {
+		return CompanySettings{}, err
+	}
 	err = tx.QueryRow(`UPDATE companies SET
 		name = $1,
 		email = $2,
 		timezone = COALESCE(NULLIF($3, ''), timezone),
 		"paymentProviderOverride" = $4,
 		"mediaRetentionDays" = $5,
+		"operationSettings" = $6::jsonb,
 		"updatedAt" = now()
-		WHERE id = $6
+		WHERE id = $7
 		RETURNING id, name, email, "isActive", timezone, "paymentProviderOverride", "mediaRetentionDays", "createdAt", "updatedAt"`,
-		input.Name, input.Email, input.Timezone, input.PaymentProviderOverride, input.MediaRetentionDays, companyID).Scan(
+		input.Name, input.Email, input.Timezone, input.PaymentProviderOverride, input.MediaRetentionDays, string(operationsJSON), companyID).Scan(
 		&settings.Id, &settings.Name, &settings.Email, &settings.IsActive, &settings.Timezone,
 		&override, &retention, &settings.CreatedAt, &settings.UpdatedAt)
 	if err != nil {
 		return CompanySettings{}, err
 	}
 	settings.PaymentProviderOverride = nullStringPointer(override)
+	settings.Operations = operations
 	if retention.Valid {
 		value := int(retention.Int64)
 		settings.MediaRetentionDays = &value
@@ -180,13 +194,16 @@ func scanCompanySettings(scanner rowScanner) (CompanySettings, error) {
 	var settings CompanySettings
 	var override sql.NullString
 	var retention sql.NullInt64
+	var operationsJSON []byte
 	err := scanner.Scan(&settings.Id, &settings.Name, &settings.Email, &settings.IsActive, &settings.Timezone,
-		&override, &retention, &settings.PaymentProvider, &settings.AllowCompanyPaymentOverride, &settings.DefaultTimezone,
+		&override, &retention, &operationsJSON, &settings.PaymentProvider, &settings.AllowCompanyPaymentOverride, &settings.DefaultTimezone,
 		&settings.SubscriptionGraceDays, &settings.CreatedAt, &settings.UpdatedAt)
 	if err != nil {
 		return CompanySettings{}, err
 	}
 	settings.PaymentProviderOverride = nullStringPointer(override)
+	_ = json.Unmarshal(operationsJSON, &settings.Operations)
+	settings.Operations = normalizeCompanyOperationSettings(settings.Operations)
 	if retention.Valid {
 		value := int(retention.Int64)
 		settings.MediaRetentionDays = &value
@@ -194,6 +211,72 @@ func scanCompanySettings(scanner rowScanner) (CompanySettings, error) {
 	settings.EffectivePaymentProvider = effectivePaymentProvider(settings.PaymentProvider,
 		settings.AllowCompanyPaymentOverride, settings.PaymentProviderOverride)
 	return settings, nil
+}
+
+type cachedOperationSettings struct {
+	Settings CompanyOperationSettings `json:"settings"`
+	Timezone string                   `json:"timezone"`
+}
+
+func GetCompanyOperationSettings(companyID int) (CompanyOperationSettings, error) {
+	var cached cachedOperationSettings
+	err := objectcache.Get("configuration", "operations-v2:"+strconv.Itoa(companyID), time.Minute, &cached, func() error {
+		var err error
+		cached.Settings, err = getCompanyOperationSettings(companyID)
+		cached.Timezone = cached.Settings.Timezone
+		return err
+	})
+	cached.Settings.Timezone = cached.Timezone
+	return cached.Settings, err
+}
+
+func getCompanyOperationSettings(companyID int) (CompanyOperationSettings, error) {
+	var raw []byte
+	var timezone string
+	if err := db.QueryRow(`SELECT "operationSettings", timezone FROM companies WHERE id = $1`, companyID).Scan(&raw, &timezone); err != nil {
+		return CompanyOperationSettings{}, err
+	}
+	var settings CompanyOperationSettings
+	if err := json.Unmarshal(raw, &settings); err != nil {
+		return CompanyOperationSettings{}, err
+	}
+	settings = normalizeCompanyOperationSettings(settings)
+	settings.Timezone = timezone
+	return settings, nil
+}
+
+func normalizeCompanyOperationSettings(settings CompanyOperationSettings) CompanyOperationSettings {
+	if settings.MessageEditPolicy == "" || !ValidMessageEditPolicy(settings.MessageEditPolicy) {
+		settings.MessageEditPolicy = MessageEditingDisabled
+	}
+	if settings.MessageSignatureTemplate == "" {
+		settings.MessageSignatureTemplate = "{agentName}"
+	}
+	if settings.BusinessHoursStart == "" {
+		settings.BusinessHoursStart = "08:00"
+	}
+	if settings.BusinessHoursEnd == "" {
+		settings.BusinessHoursEnd = "18:00"
+	}
+	if len(settings.BusinessHoursDays) == 0 {
+		settings.BusinessHoursDays = []int{1, 2, 3, 4, 5}
+	}
+	if settings.BusinessHoursLunchStart == "" {
+		settings.BusinessHoursLunchStart = "12:00"
+	}
+	if settings.BusinessHoursLunchEnd == "" {
+		settings.BusinessHoursLunchEnd = "13:00"
+	}
+	if settings.AutoAssignStrategy != "random" {
+		settings.AutoAssignStrategy = "least_loaded"
+	}
+	if settings.MaxAttachmentMB <= 0 || settings.MaxAttachmentMB > 50 {
+		settings.MaxAttachmentMB = 50
+	}
+	if len(settings.AllowedAttachmentTypes) == 0 {
+		settings.AllowedAttachmentTypes = []string{"image", "video", "audio", "document"}
+	}
+	return settings
 }
 
 func applyPlatformSettings(settings *CompanySettings, platform PlatformSettings) {

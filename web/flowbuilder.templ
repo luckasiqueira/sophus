@@ -1,16 +1,19 @@
 package web
 
+import "encoding/json"
+import "fmt"
+import "strings"
+import "sophus/internal/flowengine"
+
+func flowStarterCatalogJSON() string {
+	data,_:=json.Marshal(flowengine.StarterTemplates());return string(data)
+}
+
 templ FlowBuilder() {
-<!DOCTYPE html>
-<html lang="pt-BR">
-<head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Automações - Sophus</title>
-<script src="https://cdn.tailwindcss.com"></script>
-<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+	@base("flows") {
+	<main id="flowbuilder-page" class="relative flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden rounded-2xl bg-stone-50 shadow-sm">
 <style>
-  html, body { height: 100%; margin: 0; background: #f5f5f4; }
+	@scope (#flowbuilder-page) {
   #canvas-wrap { min-width: 0; background-image: radial-gradient(#e7e5e4 1.5px, transparent 1.5px); background-size: 22px 22px; }
 	#canvas-wrap.canvas-panning { cursor: grabbing; user-select: none; }
 	#canvas-wrap.canvas-panning * { cursor: grabbing !important; }
@@ -29,38 +32,45 @@ templ FlowBuilder() {
 	input[type="checkbox"]:not(.hidden):focus-visible { outline: none; box-shadow: 0 0 0 3px rgba(124,58,237,.22); }
 	input[type="checkbox"]:not(.hidden):disabled { cursor: not-allowed; opacity: .5; }
   @keyframes pulse { 0%,100% { transform: scale(1); } 50% { transform: scale(1.25); } }
-  .palette-item { cursor: grab; }
+  .palette-item { cursor: grab; aspect-ratio: 1; min-width: 0; }
+  .palette-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .5rem; }
+  .flow-dropdown-panel { position: fixed; inset: auto; margin: 0; padding: .375rem 0; display: none; flex-direction: column; overflow-y: auto; border: 1px solid #e7e5e4; border-radius: .75rem; background: white; color: #374151; box-shadow: 0 12px 32px #1c191733; z-index: 160; }
+  .flow-dropdown-panel:popover-open { display: flex; }
   .palette-item:active { cursor: grabbing; }
 	.variable-accordion > summary { list-style: none; }
 	.variable-accordion > summary::-webkit-details-marker { display: none; }
   ::-webkit-scrollbar { width: 10px; height: 10px; }
   ::-webkit-scrollbar-thumb { background: #d6d3d1; border-radius: 8px; }
+	@media (max-width: 767px) {
+		#view-editor { flex-direction: column; }
+		#palette { display: flex; width: max-content; gap: 1rem; }
+		#palette > div { margin-bottom: 0; width: 13rem; flex-shrink: 0; }
+		.node-card { touch-action: none; }
+		#inspector:not(.hidden) { position: absolute; inset: auto 0 0; z-index: 30; height: min(55%, 25rem); width: 100%; border-left: 0; border-top: 1px solid #e7e5e4; box-shadow: 0 -8px 24px #1c191722; }
+	}
+	}
 </style>
-</head>
-<body class="h-screen overflow-hidden flex flex-col">
 
   <!-- Top bar -->
-  <div class="flex items-center justify-between px-5 py-3 shadow-sm z-40" style="background: linear-gradient(to right, #3b82f6, #6123cc);">
+  <div class="z-40 flex max-h-[40dvh] shrink-0 flex-wrap items-center justify-between gap-2 overflow-y-auto px-3 py-2 shadow-sm sm:px-5 sm:py-3" style="background: linear-gradient(to right, #3b82f6, #6123cc);">
     <div class="flex items-center gap-3 text-white">
-      <a href="/messages" class="p-2 hover:bg-white hover:bg-opacity-20 rounded-lg transition-colors">
-        <i class="fas fa-arrow-left"></i>
-      </a>
       <i class="fas fa-diagram-project text-lg"></i>
       <span class="font-bold text-lg">Automações</span>
     </div>
-    <div id="editor-topbar-extra" class="flex items-center gap-2"></div>
+    <div id="editor-topbar-extra" class="flex w-full flex-wrap items-center gap-2 lg:w-auto"></div>
   </div>
 
   <!-- LIST VIEW -->
-  <div id="view-list" class="flex-1 overflow-y-auto p-6">
-    <div class="max-w-6xl mx-auto">
-      <div class="flex items-center justify-between mb-6">
+  <div id="flow-starter-guide" class="hidden shrink-0 border-b border-purple-100 bg-purple-50 px-4 py-3 text-xs text-purple-800" role="status"></div>
+  <div id="view-list" class="min-h-0 flex-1 overflow-y-auto p-4 sm:p-6">
+    <div class="max-w-[1280px] mx-auto">
+      <div class="mb-6 flex flex-wrap items-center justify-between gap-4">
         <div>
           <h1 class="text-2xl font-bold text-gray-900">Seus fluxos</h1>
           <p class="text-sm text-gray-500 mt-1">Robôs de atendimento automático para o WhatsApp</p>
         </div>
 		<div class="flex items-center gap-2">
-		  <button id="btn-templates" class="px-4 py-2.5 rounded-xl font-medium text-purple-700 bg-purple-50 hover:bg-purple-100 transition-all flex items-center gap-2"><i class="fas fa-layer-group"></i> Modelos</button>
+<button id="btn-templates" class="px-4 py-2.5 rounded-xl font-medium text-purple-700 bg-purple-50 hover:bg-purple-100 transition-all flex items-center gap-2"><i class="fas fa-layer-group"></i> Modelos de mensagem</button>
 		  <button id="btn-new-flow" class="px-5 py-2.5 rounded-xl font-medium text-white shadow-sm hover:shadow-md transition-all flex items-center gap-2" style="background: linear-gradient(to right, #3b82f6, #6123cc);">
 			<i class="fas fa-plus"></i> Nova automação
 		  </button>
@@ -75,9 +85,9 @@ templ FlowBuilder() {
   </div>
 
   <!-- EDITOR VIEW -->
-  <div id="view-editor" class="hidden flex-1 min-h-0 flex overflow-hidden">
+  <div id="view-editor" class="relative hidden min-h-0 flex-1 flex overflow-hidden">
     <!-- Palette -->
-    <div class="w-60 bg-white border-r border-stone-200 overflow-y-auto p-3 flex flex-col gap-4">
+    <div class="max-h-[22dvh] w-full shrink-0 overflow-auto border-b border-stone-200 bg-white p-2 md:max-h-none md:w-60 md:overflow-y-auto md:border-b-0 md:border-r md:p-3">
       <div id="palette"></div>
     </div>
 
@@ -96,25 +106,54 @@ templ FlowBuilder() {
     </div>
 
     <!-- Inspector -->
-    <div id="inspector" class="w-96 shrink-0 bg-white border-l border-stone-200 overflow-y-auto p-4 hidden"></div>
+    <div id="inspector" class="hidden w-96 shrink-0 overflow-y-auto border-l border-stone-200 bg-white p-4"></div>
   </div>
 
   <div id="templates-modal" class="hidden fixed inset-0 z-50 bg-black bg-opacity-40 p-4 items-center justify-center">
 	<div class="w-full max-w-3xl max-h-[88vh] overflow-hidden rounded-2xl bg-white shadow-2xl flex flex-col">
 	  <div class="p-5 border-b border-stone-200 flex items-center justify-between"><div><h2 class="text-lg font-bold text-gray-900">Modelos de mensagem</h2><p class="text-xs text-gray-500 mt-1">Conteúdo reutilizável capturado no snapshot de cada execução.</p></div><button id="btn-close-templates" class="p-2 rounded-lg hover:bg-stone-100"><i class="fas fa-times"></i></button></div>
-	  <div class="grid md:grid-cols-2 min-h-0 flex-1">
+	  <div class="grid min-h-0 flex-1 grid-rows-2 md:grid-cols-2 md:grid-rows-1">
 		<div id="templates-list" class="p-4 border-r border-stone-200 overflow-y-auto space-y-2"></div>
 		<form id="template-form" class="p-4 flex flex-col gap-3 overflow-y-auto">
 		  <input type="hidden" id="template-id"><input type="hidden" id="template-revision">
 		  <div><label class="block text-xs font-medium text-gray-600 mb-1">Nome</label><input id="template-name" maxlength="100" required class="w-full px-3 py-2 rounded-lg border border-stone-200"></div>
-		  <div><label class="block text-xs font-medium text-gray-600 mb-1">Mensagem</label><div class="rounded-lg border border-stone-200 bg-stone-50"><div class="flex items-center gap-1 px-2 py-1.5 border-b border-stone-200 bg-white"><button type="button" data-template-format="*" class="w-8 h-8 rounded-md hover:bg-purple-50"><i class="fas fa-bold"></i></button><button type="button" data-template-format="_" class="w-8 h-8 rounded-md hover:bg-purple-50"><i class="fas fa-italic"></i></button><button type="button" data-template-format="~" class="w-8 h-8 rounded-md hover:bg-purple-50"><i class="fas fa-strikethrough"></i></button><button type="button" data-template-format="```" class="w-8 h-8 rounded-md hover:bg-purple-50"><i class="fas fa-code"></i></button><span class="h-5 w-px bg-stone-200 mx-1"></span><button type="button" id="btn-template-variables" class="h-8 px-2.5 rounded-md text-xs font-medium text-purple-700 hover:bg-purple-50"><i class="fas fa-at mr-1"></i>Variáveis</button></div><div id="template-variables" class="hidden border-b border-stone-200 bg-white max-h-48 overflow-y-auto"></div><textarea id="template-content" maxlength="10000" rows="10" required class="w-full px-3 py-2 bg-stone-50 focus:outline-none focus:ring-2 focus:ring-inset focus:ring-purple-400"></textarea></div><p class="text-[11px] text-gray-400 mt-1">Aceita variáveis do contexto do fluxo.</p></div>
+		  <div><label class="block text-xs font-medium text-gray-600 mb-1">Mensagem</label><div class="rounded-lg border border-stone-200 bg-stone-50"><div class="flex flex-wrap items-center gap-1 px-2 py-1.5 border-b border-stone-200 bg-white"><button type="button" data-template-format="*" class="w-8 h-8 rounded-md hover:bg-purple-50"><i class="fas fa-bold"></i></button><button type="button" data-template-format="_" class="w-8 h-8 rounded-md hover:bg-purple-50"><i class="fas fa-italic"></i></button><button type="button" data-template-format="~" class="w-8 h-8 rounded-md hover:bg-purple-50"><i class="fas fa-strikethrough"></i></button><button type="button" data-template-format="```" class="w-8 h-8 rounded-md hover:bg-purple-50"><i class="fas fa-code"></i></button><span class="h-5 w-px bg-stone-200 mx-1"></span><button type="button" id="btn-template-variables" class="h-8 px-2.5 rounded-md text-xs font-medium text-purple-700 hover:bg-purple-50"><i class="fas fa-at mr-1"></i>Variáveis</button></div><div id="template-variables" class="hidden border-b border-stone-200 bg-white max-h-48 overflow-y-auto"></div><textarea id="template-content" maxlength="10000" rows="10" required class="w-full px-3 py-2 bg-stone-50 focus:outline-none focus:ring-2 focus:ring-inset focus:ring-purple-400"></textarea></div><p class="text-[11px] text-gray-400 mt-1">Aceita variáveis do contexto do fluxo.</p></div>
 		  <div class="flex gap-2"><button type="submit" class="flex-1 px-4 py-2 rounded-lg bg-purple-700 text-white font-medium">Salvar modelo</button><button type="button" id="btn-new-template" class="px-4 py-2 rounded-lg bg-stone-100 text-gray-700">Limpar</button></div>
 		</form>
 	  </div>
 	</div>
   </div>
 
+  <div id="no-response-modal" class="hidden fixed inset-0 z-50 bg-stone-950/55 p-4 items-center justify-center backdrop-blur-sm">
+	<form id="no-response-form" class="max-h-[calc(100dvh-2rem)] w-full max-w-xl overflow-y-auto rounded-2xl bg-white shadow-2xl">
+	  <div class="flex items-start justify-between border-b border-stone-200 px-5 py-4">
+		<div><p class="text-[10px] font-bold uppercase tracking-[.18em] text-purple-600">Comportamento do fluxo</p><h2 class="mt-1 text-lg font-bold text-gray-900">Cliente sem resposta</h2><p class="mt-1 text-xs text-gray-500">Envie um lembrete e transfira a conversa quando o cliente não responder.</p></div>
+		<button id="btn-close-no-response" type="button" class="grid h-9 w-9 shrink-0 place-items-center rounded-lg text-gray-400 hover:bg-stone-100 hover:text-gray-700" aria-label="Fechar"><i class="fas fa-times"></i></button>
+	  </div>
+	  <div class="space-y-4 p-5">
+		<label class="flex cursor-pointer items-start gap-3 rounded-xl border border-stone-200 bg-stone-50 p-4"><input id="no-response-enabled" type="checkbox"><span><span class="block text-sm font-semibold text-gray-800">Detectar falta de resposta</span><span class="mt-1 block text-xs leading-relaxed text-gray-500">Aplica este prazo sempre que o fluxo estiver aguardando uma resposta do cliente.</span></span></label>
+		<div id="no-response-fields" class="space-y-4">
+		  <div><label for="no-response-minutes" class="mb-1 block text-xs font-medium text-gray-600">Enviar lembrete após</label><div class="relative"><input id="no-response-minutes" type="number" min="1" max="43200" required class="w-full rounded-lg border border-stone-200 bg-stone-50 px-3 py-2 pr-20 text-sm outline-none focus:ring-2 focus:ring-purple-400"><span class="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-gray-400">minutos</span></div><p class="mt-1 text-[11px] text-gray-400">Entre 1 minuto e 30 dias. Substitui o timeout individual dos blocos de resposta.</p></div>
+		  <div><label for="no-response-message" class="mb-1 block text-xs font-medium text-gray-600">Mensagem de lembrete</label><textarea id="no-response-message" maxlength="10000" rows="4" required class="w-full rounded-lg border border-stone-200 bg-stone-50 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-purple-400"></textarea><p class="mt-1 text-[11px] text-gray-400">Aceita as mesmas variáveis disponíveis nos blocos de mensagem.</p></div>
+		  <div class="grid gap-4 sm:grid-cols-2"><div><label class="mb-1 block text-xs font-medium text-gray-600">Transferir para</label><div id="no-response-target-type"></div></div><div><label id="no-response-target-label" class="mb-1 block text-xs font-medium text-gray-600">Destino</label><div id="no-response-target"></div></div></div>
+		</div>
+	  </div>
+	  <div class="flex justify-end gap-2 border-t border-stone-200 bg-stone-50 px-5 py-4"><button id="btn-cancel-no-response" type="button" class="rounded-lg border border-stone-200 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-stone-100">Cancelar</button><button type="submit" class="rounded-lg bg-purple-700 px-4 py-2 text-sm font-semibold text-white hover:bg-purple-800"><i class="fas fa-check mr-1"></i>Aplicar</button></div>
+	</form>
+  </div>
+
+  <div id="flow-starter-catalog" class="hidden" data-templates={flowStarterCatalogJSON()}></div>
+  <dialog id="new-flow-modal" aria-labelledby="new-flow-title" class="m-auto w-11/12 max-w-3xl max-h-[90dvh] overflow-hidden rounded-3xl border border-stone-200 bg-white p-0 shadow-2xl backdrop:bg-stone-950/60 backdrop:backdrop-blur-sm">
+	<div class="flex max-h-[90dvh] flex-col"><header class="flex shrink-0 items-center justify-between gap-3 border-b border-stone-100 px-5 py-4"><div><h2 id="new-flow-title" class="text-lg font-black text-gray-900">Como deseja criar seu flow?</h2><p class="mt-1 text-xs text-gray-500">Escolha um ponto de partida e personalize no editor.</p></div><button id="new-flow-close" type="button" aria-label="Fechar criação de flow" class="grid h-9 w-9 shrink-0 place-items-center rounded-xl text-gray-500 hover:bg-stone-100"><i class="fas fa-xmark"></i></button></header>
+	<section id="new-flow-options" class="grid gap-4 p-5 sm:grid-cols-2"><button id="new-flow-blank" type="button" class="rounded-2xl border border-stone-200 p-5 text-left transition hover:border-purple-400 hover:bg-purple-50"><span class="mb-4 grid h-12 w-12 place-items-center rounded-xl bg-stone-100 text-xl text-gray-600"><i class="fas fa-file"></i></span><span class="block font-bold text-gray-900">Começar em branco</span><span class="mt-2 block text-sm leading-relaxed text-gray-500">Abra o editor somente com o bloco Início e monte seu fluxo livremente.</span></button><button id="new-flow-from-model" type="button" class="rounded-2xl border border-purple-200 bg-purple-50 p-5 text-left transition hover:border-purple-400 hover:bg-purple-100"><span class="mb-4 grid h-12 w-12 place-items-center rounded-xl bg-purple-100 text-xl text-purple-700"><i class="fas fa-wand-magic-sparkles"></i></span><span class="block font-bold text-gray-900">Começar a partir de modelo</span><span class="mt-2 block text-sm leading-relaxed text-gray-500">Use um exemplo com blocos conectados, mensagens e gatilho já preenchidos.</span></button></section>
+	<section id="new-flow-models" class="hidden min-h-0 flex-1 overflow-y-auto p-5"><p class="mb-4 text-xs leading-relaxed text-gray-500">Todos os modelos são editáveis e começam inativos. Escolha um exemplo para ver as orientações no editor.</p><div class="grid gap-3 sm:grid-cols-2">
+		for _, model:=range flowengine.StarterTemplates() {
+			<label class="cursor-pointer rounded-2xl border border-stone-200 p-4 transition hover:border-purple-300 has-[:checked]:border-purple-500 has-[:checked]:bg-purple-50 has-[:checked]:ring-1 has-[:checked]:ring-purple-300"><div class="flex items-start gap-3"><i class={"fas mt-1 text-purple-600",model.Icon}></i><div class="min-w-0 flex-1"><span class="block text-sm font-bold text-gray-900">{model.Name}</span><span class="mt-1 block text-xs leading-relaxed text-gray-500">{model.Description}</span></div><input type="radio" name="flow-starter-choice" value={model.ID} class="mt-1 accent-purple-600"/></div><p class="mt-3 text-[11px] leading-relaxed text-purple-700">{strings.Join(model.Steps," → ")}</p><p class="mt-2 text-[10px] text-gray-400">{fmt.Sprintf("%d blocos · Gatilho: Sempre responde",len(model.FlowData.Nodes))}</p></label>
+		}
+	</div></section><footer id="new-flow-model-actions" class="hidden shrink-0 items-center justify-between gap-3 border-t border-stone-100 px-5 py-4"><button id="new-flow-back" type="button" class="rounded-xl px-3 py-2 text-xs font-bold text-gray-600 hover:bg-stone-100"><i class="fas fa-arrow-left mr-2"></i>Voltar</button><button id="new-flow-use-model" type="button" disabled class="rounded-xl bg-purple-600 px-4 py-2.5 text-xs font-bold text-white hover:bg-purple-700 disabled:cursor-not-allowed disabled:opacity-40">Usar este modelo</button></footer></div>
+  </dialog>
 <script>
+document.title = 'Automações - Sophus';
 // ---------------------------------------------------------------------
 // Node type metadata - field names/behavior mirror internal/flowengine
 // exactly (types.go / engine.go).
@@ -127,6 +166,7 @@ const NODE_TYPES = {
   sendAudio:       { label: 'Enviar Áudio',         icon: 'fa-microphone',      color: '#3b82f6', category: 'Mensagens' },
   sendFile:        { label: 'Enviar Arquivo',       icon: 'fa-paperclip',       color: '#3b82f6', category: 'Mensagens' },
   sendMenu:        { label: 'Enviar Menu',          icon: 'fa-list-ul',         color: '#3b82f6', category: 'Mensagens' },
+  sendButtons:     { label: 'Botões',              icon: 'fa-hand-pointer',    color: '#2563eb', category: 'Mensagens' },
   sendTemplate:    { label: 'Enviar Modelo',        icon: 'fa-layer-group',     color: '#3b82f6', category: 'Mensagens' },
   condition:       { label: 'Condição',             icon: 'fa-code-branch',     color: '#f59e0b', category: 'Lógica' },
   switch:          { label: 'Múltipla Escolha',     icon: 'fa-list',            color: '#f59e0b', category: 'Lógica' },
@@ -140,6 +180,7 @@ const NODE_TYPES = {
   setVariable:     { label: 'Definir Variável',      icon: 'fa-code',            color: '#8b5cf6', category: 'Sistema' },
   tag:             { label: 'Gerenciar Tag',         icon: 'fa-tags',            color: '#8b5cf6', category: 'Sistema' },
   updateContact:   { label: 'Atualizar Contato',     icon: 'fa-address-card',    color: '#8b5cf6', category: 'Sistema' },
+  setContactField: { label: 'Campo Personalizado',   icon: 'fa-table-list',      color: '#8b5cf6', category: 'Sistema' },
   businessHours:   { label: 'Horário Comercial',    icon: 'fa-calendar-check',  color: '#f59e0b', category: 'Lógica' },
   randomSplit:     { label: 'Divisão Aleatória',     icon: 'fa-shuffle',         color: '#f59e0b', category: 'Lógica' },
   messageType:     { label: 'Tipo de Mensagem',      icon: 'fa-photo-film',      color: '#f59e0b', category: 'Lógica' },
@@ -148,6 +189,10 @@ const NODE_TYPES = {
   callback:        { label: 'Callback',               icon: 'fa-satellite-dish', color: '#8b5cf6', category: 'Sistema' },
   subflow:         { label: 'Executar Subfluxo',      icon: 'fa-diagram-project', color: '#8b5cf6', category: 'Sistema' },
   ai:              { label: 'Gerar com IA',          icon: 'fa-wand-magic-sparkles', color: '#8b5cf6', category: 'Sistema' },
+	 mediaTranscription: { label: 'Transcrever Mídia', icon: 'fa-file-waveform', color: '#7c3aed', category: 'Sistema' },
+	 conversationSummary: { label: 'Resumir Conversa', icon: 'fa-file-lines', color: '#7c3aed', category: 'Sistema' },
+	 aiAgent:        { label: 'Transferir para Agente IA', icon: 'fa-robot', color: '#7c3aed', category: 'Fluxo' },
+  npsEvaluation:   { label: 'Avaliação NPS',          icon: 'fa-star-half-stroke', color: '#ec4899', category: 'Interação' },
   scheduleMessage: { label: 'Agendar Mensagem',      icon: 'fa-calendar-plus',    color: '#8b5cf6', category: 'Sistema' },
   end:             { label: 'Fim',                  icon: 'fa-flag-checkered', color: '#ef4444', category: 'Fluxo' },
 };
@@ -188,10 +233,8 @@ const CONDITION_OUTPUT_LABELS = {
 function uid(prefix) { return prefix + '_' + Math.random().toString(36).slice(2, 9); }
 
 // ---------------------------------------------------------------------
-// Custom dropdown (same visual/interaction pattern as the "Tipo de
-// conexão" selector in instances.templ: hidden radios + a checkbox that
-// toggles a floating options panel via CSS peer/:has() - no JS needed for
-// open/close, only for wiring the selected value back into state).
+// Custom selectors use top-layer popovers so scrollable toolbars and the
+// inspector cannot clip their options. Radios remain inside the wrapper.
 // ---------------------------------------------------------------------
 let ddCounter = 0;
 function customSelectHTML(role, options, selected, placeholder, field) {
@@ -224,8 +267,8 @@ function customSelectHTML(role, options, selected, placeholder, field) {
   return '' +
     '<div class="relative' + (field ? ' w-full' : '') + '" id="' + wrapperId + '" data-dd-name="' + base + '" data-dd-role="' + role + '"' + (field ? ' data-dd-field="' + escapeAttr(field) + '"' : '') + '>' +
       radios +
-      '<input type="checkbox" id="' + toggleId + '" class="hidden peer">' +
-      '<label for="' + toggleId + '" class="cursor-pointer' + (field ? ' w-full' : '') + ' min-w-[170px] px-3 py-2 bg-white border border-stone-200 rounded-xl text-sm transition-all flex items-center justify-between gap-2 hover:border-purple-300 peer-checked:ring-2 peer-checked:ring-purple-400 peer-checked:rounded-b-none shadow-sm">' +
+      '<input type="checkbox" id="' + toggleId + '" data-dd-toggle class="hidden peer">' +
+      '<label for="' + toggleId + '" data-dd-trigger role="button" tabindex="0" aria-expanded="false" aria-controls="' + base + '_panel" class="cursor-pointer' + (field ? ' w-full' : '') + ' min-w-[170px] px-3 py-2 bg-white border border-stone-200 rounded-xl text-sm transition-all flex items-center justify-between gap-2 hover:border-purple-300 peer-checked:ring-2 peer-checked:ring-purple-400 shadow-sm">' +
         '<span class="dd-placeholder text-gray-400 truncate">' + escapeHtml(placeholder) + '<\/span>' +
         '<span class="dd-selected hidden text-gray-900 items-center gap-2 truncate">' +
           (selectedOpt && selectedOpt.dot ? '<span class="w-2 h-2 rounded-full flex-shrink-0" style="background:' + selectedOpt.dot + '"><\/span>' : '') +
@@ -233,7 +276,7 @@ function customSelectHTML(role, options, selected, placeholder, field) {
         '<\/span>' +
         '<i class="fas fa-chevron-down text-gray-400 text-xs transition-transform peer-checked:rotate-180 flex-shrink-0"><\/i>' +
       '<\/label>' +
-      '<div class="hidden peer-checked:flex absolute left-0 right-0 top-full flex-col bg-white rounded-b-xl shadow-lg border border-t-0 border-stone-200 overflow-hidden z-50 py-1.5 max-h-64 overflow-y-auto">' +
+      '<div id="' + base + '_panel" popover="manual" data-dd-panel class="flow-dropdown-panel">' +
         panelItems +
       '<\/div>' +
       '<style>' + hasRules + '<\/style>' +
@@ -244,15 +287,38 @@ function inspectorSelect(fieldName, options, selected, placeholder) {
   return customSelectHTML('inspector-' + fieldName, options, selected, placeholder || 'Selecione', fieldName);
 }
 
-// close any open custom dropdown when clicking outside it
-document.addEventListener('click', (e) => {
-  document.querySelectorAll('[data-dd-name]').forEach(w => {
-    if (!w.contains(e.target)) {
-      const t = w.querySelector('input[type=checkbox]');
-      if (t) t.checked = false;
-    }
-  });
+function hideFlowDropdown(wrapper) {
+	const panel=wrapper.querySelector('[data-dd-panel]');const toggle=wrapper.querySelector('[data-dd-toggle]');
+	if(toggle)toggle.checked=false;wrapper.querySelector('[data-dd-trigger]')?.setAttribute('aria-expanded','false');
+	if(panel?.matches(':popover-open'))panel.hidePopover();else if(panel)panel.style.display='';
+}
+
+function positionFlowDropdown(wrapper) {
+	const panel=wrapper.querySelector('[data-dd-panel]'),trigger=wrapper.querySelector('[data-dd-trigger]');if(!panel||!trigger)return;
+	const bounds=trigger.getBoundingClientRect(),margin=8,width=Math.min(Math.max(bounds.width,170),innerWidth-margin*2);
+	const below=innerHeight-bounds.bottom-margin,above=bounds.top-margin,up=below<160&&above>below;
+	panel.style.width=width+'px';panel.style.left=Math.max(margin,Math.min(bounds.left,innerWidth-width-margin))+'px';panel.style.maxHeight=Math.min(256,Math.max(48,up?above:below))+'px';
+	panel.style.top=Math.max(margin,Math.min(up?bounds.top-panel.getBoundingClientRect().height-4:bounds.bottom+4,innerHeight-panel.getBoundingClientRect().height-margin))+'px';
+}
+
+function showFlowDropdown(wrapper) {
+	document.querySelectorAll('[data-dd-name]').forEach(other=>{if(other!==wrapper)hideFlowDropdown(other);});
+	const panel=wrapper.querySelector('[data-dd-panel]');if(!panel)return;
+	if(panel.showPopover){if(!panel.matches(':popover-open'))panel.showPopover();}else{panel.style.display='flex';}
+	wrapper.querySelector('[data-dd-toggle]').checked=true;wrapper.querySelector('[data-dd-trigger]').setAttribute('aria-expanded','true');positionFlowDropdown(wrapper);
+}
+
+document.addEventListener('change',event=>{
+	if(event.target.matches('[data-dd-toggle]')){const wrapper=event.target.closest('[data-dd-name]');if(event.target.checked)showFlowDropdown(wrapper);else hideFlowDropdown(wrapper);}
 });
+document.addEventListener('click',event=>{document.querySelectorAll('[data-dd-name]').forEach(wrapper=>{if(!wrapper.contains(event.target))hideFlowDropdown(wrapper);});});
+document.addEventListener('keydown',event=>{
+	const trigger=event.target.closest('[data-dd-trigger]');
+	if(trigger&&(event.key==='Enter'||event.key===' ')){event.preventDefault();const wrapper=trigger.closest('[data-dd-name]');if(wrapper.querySelector('[data-dd-toggle]').checked)hideFlowDropdown(wrapper);else showFlowDropdown(wrapper);}
+	if(event.key==='Escape'){document.querySelectorAll('[data-dd-toggle]:checked').forEach(toggle=>{const wrapper=toggle.closest('[data-dd-name]');hideFlowDropdown(wrapper);wrapper.querySelector('[data-dd-trigger]').focus();});}
+});
+function repositionFlowDropdowns(){document.querySelectorAll('[data-dd-toggle]:checked').forEach(toggle=>{if(toggle.isConnected)positionFlowDropdown(toggle.closest('[data-dd-name]'));});}
+window.addEventListener('resize',repositionFlowDropdowns);window.addEventListener('scroll',repositionFlowDropdowns,true);
 
 // ---------------------------------------------------------------------
 // State
@@ -262,6 +328,8 @@ const state = {
   connections: [],
   agents: [],
   departments: [],
+	aiAgents: [],
+	aiCredentials: [],
 	templates: [],
   currentFlow: null,      // {id, name, description, connectionId, triggerType, triggerValue, isActive}
   flowData: { nodes: [], edges: [] },
@@ -364,17 +432,53 @@ async function deleteFlow(id) {
 // Editor view - open/new/save
 // ---------------------------------------------------------------------
 function blankFlowData() {
-  return { nodes: [{ id: uid('n'), type: 'start', position: { x: 80, y: 160 }, data: {} }], edges: [] };
+  return { nodes: [{ id: uid('n'), type: 'start', position: { x: 80, y: 160 }, data: {} }], edges: [], settings: {} };
 }
 
-async function openEditor(id) {
+const FLOW_STARTERS = JSON.parse(document.getElementById('flow-starter-catalog').dataset.templates);
+let selectedStarterId = null;
+
+function openNewFlowModal() {
+	const modal=document.getElementById('new-flow-modal');selectedStarterId=null;
+	document.querySelectorAll('[name="flow-starter-choice"]').forEach(radio=>{radio.checked=false;});
+	document.getElementById('new-flow-use-model').disabled=true;
+	showNewFlowModels(false);modal.showModal();
+}
+
+function showNewFlowModels(show) {
+	document.getElementById('new-flow-options').classList.toggle('hidden',show);
+	document.getElementById('new-flow-models').classList.toggle('hidden',!show);
+	const actions=document.getElementById('new-flow-model-actions');actions.classList.toggle('hidden',!show);actions.classList.toggle('flex',show);
+	if(show)document.querySelector('[name="flow-starter-choice"]').focus();
+}
+
+function cloneStarterGraph(template) {
+	const data=JSON.parse(JSON.stringify(template.flowData));const ids=new Map();
+	data.nodes.forEach(node=>{const id=uid('n');ids.set(node.id,id);node.id=id;});
+	data.edges.forEach(edge=>{edge.id=uid('e');edge.source=ids.get(edge.source);edge.target=ids.get(edge.target);});
+	return data;
+}
+
+function migrateLegacyAICredentialSelections(flowData) {
+	(flowData.nodes || []).forEach(node => {
+		if (!['conversationSummary', 'mediaTranscription'].includes(node.type) || Number(node.data.credentialId) > 0) return;
+		const legacyAgent = state.aiAgents.find(agent => agent.id === Number(node.data.aiAgentId));
+		if (!legacyAgent || Number(legacyAgent.credentialId) <= 0) return;
+		node.data.credentialId = Number(legacyAgent.credentialId);
+		delete node.data.aiAgentId;
+	});
+	return flowData;
+}
+
+async function openEditor(id, starterId) {
+	const starter=starterId?FLOW_STARTERS.find(template=>template.id===starterId):null;
   if (id) {
     const flow = await api('GET', '/flows/api/' + id);
     state.currentFlow = flow;
-    state.flowData = flow.flowData && flow.flowData.nodes ? flow.flowData : blankFlowData();
+	state.flowData = flow.flowData && flow.flowData.nodes ? migrateLegacyAICredentialSelections(flow.flowData) : blankFlowData();
   } else {
 	state.currentFlow = { id: null, name: 'Nova automação', description: '', connectionId: null, triggerType: 'keyword', triggerValue: '', isActive: false, priority: 0, revision: 0 };
-    state.flowData = blankFlowData();
+	if(starter){state.currentFlow.name=starter.name;state.currentFlow.description=starter.description;state.currentFlow.triggerType=starter.triggerType||'always';state.currentFlow.triggerValue=starter.triggerValue||'';state.flowData=cloneStarterGraph(starter);}else{state.flowData=blankFlowData();}
   }
   state.selectedNodeId = null;
   state.armedHandle = null;
@@ -384,13 +488,17 @@ async function openEditor(id) {
   renderPalette();
   renderCanvas();
 	renderInspector();
-	state.savedFingerprint = flowFingerprint();
+	const guide=document.getElementById('flow-starter-guide');guide.textContent=starter?'Modelo: '+starter.name+' — '+starter.instructions+' Salve, revise a conexão e ative quando estiver pronto.':'';guide.classList.toggle('hidden',!starter);
+	const wrap=document.getElementById('canvas-wrap');wrap.scrollLeft=0;wrap.scrollTop=0;
+	state.savedFingerprint = starter ? '' : flowFingerprint();
 }
 
 function closeEditor() {
 	if (flowIsDirty() && !confirm('Existem alterações não salvas. Deseja sair mesmo assim?')) return;
+	document.querySelectorAll('[data-dd-name]').forEach(hideFlowDropdown);
   state.currentFlow = null;
   showView('list');
+	document.getElementById('flow-starter-guide').classList.add('hidden');
   renderTopbarExtra();
   loadFlowsList().catch(e => console.error('erro ao recarregar lista de fluxos', e));
 }
@@ -417,6 +525,9 @@ async function saveFlow() {
     return fields && !String(node.data[fields.url] || '').trim() && (!fields.path || !String(node.data[fields.path] || '').trim());
   });
   if (missingMedia) { alert('Configure a mídia do bloco "' + NODE_TYPES[missingMedia.type].label + '" antes de salvar.'); return; }
+	const credentialNodeTypes = ['ai', 'conversationSummary', 'mediaTranscription'];
+	const missingCredential = state.flowData.nodes.find(node => credentialNodeTypes.includes(node.type) && Number(node.data.credentialId) <= 0);
+	if (missingCredential) { alert('Selecione uma credencial de IA no bloco "' + NODE_TYPES[missingCredential.type].label + '" antes de salvar.'); return; }
 
   const payload = {
     name: f.name,
@@ -513,6 +624,12 @@ function renderTopbarExtra() {
     <button id="btn-test" class="px-3 py-1.5 rounded-lg text-sm font-medium text-white bg-white bg-opacity-20 hover:bg-opacity-30 transition-colors">
       <i class="fas fa-vial mr-1"><\/i>Testar
     <\/button>
+	<button id="btn-flow-settings" class="px-3 py-1.5 rounded-lg text-sm font-medium text-white bg-white bg-opacity-20 hover:bg-opacity-30 transition-colors" title="Configurar tratamento quando o cliente não responder">
+	  <i class="fas fa-user-clock mr-1"><\/i>Sem resposta
+	<\/button>
+	<a href="/settings#settings-ai-credentials" class="px-3 py-1.5 rounded-lg text-sm font-medium text-white bg-white bg-opacity-20 hover:bg-opacity-30 transition-colors" title="Configurar chaves de IA">
+      <i class="fas fa-key mr-1"><\/i>Chaves IA
+    <\/a>
     <button id="btn-save" class="px-4 py-1.5 rounded-lg text-sm font-bold text-purple-700 bg-white hover:bg-purple-50 transition-colors shadow-sm">
       <i class="fas fa-save mr-1"><\/i>Salvar
     <\/button>
@@ -525,7 +642,10 @@ function renderTopbarExtra() {
   el.querySelector('[data-dd-role="connection"]').querySelectorAll('input[type=radio]').forEach(r => {
     r.addEventListener('change', () => {
       f.connectionId = r.value ? Number(r.value) : null;
-      closeDropdown(r);
+	  closeDropdown(r);
+	  // The custom selector renders its selected label from the initial value.
+	  // Rebuild the top bar so the label reflects this new connection immediately.
+	  renderTopbarExtra();
     });
   });
   el.querySelector('[data-dd-role="trigger-type"]').querySelectorAll('input[type=radio]').forEach(r => {
@@ -533,6 +653,7 @@ function renderTopbarExtra() {
       f.triggerType = r.value;
       document.getElementById('inp-trigger-value').classList.toggle('hidden', f.triggerType === 'always');
       closeDropdown(r);
+	  renderTopbarExtra();
     });
   });
 
@@ -540,14 +661,75 @@ function renderTopbarExtra() {
 	document.getElementById('inp-priority').oninput = e => { f.priority = Number(e.target.value || 0); };
   document.getElementById('chk-active').onchange = e => { f.isActive = e.target.checked; };
   document.getElementById('btn-test').onclick = testFlow;
+  document.getElementById('btn-flow-settings').onclick = openNoResponseSettings;
   document.getElementById('btn-save').onclick = saveFlow;
   document.getElementById('btn-close-editor').onclick = closeEditor;
 }
 
 function closeDropdown(radio) {
   const wrapper = radio.closest('[data-dd-name]');
-  const toggle = wrapper && wrapper.querySelector('input[type=checkbox]');
-  if (toggle) toggle.checked = false;
+  if (wrapper) hideFlowDropdown(wrapper);
+}
+
+let noResponseDraft = null;
+
+function openNoResponseSettings() {
+  const saved = state.flowData.settings?.noResponse || {};
+  noResponseDraft = {
+	enabled: !!saved.enabled,
+	reminderMinutes: Number(saved.reminderMinutes || 30),
+	reminderMessage: saved.reminderMessage || 'Ainda está por aí? Precisamos da sua resposta para continuar o atendimento.',
+	targetType: saved.targetType === 'department' ? 'department' : 'agent',
+	targetId: Number(saved.targetId || 0),
+  };
+  document.getElementById('no-response-enabled').checked = noResponseDraft.enabled;
+  document.getElementById('no-response-minutes').value = noResponseDraft.reminderMinutes;
+  document.getElementById('no-response-message').value = noResponseDraft.reminderMessage;
+  renderNoResponseTargets();
+  setNoResponseFieldsEnabled(noResponseDraft.enabled);
+  const modal = document.getElementById('no-response-modal');
+  modal.classList.remove('hidden');
+  modal.classList.add('flex');
+}
+
+function closeNoResponseSettings() {
+	document.querySelectorAll('#no-response-modal [data-dd-name]').forEach(hideFlowDropdown);
+  const modal = document.getElementById('no-response-modal');
+  modal.classList.add('hidden');
+  modal.classList.remove('flex');
+  noResponseDraft = null;
+}
+
+function setNoResponseFieldsEnabled(enabled) {
+  const fields = document.getElementById('no-response-fields');
+  fields.classList.toggle('pointer-events-none', !enabled);
+  fields.classList.toggle('opacity-50', !enabled);
+  fields.querySelectorAll('input, textarea').forEach(input => { input.disabled = !enabled; });
+}
+
+function renderNoResponseTargets() {
+  const typeOptions = [{ value: 'agent', label: 'Agente' }, { value: 'department', label: 'Setor' }];
+  const destinationOptions = noResponseDraft.targetType === 'department' ? state.departments : state.agents;
+  document.getElementById('no-response-target-label').textContent = noResponseDraft.targetType === 'department' ? 'Setor' : 'Agente';
+  document.getElementById('no-response-target-type').innerHTML = customSelectHTML('no-response-target-type', typeOptions, noResponseDraft.targetType, 'Selecione', 'targetType');
+  document.getElementById('no-response-target').innerHTML = customSelectHTML('no-response-target',
+	[{ value: '', label: 'Selecione' }].concat(destinationOptions.map(option => ({ value: String(option.id), label: option.name }))),
+	noResponseDraft.targetId || '', 'Selecione', 'targetId');
+
+  document.querySelector('#no-response-target-type [data-dd-role="no-response-target-type"]').querySelectorAll('input[type=radio]').forEach(radio => {
+	radio.addEventListener('change', () => {
+	  noResponseDraft.targetType = radio.value;
+	  noResponseDraft.targetId = 0;
+	  renderNoResponseTargets();
+	  setNoResponseFieldsEnabled(noResponseDraft.enabled);
+	});
+  });
+  document.querySelector('#no-response-target [data-dd-role="no-response-target"]').querySelectorAll('input[type=radio]').forEach(radio => {
+	radio.addEventListener('change', () => {
+	  noResponseDraft.targetId = radio.value ? Number(radio.value) : 0;
+	  closeDropdown(radio);
+	});
+  });
 }
 
 // ---------------------------------------------------------------------
@@ -560,14 +742,14 @@ function renderPalette() {
     return `
       <div class="mb-4">
         <div class="text-xs font-bold text-gray-400 uppercase tracking-wide mb-2 px-1">${cat}<\/div>
-        <div class="flex flex-col gap-1.5">
+        <div class="palette-grid grid grid-cols-2 gap-2">
           ${items.map(([type, meta]) => `
-            <button data-add="${type}" class="palette-item flex items-center gap-2 px-3 py-2 rounded-xl text-sm text-left hover:shadow-md transition-all border border-stone-100"
+            <button type="button" data-add="${type}" title="${meta.label}" aria-label="Adicionar ${meta.label}" class="palette-item flex flex-col items-center justify-center gap-2 rounded-xl border border-stone-200 p-2 text-center transition-all hover:-translate-y-0.5 hover:border-purple-300 hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-purple-400"
               style="background: color-mix(in srgb, ${meta.color} 8%, white);">
-              <span class="w-7 h-7 rounded-lg flex items-center justify-center flex-shrink-0" style="background:${meta.color}22;">
-                <i class="fas ${meta.icon}" style="color:${meta.color};"><\/i>
+              <span class="grid h-9 w-9 shrink-0 place-items-center rounded-xl text-lg" style="background:${meta.color}22;">
+                <i class="fas ${meta.icon}" aria-hidden="true" style="color:${meta.color};"><\/i>
               <\/span>
-              <span class="font-medium text-gray-700">${meta.label}<\/span>
+              <span class="max-w-full break-words text-[11px] font-semibold leading-tight text-gray-700">${meta.label}<\/span>
             <\/button>`).join('')}
         <\/div>
       <\/div>`;
@@ -601,6 +783,8 @@ function defaultDataFor(type) {
 	  allowBackPrevious: false, allowBackMain: false,
       sections: [{ title: 'Opções', rows: [{ title: 'Opção 1', description: '', rowId: 'opcao_1', _handleId: uid('mh') }] }],
     };
+	case 'sendButtons': return { title: '', description: '', footer: '', useFallback: false,
+	  buttons: [{ text: 'Opção 1', id: 'opcao_1', _handleId: uid('bh') }] };
 	case 'switch': return { message: '', cases: [{ label: 'Opção 1', condition: '' }] };
     case 'condition': return { conditionSource: 'contactMessage', conditionOperator: 'equals', conditionValue: '' };
     case 'delay': return { delayType: 'fixed', seconds: 2 };
@@ -612,6 +796,7 @@ function defaultDataFor(type) {
     case 'setVariable': return { variableName: '', value: '' };
     case 'tag': return { operation: 'add', tag: '' };
     case 'updateContact': return { field: 'name', value: '' };
+    case 'setContactField': return { fieldKey: '', fieldType: 'text', value: '' };
     case 'businessHours': return { timezone: 'America/Sao_Paulo', days: [1,2,3,4,5], startTime: '08:00', endTime: '18:00', lunchEnabled: false, lunchStart: '12:00', lunchEnd: '13:00' };
     case 'randomSplit': return { percentage: 50 };
 	case 'input': return { variableName: 'userInput', validationType: 'any' };
@@ -620,11 +805,15 @@ function defaultDataFor(type) {
 	case 'callback': return { eventName: 'flow.event', url: '', timeout: 10000, followRedirects: false };
 	case 'subflow': return {};
 	case 'sendTemplate': return {};
-	case 'ai': return { systemPrompt: '', prompt: '', saveResponseTo: 'aiResponse' };
+	case 'ai': return { credentialId: '', systemPrompt: '', knowledgeBase: '', prompt: '', saveResponseTo: 'aiResponse', safeMode: true };
+	case 'mediaTranscription': return { credentialId: '', prompt: '', saveResponseTo: 'mediaText', safeMode: true };
+	case 'conversationSummary': return { credentialId: '', maxMessages: 30, instructions: '', saveResponseTo: 'conversationSummary', persist: true, safeMode: true };
+	case 'aiAgent': return { safeMode: true };
+	case 'npsEvaluation': return { message: 'De 0 a 10, o quanto você recomendaria nosso atendimento?', saveScoreTo: 'npsScore', timeout: 86400 };
 	case 'scheduleMessage': return { message: '', delayMinutes: 60 };
     case 'httpRequest': return {
       method: 'POST', headerMode: 'none', headerFields: [],
-	  bodyMode: 'none', bodyFields: [], responseMappings: [], timeout: 60000, connectTimeout: 10000,
+	  bodyMode: 'none', bodyFields: [], responseMappings: [], timeout: 60000, connectTimeout: 10000, routeByStatus: true,
     };
     default: return {};
   }
@@ -634,7 +823,7 @@ function defaultDataFor(type) {
 // Canvas / nodes / edges rendering
 // ---------------------------------------------------------------------
 function nodeHeight(node) {
-  if (node.type === 'sendMenu') {
+  if (node.type === 'sendMenu' || node.type === 'sendButtons') {
     return 103 + outputsFor(node).length * 28;
   }
 	const outputCount = outputsFor(node).length;
@@ -668,6 +857,15 @@ function outputsFor(node) {
 	if (node.type === 'callback') return [{ handle: 'success', label: 'Sucesso' }, { handle: 'failure', label: 'Falha' }];
 	if (node.type === 'subflow') return [{ handle: 'success', label: 'Concluído' }, { handle: 'failure', label: 'Falha' }];
 	if (node.type === 'ai') return [{ handle: 'success', label: 'Sucesso' }, { handle: 'failure', label: 'Falha' }];
+	if (node.type === 'mediaTranscription') return [{ handle: 'success', label: 'Sucesso' }, { handle: 'failure', label: 'Falha' }];
+	if (node.type === 'httpRequest') {
+	  return [{ handle: 'success', label: 'Sucesso' }, { handle: 'failure', label: 'Falha' }];
+	}
+	if (node.type === 'conversationSummary') return [{ handle: 'success', label: 'Sucesso' }, { handle: 'failure', label: 'Falha' }];
+	if (node.type === 'npsEvaluation') return [
+	  { handle: 'promoter', label: 'Promotor (9-10)' }, { handle: 'passive', label: 'Neutro (7-8)' },
+	  { handle: 'detractor', label: 'Detrator (0-6)' }, { handle: 'invalid', label: 'Inválida' }, { handle: 'timeout', label: 'Timeout' },
+	];
 	if (node.type === 'scheduleMessage') return [{ handle: 'scheduled', label: 'Agendada' }, { handle: 'failure', label: 'Falha' }];
   if (node.type === 'sendMenu') {
     const out = [];
@@ -685,13 +883,18 @@ function outputsFor(node) {
     if (node.data.useFallback) out.push({ handle: 'fallback', label: 'Caminho padrão' });
     return out;
   }
+  if (node.type === 'sendButtons') {
+    const out = (node.data.buttons || []).map(button => ({ handle: 'button-' + button._handleId, label: button.text || button.id || 'Botão' }));
+    if (node.data.useFallback) out.push({ handle: 'fallback', label: 'Caminho padrão' });
+    return out;
+  }
   if (node.type === 'switch') {
     const cases = (node.data.cases || []);
     const out = cases.map((c, i) => ({ handle: 'case-' + i, label: c.label || ('Opção ' + (i + 1)) }));
     out.push({ handle: 'fallback', label: 'Nenhuma opção' });
     return out;
   }
-  if (node.type === 'end') return [];
+	if (node.type === 'end' || node.type === 'aiAgent') return [];
   return [{ handle: '', label: '' }];
 }
 
@@ -704,6 +907,7 @@ function nodeSummary(node) {
     case 'sendAudio': return d.mediaName || (d.audioUrl ? truncate(d.audioUrl, 40) : 'Sem áudio configurado');
     case 'sendFile': return d.mediaName || (d.fileUrl ? truncate(d.fileUrl, 40) : 'Sem arquivo configurado');
     case 'sendMenu': return [d.title, d.description].filter(Boolean).join(' — ') || 'Sem mensagem configurada';
+    case 'sendButtons': return [d.title, d.description].filter(Boolean).join(' — ') || 'Sem mensagem configurada';
 	case 'sendTemplate': {
 	  const selected = state.templates.find(template => template.id === Number(d.templateId));
 	  return selected ? selected.name : 'Sem modelo selecionado';
@@ -730,6 +934,7 @@ function nodeSummary(node) {
 	case 'setVariable': return d.variableName ? (d.variableName + ' = ' + truncate(d.value || '', 35)) : 'Sem variável definida';
 	case 'tag': return (d.operation === 'remove' ? 'Remover: ' : 'Adicionar: ') + (d.tag || 'sem tag');
 	case 'updateContact': return (d.field === 'email' ? 'Email: ' : 'Nome: ') + (d.value || 'sem valor');
+	case 'setContactField': return d.fieldKey ? (d.fieldKey + ' = ' + truncate(d.value || '', 35)) : 'Sem campo definido';
 	case 'businessHours': return (d.startTime || '08:00') + ' - ' + (d.endTime || '18:00');
 	case 'randomSplit': return (d.percentage || 50) + '% no grupo A';
 	case 'messageType': return 'Roteia conforme a mídia recebida';
@@ -740,8 +945,21 @@ function nodeSummary(node) {
 	  const selected = state.flows.find(flow => flow.id === Number(d.flowId));
 	  return selected ? selected.name : 'Sem subfluxo selecionado';
 	}
-	case 'ai': return d.saveResponseTo ? ('Resposta em: ' + d.saveResponseTo) : 'Sem variável definida';
+	case 'ai': { const credential = state.aiCredentials.find(item => item.id === Number(d.credentialId)); return credential ? (credential.name + ' · resposta em: ' + (d.saveResponseTo || 'sem variável')) : 'Sem credencial selecionada'; }
+	case 'conversationSummary': {
+	  const credential = state.aiCredentials.find(item => item.id === Number(d.credentialId));
+	  return credential ? (credential.name + ' · resumo em: ' + (d.saveResponseTo || 'sem variável')) : 'Sem credencial selecionada';
+	}
+	case 'mediaTranscription': {
+	  const credential = state.aiCredentials.find(item => item.id === Number(d.credentialId));
+	  return credential ? (credential.name + ' · resultado em: ' + (d.saveResponseTo || 'sem variável')) : 'Sem credencial selecionada';
+	}
+	case 'aiAgent': {
+	  const selected = state.aiAgents.find(agent => agent.id === Number(d.aiAgentId));
+	  return selected ? selected.name : 'Sem agente selecionado';
+	}
 	case 'scheduleMessage': return d.delayMinutes ? ('Enviar em ' + d.delayMinutes + ' min') : 'Sem prazo definido';
+	case 'npsEvaluation': return d.saveScoreTo ? ('Nota em: ' + d.saveScoreTo) : 'Sem variável definida';
     case 'start': return d.businessHours && d.businessHours.enabled ? 'Horário de atendimento ativo' : 'Início do fluxo';
     default: return '';
   }
@@ -750,7 +968,7 @@ function nodeSummary(node) {
 function truncate(s, n) { s = String(s); return s.length > n ? s.slice(0, n) + '…' : s; }
 
 function nodeBodyHTML(node, outs) {
-  if (node.type === 'sendMenu') {
+  if (node.type === 'sendMenu' || node.type === 'sendButtons') {
     const title = node.data.title || 'Sem título';
     const message = node.data.description || 'Sem mensagem configurada';
     return '<div class="px-3 py-2 text-xs leading-snug overflow-hidden" style="height:52px">' +
@@ -771,7 +989,7 @@ function nodeBodyHTML(node, outs) {
 }
 
 function outputY(node, index, count) {
-  if (node.type === 'sendMenu') return 108 + index * 28;
+  if (node.type === 'sendMenu' || node.type === 'sendButtons') return 108 + index * 28;
   const h = nodeHeight(node);
 	if (count === 1) return h / 2;
 	const topPadding = 48;
@@ -803,7 +1021,7 @@ function renderCanvas() {
           <i class="fas ${meta.icon} text-xs" style="color:${meta.color};"><\/i>
         <\/span>
         <span class="text-xs font-bold text-gray-700 flex-1 truncate">${meta.label}<\/span>
-        ${node.type !== 'start' ? '<button data-del-node="' + node.id + '" class="text-gray-300 hover:text-red-500 transition-colors"><i class="fas fa-times text-xs"><\/i><\/button>' : ''}
+        ${node.type !== 'start' ? '<button type="button" data-del-node="' + node.id + '" class="text-gray-300 hover:text-red-500 transition-colors" aria-label="Remover bloco"><i class="fas fa-times text-xs"><\/i><\/button>' : ''}
       <\/div>
       ${nodeBodyHTML(node, outs)}
     `;
@@ -822,15 +1040,18 @@ function renderCanvas() {
       const out = document.createElement('div');
       out.className = 'handle' + (state.armedHandle && state.armedHandle.nodeId === node.id && state.armedHandle.handle === o.handle ? ' armed' : '');
       out.style.right = '-7px';
-      out.style.top = (y - (node.type === 'sendMenu' ? 8 : 7)) + 'px';
+      out.style.top = (y - (node.type === 'sendMenu' || node.type === 'sendButtons' ? 8 : 7)) + 'px';
       out.title = o.label;
 	  if (node.type === 'condition' || node.type === 'checkResponse' || node.type === 'waitForResponse' || node.type === 'input' || node.type === 'businessHours' || node.type === 'randomSplit' || node.type === 'messageType' || node.type === 'smartAssign' || node.type === 'callback' || node.type === 'subflow' || node.type === 'ai' || node.type === 'scheduleMessage') out.innerHTML = '<span class="handle-label">' + escapeHtml(o.label) + '<\/span>';
       out.onpointerdown = (e) => startConnectionDrag(e, node.id, o.handle);
       card.appendChild(out);
     });
 
-    card.onmousedown = (e) => startDrag(e, node);
+    card.onpointerdown = (e) => startDrag(e, node);
+	const removeButton = card.querySelector('[data-del-node]');
+	if (removeButton) removeButton.onclick = (event) => { event.preventDefault(); event.stopPropagation(); deleteNode(node.id); };
     card.onclick = (e) => {
+	  if (e.target.closest('button')) return;
       if (state.armedHandle) return;
       selectNode(node.id);
     };
@@ -846,7 +1067,7 @@ function selectNode(id) {
 }
 
 function startDrag(e, node) {
-	if (e.ctrlKey || e.target.classList.contains('handle')) return;
+	if (e.ctrlKey || e.button !== 0 || e.target.closest('.handle, button, input, textarea, select, a')) return;
   const wrap = document.getElementById('canvas-wrap');
   const startX = e.clientX + wrap.scrollLeft;
   const startY = e.clientY + wrap.scrollTop;
@@ -855,6 +1076,7 @@ function startDrag(e, node) {
   card.classList.add('dragging');
 
   function onMove(ev) {
+	if (ev.pointerId !== e.pointerId) return;
     const dx = (ev.clientX + wrap.scrollLeft) - startX;
     const dy = (ev.clientY + wrap.scrollTop) - startY;
     node.position.x = Math.max(0, origX + dx);
@@ -863,13 +1085,18 @@ function startDrag(e, node) {
     card.style.top = node.position.y + 'px';
     renderEdges();
   }
-  function onUp() {
+  function onUp(ev) {
+	if (ev.pointerId !== e.pointerId) return;
     card.classList.remove('dragging');
-    document.removeEventListener('mousemove', onMove);
-    document.removeEventListener('mouseup', onUp);
+	card.releasePointerCapture?.(e.pointerId);
+	card.removeEventListener('pointermove', onMove);
+	card.removeEventListener('pointerup', onUp);
+	card.removeEventListener('pointercancel', onUp);
   }
-  document.addEventListener('mousemove', onMove);
-  document.addEventListener('mouseup', onUp);
+	card.setPointerCapture?.(e.pointerId);
+	card.addEventListener('pointermove', onMove);
+	card.addEventListener('pointerup', onUp);
+	card.addEventListener('pointercancel', onUp);
 }
 
 function resizeCanvasToContent() {
@@ -1020,8 +1247,12 @@ document.addEventListener('click', (e) => {
   }
 });
 
-function deleteNode(id) {
-  if (!confirm('Remover esse node?')) return;
+async function deleteNode(id) {
+  const flow = state.flowData;
+  const node = flow.nodes.find(item => item.id === id);
+  if (!node) return;
+  if (!await window.confirmRemoval('Remover bloco?', 'O bloco "' + (node.data?.label || NODE_TYPES[node.type]?.label || node.type) + '" e suas conexões serão removidos do flow. Salve a automação para aplicar a alteração.')) return;
+  if (state.flowData !== flow) return;
   state.flowData.nodes = state.flowData.nodes.filter(n => n.id !== id);
   state.flowData.edges = state.flowData.edges.filter(e => e.source !== id && e.target !== id);
   if (state.selectedNodeId === id) state.selectedNodeId = null;
@@ -1059,7 +1290,7 @@ function renderEdges() {
     path.style.pointerEvents = 'stroke';
     path.style.cursor = 'pointer';
     path.setAttribute('title', edge.sourceHandle || '');
-    path.onclick = (e) => { e.stopPropagation(); if (confirm('Remover essa conexão?')) { state.flowData.edges = state.flowData.edges.filter(x => x.id !== edge.id); renderEdges(); } };
+    path.onclick = async (e) => { e.stopPropagation(); const flow = state.flowData; if (await window.confirmRemoval('Remover conexão?', 'A ligação entre estes blocos será removida. Salve a automação para aplicar a alteração.') && state.flowData === flow) { state.flowData.edges = state.flowData.edges.filter(x => x.id !== edge.id); renderEdges(); } };
     svg.appendChild(path);
   }
 
@@ -1095,10 +1326,12 @@ function renderInspector() {
       <span class="w-8 h-8 rounded-lg flex items-center justify-center" style="background:${meta.color}22;">
         <i class="fas ${meta.icon}" style="color:${meta.color};"><\/i>
       <\/span>
-      <h3 class="font-bold text-gray-800">${meta.label}<\/h3>
+      <h3 class="min-w-0 flex-1 font-bold text-gray-800">${meta.label}<\/h3>
+      <button type="button" id="inspector-close" class="rounded-lg p-2 text-gray-500 hover:bg-stone-100 md:hidden" aria-label="Fechar propriedades"><i class="fas fa-xmark"><\/i><\/button>
     <\/div>
     <div id="inspector-fields" class="flex flex-col gap-3"><\/div>
   `;
+  el.querySelector('#inspector-close').onclick = () => { state.selectedNodeId = null; renderCanvas(); renderInspector(); };
   renderFieldsFor(node);
 }
 
@@ -1122,7 +1355,8 @@ function availableFlowVariables() {
 	  ] },
 	  { id: 'channel', label: 'Mensagem e canal', icon: 'fa-comments', variables: [
 		{ name: 'message', label: 'Mensagem recebida' }, { name: 'response', label: 'Última resposta' }, { name: 'senderName', label: 'Nome informado pelo WhatsApp' },
-		{ name: 'messageType', label: 'Tipo da mensagem recebida' }, { name: 'conversationTags', label: 'Tags do atendimento' },
+		{ name: 'messageId', label: 'ID da mensagem recebida' }, { name: 'messageType', label: 'Tipo da mensagem recebida' }, { name: 'userReplied', label: 'Cliente respondeu' },
+		{ name: 'conversationTags', label: 'Tags do atendimento' },
 		{ name: 'department', label: 'Setor atual' }, { name: 'connectionType', label: 'Tipo de conexão' },
 	  ] },
 	];
@@ -1135,24 +1369,54 @@ function availableFlowVariables() {
 	  dynamic.get(categoryID).variables.push({ name, label });
 	  used.add(name);
 	}
-	const nodes = state.currentFlow ? (state.flowData?.nodes || []) : [];
-	nodes.forEach(node => {
+	function flowDataFor(flow) {
+	  if (!flow?.flowData) return null;
+	  if (typeof flow.flowData !== 'string') return flow.flowData;
+	  try { return JSON.parse(flow.flowData); } catch (_) { return null; }
+	}
+	function collectVariablesFromNodes(nodes, visitedFlowIDs) {
+	(nodes || []).forEach(node => {
 	  const data = node.data || {};
 	  if (node.type === 'setVariable') add('defined', 'Variáveis definidas', 'fa-code', data.variableName, 'Definida no fluxo');
 	  if (node.type === 'input') add('captured', 'Respostas capturadas', 'fa-keyboard', data.variableName || 'userInput', 'Resposta do cliente');
 	  if (node.type === 'checkResponse') add('logic', 'Resultados de lógica', 'fa-code-branch', data.saveResponseTo, 'Resultado da verificação');
+	  if (node.type === 'condition') add('logic', 'Resultados de lógica', 'fa-code-branch', 'currentTime', 'Horário atual do fluxo');
 	  if (node.type === 'httpRequest') {
 		add('http', 'HTTP Request', 'fa-globe', data.saveResponseTo, 'Resposta HTTP completa');
 		(data.responseMappings || []).forEach(mapping => add('http', 'HTTP Request', 'fa-globe', mapping.variableName, mapping.path || 'Campo mapeado'));
 	  }
-	  if (node.type === 'ai') add('ai', 'Inteligência artificial', 'fa-wand-magic-sparkles', data.saveResponseTo, 'Resposta gerada pela IA');
+	  if (node.type === 'ai') {
+		add('ai', 'Inteligência artificial', 'fa-wand-magic-sparkles', data.saveResponseTo, 'Resposta gerada pela IA');
+		add('ai', 'Inteligência artificial', 'fa-wand-magic-sparkles', 'aiError', 'Erro ao gerar com IA');
+	  }
+	  if (node.type === 'mediaTranscription') {
+		add('ai', 'Inteligência artificial', 'fa-file-waveform', data.saveResponseTo, 'Conteúdo da mídia transcrita');
+		add('ai', 'Inteligência artificial', 'fa-file-waveform', 'transcriptionError', 'Erro da transcrição');
+	  }
+	  if (node.type === 'conversationSummary') add('ai', 'Inteligência artificial', 'fa-file-lines', data.saveResponseTo, 'Resumo da conversa');
+	  if (node.type === 'npsEvaluation') add('nps', 'Avaliação NPS', 'fa-star-half-stroke', data.saveScoreTo, 'Nota NPS recebida');
 	  if (node.type === 'smartAssign') {
 		add('assignment', 'Distribuição', 'fa-users-gear', 'assignedAgentId', 'ID do agente distribuído');
 		add('assignment', 'Distribuição', 'fa-users-gear', 'assignedAgentName', 'Nome do agente distribuído');
 	  }
 	  if (node.type === 'callback') add('callback', 'Callback', 'fa-satellite-dish', 'callbackResponse', 'Resposta do callback');
-	  if (node.type === 'scheduleMessage') add('schedule', 'Agendamento', 'fa-calendar-plus', 'scheduledMessageAt', 'Data do agendamento');
+	  if (node.type === 'scheduleMessage') {
+		add('schedule', 'Agendamento', 'fa-calendar-plus', 'scheduledMessageAt', 'Data do agendamento');
+		add('schedule', 'Agendamento', 'fa-calendar-plus', 'scheduleError', 'Erro do agendamento');
+	  }
+	  if (node.type === 'subflow') {
+		add('subflow', 'Subfluxo', 'fa-diagram-project', 'subflowError', 'Erro do subfluxo');
+		const flowID = Number(data.flowId || 0);
+		if (flowID > 0 && !visitedFlowIDs.has(flowID)) {
+		  visitedFlowIDs.add(flowID);
+		  const nestedFlowData = flowDataFor(state.flows.find(flow => Number(flow.id) === flowID));
+		  collectVariablesFromNodes(nestedFlowData?.nodes, visitedFlowIDs);
+		}
+	  }
 	});
+	}
+	const visitedFlowIDs = new Set(state.currentFlow?.id ? [Number(state.currentFlow.id)] : []);
+	collectVariablesFromNodes(state.currentFlow ? (state.flowData?.nodes || []) : [], visitedFlowIDs);
 	return { categories: categories.concat(Array.from(dynamic.values()).filter(category => category.variables.length)) };
 }
 
@@ -1189,6 +1453,10 @@ function formattedTextArea(val, name, rows) {
 
 function numberInput(val, name) {
   return '<input type="number" data-field="' + name + '" value="' + (val ?? '') + '" class="w-full px-3 py-2 bg-stone-50 border border-stone-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-purple-400">';
+}
+
+function safeModeField(data, summary) {
+	return field('Modo seguro', '<label class="flex cursor-pointer items-start gap-3 rounded-xl border border-emerald-200 bg-emerald-50 p-3"><input type="checkbox" data-field="safeMode" ' + (data.safeMode !== false ? 'checked' : '') + ' class="mt-0.5 accent-emerald-700"><span><span class="block text-sm font-semibold text-emerald-900">Ativar proteções adicionais</span><span class="mt-1 block text-xs font-normal leading-relaxed text-emerald-800">' + escapeHtml(summary) + '<\/span><\/span><\/label>', 'A política é adicionada internamente ao prompt e não fica visível para o contato.');
 }
 
 function businessHoursFields(bh, prefix, includeOutsideAction) {
@@ -1311,6 +1579,16 @@ function renderFieldsFor(node) {
       html += '<div class="text-xs font-medium text-gray-600 mt-1">Seções e opções<\/div>';
       html += '<div id="menu-sections" class="flex flex-col gap-3"><\/div>';
       html += '<button id="btn-add-menu-section" class="text-xs text-purple-600 font-medium hover:underline"><i class="fas fa-plus mr-1"><\/i>Adicionar seção<\/button>';
+      break;
+    case 'sendButtons':
+      d.buttons = d.buttons || [];
+      html += field('Título (opcional)', textInput(d.title, 'title'));
+      html += field('Mensagem', formattedTextArea(d.description, 'description', 4));
+      html += field('Rodapé (opcional)', textInput(d.footer, 'footer'));
+      html += field('Caminho padrão', '<label class="flex items-center gap-2 text-sm text-gray-700"><input type="checkbox" data-field="useFallback" ' + (d.useFallback?'checked':'') + '> Adicionar saída para respostas inválidas<\/label>');
+      html += '<div class="text-xs font-medium text-gray-600 mt-1">Botões de resposta (máximo 3)<\/div>';
+      html += '<div id="reply-buttons" class="flex flex-col gap-2"><\/div>';
+      html += '<button type="button" id="btn-add-reply-button" class="text-xs text-purple-600 font-medium hover:underline"><i class="fas fa-plus mr-1"><\/i>Adicionar botão<\/button>';
       break;
     case 'condition': {
       if (!d.conditionSource) d.conditionSource = d.condition ? 'legacy' : 'contactMessage';
@@ -1471,8 +1749,13 @@ function renderFieldsFor(node) {
 	  html += field('Campo', inspectorSelect('field', [{ value: 'name', label: 'Nome' }, { value: 'email', label: 'Email' }], d.field || 'name', 'Selecione'));
 	  html += field('Novo valor', textInput(d.value, 'value'), 'Aceita variáveis do contexto do fluxo.');
 	  break;
+	case 'setContactField':
+	  html += field('Chave do campo', textInput(d.fieldKey, 'fieldKey'), 'Use letras, números e sublinhado; comece por uma letra.');
+	  html += field('Tipo do valor', inspectorSelect('fieldType', [{ value: 'text', label: 'Texto' }, { value: 'number', label: 'Número' }, { value: 'boolean', label: 'Verdadeiro/falso' }], d.fieldType || 'text', 'Selecione'));
+	  html += field('Valor', textInput(d.value, 'value'), 'Aceita variáveis. Para verdadeiro/falso, informe true ou false.');
+	  break;
 	case 'businessHours':
-	  html += businessHoursFields(d, '', false);
+	  html += '<div class="rounded-xl border border-purple-200 bg-purple-50 p-4 text-sm leading-relaxed text-purple-900"><i class="fas fa-building-clock mr-2 text-purple-600"><\/i>Este bloco usa automaticamente os dias, horários, intervalo e fuso definidos em <strong>Configurações da empresa<\/strong>.<\/div>';
 	  break;
 	case 'randomSplit':
 	  html += field('Percentual no grupo A', '<input type="number" min="1" max="99" data-field="percentage" value="' + Number(d.percentage || 50) + '" class="w-full px-3 py-2 bg-stone-50 border border-stone-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-purple-400">', 'O restante segue pelo grupo B. Cada passagem faz um novo sorteio.');
@@ -1504,13 +1787,45 @@ function renderFieldsFor(node) {
 	  break;
 	}
 	case 'ai':
+	  html += field('Credencial IA', inspectorSelect('credentialId', [{ value: '', label: 'Selecione uma credencial' }].concat(state.aiCredentials.map(credential => ({ value: String(credential.id), label: credential.name + ' · ' + credential.provider + ' · ' + credential.model }))), d.credentialId || '', 'Selecione uma credencial'), state.aiCredentials.length ? 'O provedor e o modelo desta credencial serão usados. A chave permanece criptografada no servidor.' : 'Nenhuma credencial disponível. Cadastre uma em Configurações > Chaves IA.');
+	  html += safeModeField(d, 'Mantém a resposta no contexto do prompt, oculta modelo e instruções internas, resiste a tentativas de desvio e recusa conteúdo ilegal ou perigoso.');
 	  html += field('Instrução do sistema (opcional)', textArea(d.systemPrompt, 'systemPrompt', 4));
-	  html += field('Prompt', textArea(d.prompt, 'prompt', 6), 'Aceita variáveis. Credenciais e modelo são configurados no servidor.');
+	  html += field('Base de conhecimento (opcional)', textArea(d.knowledgeBase, 'knowledgeBase', 8), 'Use seções curtas e objetivas. O trecho mais relevante para o prompt será enviado à IA. Limite de 500.000 caracteres.');
+	  html += '<div class="rounded-xl border border-violet-200 bg-violet-50 p-3 text-xs leading-relaxed text-violet-900"><div class="flex items-start justify-between gap-3"><div><p class="font-bold"><i class="fas fa-book-open mr-1"><\/i> Esquema recomendado</p><p class="mt-1">Organize por seções: <code class="rounded bg-white/70 px-1"># Produtos</code>, <code class="rounded bg-white/70 px-1"># Preços</code>, <code class="rounded bg-white/70 px-1"># Políticas</code> e <code class="rounded bg-white/70 px-1"># Perguntas frequentes</code>.</p></div><a href="/flows/knowledge-base-template.pdf" download class="shrink-0 rounded-lg bg-white px-3 py-2 font-bold text-violet-700 shadow-sm hover:bg-violet-100"><i class="fas fa-file-pdf mr-1"><\/i> Modelo PDF<\/a></div></div>';
+	  html += field('Prompt', textArea(d.prompt, 'prompt', 6), 'Aceita variáveis.');
 	  html += field('Salvar resposta em', textInput(d.saveResponseTo, 'saveResponseTo'));
+	  break;
+	case 'conversationSummary':
+	  html += field('Credencial IA', inspectorSelect('credentialId', [{ value: '', label: 'Selecione uma credencial' }].concat(state.aiCredentials.map(credential => ({ value: String(credential.id), label: credential.name + ' · ' + credential.provider + ' · ' + credential.model }))), d.credentialId || '', 'Selecione uma credencial'), state.aiCredentials.length ? 'O provedor e o modelo desta credencial serão usados para gerar o resumo.' : 'Nenhuma credencial disponível. Cadastre uma em Configurações > Chaves IA.');
+	  html += safeModeField(d, 'Resume somente o histórico do atendimento, ignora comandos maliciosos contidos nas mensagens e evita expor dados ou instruções internas.');
+	  html += field('Últimas mensagens', '<input type="number" min="2" max="100" data-field="maxMessages" value="' + Number(d.maxMessages || 30) + '" class="w-full px-3 py-2 bg-stone-50 border border-stone-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-purple-400">');
+	  html += field('Instruções adicionais (opcional)', textArea(d.instructions, 'instructions', 4));
+	  html += field('Salvar resumo em', textInput(d.saveResponseTo, 'saveResponseTo'));
+	  html += field('Histórico interno', '<label class="flex items-center gap-2 text-sm text-gray-700"><input type="checkbox" data-field="persist" ' + (d.persist?'checked':'') + '> Registrar o resumo na conversa<\/label>');
+	  break;
+	case 'mediaTranscription': {
+	  const mediaCredentials = state.aiCredentials.filter(credential => credential.provider === 'openai' || credential.provider === 'groq');
+	  html += field('Credencial compatível', inspectorSelect('credentialId', [{ value: '', label: 'Selecione uma credencial' }].concat(mediaCredentials.map(credential => ({ value: String(credential.id), label: credential.name + ' · ' + credential.provider + ' · ' + credential.model }))), d.credentialId || '', 'Selecione uma credencial'), mediaCredentials.length ? 'Selecione uma credencial OpenAI ou Groq.' : 'Nenhuma credencial compatível disponível. Cadastre uma em Configurações > Chaves IA.');
+	  html += '<div class="rounded-xl border border-violet-200 bg-violet-50 p-3 text-xs leading-relaxed text-violet-900"><p class="font-semibold"><i class="fas fa-circle-info mr-1"><\/i> IAs compatíveis<\/p><p class="mt-1"><strong>OpenAI:<\/strong> áudio, imagem, vídeo e documento.<\/p><p><strong>Groq:<\/strong> somente áudio, usando Whisper Large V3 Turbo.<\/p><\/div>';
+	  html += safeModeField(d, 'Trata a mídia somente como conteúdo, não executa instruções presentes no arquivo e não acrescenta respostas ou orientações ilegais e perigosas.');
+	  html += field('Prompt (opcional)', textArea(d.prompt, 'prompt', 4), 'Oriente idioma, termos, formato ou informações que devem ser extraídas. Aceita variáveis. Limite de 2000 caracteres.');
+	  html += field('Salvar resultado em', textInput(d.saveResponseTo, 'saveResponseTo'), 'Usa a última mídia recebida: áudio, imagem, vídeo ou documento.');
+	  break;
+	}
+	case 'aiAgent':
+	  html += field('Agente que assumirá a conversa', inspectorSelect('aiAgentId', [{ value: '', label: 'Selecione' }].concat(state.aiAgents.map(agent => ({ value: String(agent.id), label: agent.name + ' · ' + agent.provider }))), d.aiAgentId || '', 'Selecione'));
+	  html += safeModeField(d, 'Aplica as proteções durante toda esta sessão transferida: limita o agente ao escopo, oculta detalhes técnicos e recusa desvios ou conteúdo perigoso.');
+	  html += '<div class="rounded-xl border border-violet-200 bg-violet-50 p-3 text-xs leading-relaxed text-violet-800"><i class="fas fa-circle-info mr-1"><\/i> Este bloco encerra o flow e transfere as próximas mensagens para o agente autônomo.<\/div>';
 	  break;
 	case 'scheduleMessage':
 	  html += field('Mensagem', formattedTextArea(d.message, 'message', 5), 'As variáveis são resolvidas no momento do agendamento.');
 	  html += field('Enviar após (minutos)', '<input type="number" min="1" max="43200" data-field="delayMinutes" value="' + Number(d.delayMinutes || 60) + '" class="w-full px-3 py-2 bg-stone-50 border border-stone-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-purple-400">', 'Entre 1 minuto e 30 dias. O envio sobrevive a reinícios do servidor.');
+	  break;
+	case 'npsEvaluation':
+	  html += field('Pergunta', formattedTextArea(d.message, 'message', 4), 'O contato deve responder com uma nota inteira entre 0 e 10.');
+	  html += field('Salvar nota em', textInput(d.saveScoreTo, 'saveScoreTo'));
+	  html += field('Timeout (segundos, opcional)', numberInput(d.timeout, 'timeout'), 'Após o prazo, segue pela saída Timeout.');
+	  html += '<div class="rounded-xl border border-pink-200 bg-pink-50 p-3 text-xs leading-relaxed text-pink-800">0 a 6: detrator · 7 a 8: neutro · 9 a 10: promotor.<\/div>';
 	  break;
     case 'end':
       html += '<p class="text-sm text-gray-500">Fim do fluxo. Nenhuma configuração necessária.<\/p>';
@@ -1524,7 +1839,7 @@ function renderFieldsFor(node) {
     const handler = () => {
       const val = input.type === 'checkbox' ? input.checked
         : input.type === 'number' ? (input.value === '' ? undefined : Number(input.value))
-        : path === 'assignId' ? (input.value === '' ? undefined : Number(input.value))
+		: (path === 'assignId' || path === 'aiAgentId' || path === 'credentialId') ? (input.value === '' ? undefined : Number(input.value))
         : input.value;
       setPath(d, path, val);
       if (node.type === 'httpRequest' && path === 'bodyMode') {
@@ -1543,7 +1858,7 @@ function renderFieldsFor(node) {
       }
       if (node.type === 'assign' && path === 'assignType') delete d.assignId;
       if (node.type === 'condition' && path === 'conditionSource') d.conditionValue = '';
-      if (node.type === 'sendMenu' && path === 'useFallback' && !val) {
+      if ((node.type === 'sendMenu' || node.type === 'sendButtons') && path === 'useFallback' && !val) {
         state.flowData.edges = state.flowData.edges.filter(edge => edge.source !== node.id || (edge.sourceHandle !== 'fallback' && !!edge.sourceHandle));
         if (state.armedHandle?.nodeId === node.id && state.armedHandle.handle === 'fallback') state.armedHandle = null;
       }
@@ -1556,7 +1871,7 @@ function renderFieldsFor(node) {
   box.querySelectorAll('[data-dd-field]').forEach(wrapper => {
     const path = wrapper.dataset.ddField;
     wrapper.querySelectorAll('input[type=radio]').forEach(radio => radio.addEventListener('change', () => {
-	  const numericSelect = path === 'assignId' || path === 'departmentId' || path === 'flowId' || path === 'templateId';
+	  const numericSelect = path === 'assignId' || path === 'departmentId' || path === 'flowId' || path === 'templateId' || path === 'aiAgentId' || path === 'credentialId';
       const val = numericSelect ? (radio.value === '' ? undefined : Number(radio.value)) : radio.value;
       setPath(d, path, val);
       if (node.type === 'httpRequest' && path === 'bodyMode') {
@@ -1615,6 +1930,7 @@ function renderFieldsFor(node) {
 
   if (node.type === 'switch') renderSwitchCases(node);
   if (node.type === 'sendMenu') renderMenuSections(node);
+  if (node.type === 'sendButtons') renderReplyButtons(node);
   if (node.type === 'httpRequest') {
 	bindHTTPCURLImport(node, box);
     renderHTTPHeaderFields(node);
@@ -2022,6 +2338,41 @@ function renderMenuSections(node) {
   };
 }
 
+function renderReplyButtons(node) {
+  const wrap = document.getElementById('reply-buttons');
+  if (!wrap) return;
+  wrap.innerHTML = node.data.buttons.map((button, index) =>
+    '<div class="p-2.5 bg-stone-50 rounded-xl border border-stone-200 flex flex-col gap-2">' +
+      '<div class="flex items-center gap-1.5"><input data-button-text="' + index + '" maxlength="25" value="' + escapeAttr(button.text || '') + '" placeholder="Texto do botão" class="flex-1 min-w-0 px-2 py-1.5 bg-white border border-stone-200 rounded text-xs">' +
+      '<button type="button" data-button-remove="' + index + '" class="text-red-500" aria-label="Remover botão"><i class="fas fa-times"><\/i><\/button><\/div>' +
+      '<input data-button-id="' + index + '" maxlength="100" value="' + escapeAttr(button.id || '') + '" placeholder="ID da resposta, ex: suporte" class="px-2 py-1.5 bg-white border border-stone-200 rounded text-xs font-mono">' +
+    '<\/div>'
+  ).join('');
+  wrap.querySelectorAll('[data-button-text], [data-button-id]').forEach(input => input.oninput = () => {
+    const index = Number(input.dataset.buttonText ?? input.dataset.buttonId);
+    node.data.buttons[index][input.hasAttribute('data-button-text') ? 'text' : 'id'] = input.value;
+    renderCanvas();
+  });
+  wrap.querySelectorAll('[data-button-remove]').forEach(button => button.onclick = () => {
+    const index = Number(button.dataset.buttonRemove);
+    const handle = 'button-' + node.data.buttons[index]._handleId;
+    state.flowData.edges = state.flowData.edges.filter(edge => edge.source !== node.id || edge.sourceHandle !== handle);
+    node.data.buttons.splice(index, 1);
+    renderCanvas();
+    renderInspector();
+  });
+  const add = document.getElementById('btn-add-reply-button');
+  add.disabled = node.data.buttons.length >= 3;
+  add.classList.toggle('opacity-40', add.disabled);
+  add.onclick = () => {
+    if (node.data.buttons.length >= 3) return;
+    const index = node.data.buttons.length + 1;
+    node.data.buttons.push({ text: 'Opção ' + index, id: 'opcao_' + index, _handleId: uid('bh') });
+    renderCanvas();
+    renderInspector();
+  };
+}
+
 function renderSwitchCases(node) {
   const wrap = document.getElementById('switch-cases');
   if (!wrap) return;
@@ -2147,8 +2498,45 @@ function closeTemplatesModal() {
 // ---------------------------------------------------------------------
 async function boot() {
 	initCanvasNavigation();
-  document.getElementById('btn-new-flow').onclick = () => openEditor(null);
+	document.getElementById('btn-new-flow').onclick = openNewFlowModal;
+	const newFlowModal=document.getElementById('new-flow-modal');
+	document.getElementById('new-flow-close').onclick=()=>newFlowModal.close();
+	document.getElementById('new-flow-blank').onclick=()=>{newFlowModal.close();openEditor(null);};
+	document.getElementById('new-flow-from-model').onclick=()=>showNewFlowModels(true);
+	document.getElementById('new-flow-back').onclick=()=>{showNewFlowModels(false);document.getElementById('new-flow-from-model').focus();};
+	document.querySelectorAll('[name="flow-starter-choice"]').forEach(radio=>radio.addEventListener('change',()=>{selectedStarterId=radio.value;document.getElementById('new-flow-use-model').disabled=false;}));
+	document.getElementById('new-flow-use-model').onclick=()=>{if(!selectedStarterId)return;newFlowModal.close();openEditor(null,selectedStarterId);};
+	newFlowModal.addEventListener('click',event=>{if(event.target!==newFlowModal)return;const bounds=newFlowModal.getBoundingClientRect();if(event.clientX<bounds.left||event.clientX>bounds.right||event.clientY<bounds.top||event.clientY>bounds.bottom)newFlowModal.close();});
 	document.getElementById('btn-templates').onclick = openTemplatesModal;
+	document.getElementById('btn-close-no-response').onclick = closeNoResponseSettings;
+	document.getElementById('btn-cancel-no-response').onclick = closeNoResponseSettings;
+	document.getElementById('no-response-enabled').onchange = event => {
+	  noResponseDraft.enabled = event.target.checked;
+	  setNoResponseFieldsEnabled(noResponseDraft.enabled);
+	};
+	document.getElementById('no-response-form').onsubmit = event => {
+	  event.preventDefault();
+	  noResponseDraft.reminderMinutes = Number(document.getElementById('no-response-minutes').value || 0);
+	  noResponseDraft.reminderMessage = document.getElementById('no-response-message').value.trim();
+	  if (noResponseDraft.enabled && (noResponseDraft.reminderMinutes < 1 || noResponseDraft.reminderMinutes > 43200)) {
+		alert('Informe um prazo entre 1 minuto e 30 dias.');
+		return;
+	  }
+	  if (noResponseDraft.enabled && !noResponseDraft.reminderMessage) {
+		alert('Informe a mensagem de lembrete.');
+		return;
+	  }
+	  if (noResponseDraft.enabled && !noResponseDraft.targetId) {
+		alert('Selecione o setor ou agente que receberá a conversa.');
+		return;
+	  }
+	  if (!state.flowData.settings) state.flowData.settings = {};
+	  state.flowData.settings.noResponse = { ...noResponseDraft };
+	  closeNoResponseSettings();
+	};
+	document.getElementById('no-response-modal').addEventListener('click', event => {
+	  if (event.target.id === 'no-response-modal') closeNoResponseSettings();
+	});
 	document.getElementById('btn-close-templates').onclick = closeTemplatesModal;
 	document.getElementById('btn-new-template').onclick = () => resetTemplateForm();
 	document.querySelectorAll('[data-template-format]').forEach(button => button.onclick = () => insertFormattedSelection(document.getElementById('template-content'), button.dataset.templateFormat));
@@ -2175,11 +2563,16 @@ async function boot() {
   } catch (e) { console.error(e); state.agents = []; state.departments = []; }
 	try { state.templates = await api('GET', '/flows/api/templates'); }
 	catch (e) { console.error(e); state.templates = []; }
+	try { state.aiAgents = await api('GET', '/flows/api/ai-agents'); }
+	catch (e) { console.error(e); state.aiAgents = []; }
+	try { state.aiCredentials = await api('GET', '/flows/api/ai-credentials'); }
+	catch (e) { console.error(e); state.aiCredentials = []; }
   try {
     await loadFlowsList();
   } catch (e) {
     document.getElementById('flows-grid').innerHTML = '<p class="text-red-500 text-sm">Erro ao carregar automações: ' + escapeHtml(e.message) + '<\/p>';
   }
+	if(state.currentFlow){renderTopbarExtra();renderInspector();}
 }
 boot();
 window.addEventListener('beforeunload', event => {
@@ -2188,6 +2581,6 @@ window.addEventListener('beforeunload', event => {
 	event.returnValue = '';
 });
 </script>
-</body>
-</html>
+	</main>
+	}
 }

@@ -10,6 +10,7 @@ import (
 
 	"sophus/internal/media"
 	"sophus/internal/repo"
+	"sophus/pkg/http/middlewares/sse"
 )
 
 const scanInterval = 24 * time.Hour
@@ -30,6 +31,19 @@ func Start(ctx context.Context) {
 			}
 		}
 	}()
+	go func() {
+		runConversationPolicies(time.Now().UTC(), false)
+		ticker := time.NewTicker(time.Minute)
+		defer ticker.Stop()
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case now := <-ticker.C:
+				runConversationPolicies(now.UTC(), false)
+			}
+		}
+	}()
 }
 
 func RunOnce(now time.Time) {
@@ -46,6 +60,21 @@ func RunOnce(now time.Time) {
 		if policy.MediaRetentionDays != nil {
 			deleteExpiredMedia(policy.CompanyId, *policy.MediaRetentionDays, now)
 		}
+		if policy.Operations.ConversationRetentionDays > 0 {
+			paths, err := repo.ListExpiredConversationMedia(policy.CompanyId, policy.Operations.ConversationRetentionDays, now)
+			if err != nil {
+				log.Printf("conversation retention media: company %d: %v", policy.CompanyId, err)
+			} else {
+				for _, path := range paths {
+					if _, deleteErr := media.Delete(policy.CompanyId, media.ScopeMessages, path); deleteErr != nil && !errors.Is(deleteErr, os.ErrNotExist) {
+						log.Printf("conversation retention media: company %d path %s: %v", policy.CompanyId, path, deleteErr)
+					}
+				}
+			}
+			if _, err := repo.DeleteExpiredConversations(policy.CompanyId, policy.Operations.ConversationRetentionDays, now); err != nil {
+				log.Printf("conversation retention: company %d: %v", policy.CompanyId, err)
+			}
+		}
 		usedBytes, fileCount, err := media.ScanCompany(policy.CompanyId)
 		if err != nil {
 			log.Printf("storage scan: company %d: %v", policy.CompanyId, err)
@@ -53,6 +82,27 @@ func RunOnce(now time.Time) {
 		}
 		if err := repo.ReconcileCompanyStorage(policy.CompanyId, usedBytes, fileCount, now); err != nil {
 			log.Printf("storage scan: persist company %d: %v", policy.CompanyId, err)
+		}
+	}
+}
+
+func runConversationPolicies(now time.Time, includeRetention bool) {
+	policies, err := repo.ListCompanyStoragePolicies()
+	if err != nil {
+		log.Printf("conversation policies: list companies: %v", err)
+		return
+	}
+	for _, policy := range policies {
+		closed, err := repo.ApplyConversationInactivityPolicy(policy.CompanyId, policy.Operations.AutoCloseMinutes, now)
+		if err != nil {
+			log.Printf("conversation inactivity: company %d: %v", policy.CompanyId, err)
+			continue
+		}
+		if closed > 0 {
+			sse.NotifyConversations(policy.CompanyId)
+		}
+		if includeRetention && policy.Operations.ConversationRetentionDays > 0 {
+			_, _ = repo.DeleteExpiredConversations(policy.CompanyId, policy.Operations.ConversationRetentionDays, now)
 		}
 	}
 }

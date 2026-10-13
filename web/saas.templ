@@ -7,6 +7,7 @@ templ SaaSSetup() {
 			<meta charset="UTF-8"/>
 			<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
 			<title>Primeiro acesso - Sophus</title>
+			@BrandIcons()
 			<script src="https://cdn.tailwindcss.com"></script>
 			<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css"/>
 			<script src="https://cdn.jsdelivr.net/npm/htmx.org@2.0.10/dist/htmx.min.js" integrity="sha384-H5SrcfygHmAuTDZphMHqBJLc3FhssKjG7w/CeCpFReSfwBWDTKpkzPP8c+cLsK+V" crossorigin="anonymous"></script>
@@ -16,11 +17,7 @@ templ SaaSSetup() {
 				<section class="relative hidden lg:flex overflow-hidden px-12 py-14 flex-col justify-between" style="background: radial-gradient(circle at 18% 15%, rgba(59,130,246,.55), transparent 30%), radial-gradient(circle at 85% 78%, rgba(97,35,204,.7), transparent 34%), #17141f;">
 					<div class="absolute inset-0 opacity-20" style="background-image: linear-gradient(rgba(255,255,255,.12) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,.12) 1px, transparent 1px); background-size: 44px 44px;"></div>
 					<div class="relative flex items-center gap-3">
-						<span class="grid h-11 w-11 place-items-center rounded-2xl bg-white text-purple-700 shadow-xl"><i class="fas fa-paper-plane"></i></span>
-						<div>
-							<p class="font-bold tracking-wide">Sophus</p>
-							<p class="text-xs uppercase tracking-[0.24em] text-stone-400">Administração</p>
-						</div>
+						<div>@BrandLogo(true, "h-11 w-auto")<p class="mt-2 text-xs uppercase tracking-[0.24em] text-stone-400">Administração</p></div>
 					</div>
 					<div class="relative max-w-xl">
 						<p class="mb-5 text-xs font-semibold uppercase tracking-[0.3em] text-blue-300">Marco zero da operação</p>
@@ -36,8 +33,7 @@ templ SaaSSetup() {
 				<section class="flex min-h-screen items-center justify-center bg-stone-50 px-5 py-10 text-gray-900 sm:px-10">
 					<div class="w-full max-w-md">
 						<div class="mb-8 flex items-center gap-3 lg:hidden">
-							<span class="grid h-11 w-11 place-items-center rounded-2xl text-white shadow-lg" style="background: linear-gradient(135deg, #3b82f6, #6123cc);"><i class="fas fa-paper-plane"></i></span>
-							<div><p class="font-bold">Sophus</p><p class="text-xs uppercase tracking-[0.2em] text-gray-500">Administração</p></div>
+							<div>@BrandLogo(false, "h-10 w-auto")<p class="mt-2 text-xs uppercase tracking-[0.2em] text-gray-500">Administração</p></div>
 						</div>
 						<span class="inline-flex items-center gap-2 rounded-full bg-purple-100 px-3 py-1 text-xs font-semibold text-purple-700"><i class="fas fa-key"></i> Configuração única</span>
 						<h2 class="mt-5 text-3xl font-black tracking-tight text-gray-950">Crie o primeiro administrador</h2>
@@ -113,6 +109,12 @@ templ SaaSDashboard() {
 			<meta charset="UTF-8"/>
 			<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
 			<title>Administração - Sophus</title>
+			@BrandIcons()
+			@MobileActionStyles()
+			<script>
+				try { document.documentElement.dataset.adminSidebarExpanded = localStorage.getItem('sophus-admin-sidebar-expanded') === 'false' ? 'false' : 'true'; }
+				catch (_) { document.documentElement.dataset.adminSidebarExpanded = 'true'; }
+			</script>
 			<script src="https://cdn.tailwindcss.com"></script>
 			<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css"/>
 			<style>
@@ -122,40 +124,61 @@ templ SaaSDashboard() {
         .saas-modal { backdrop-filter: blur(5px); }
         .saas-scroll::-webkit-scrollbar { width: 8px; height: 8px; }
         .saas-scroll::-webkit-scrollbar-thumb { background: #d6d3d1; border-radius: 999px; }
+		@media (min-width: 1024px) {
+			.saas-shell { grid-template-columns: 248px minmax(0,1fr); }
+			html[data-admin-sidebar-expanded="false"] .saas-shell { grid-template-columns: 80px minmax(0,1fr); }
+			html[data-admin-sidebar-expanded="false"] .saas-shell > aside { padding-left: .5rem; padding-right: .5rem; }
+			html[data-admin-sidebar-expanded="false"] #saas-sidebar-brand { justify-content: center; padding: 0; }
+			#saas-sidebar-brand > img { display: none; }
+			html[data-admin-sidebar-expanded="false"] #saas-sidebar-brand > div { display: none; }
+			html[data-admin-sidebar-expanded="false"] #saas-sidebar-brand > img { display: block; }
+			html[data-admin-sidebar-expanded="false"] #saas-sidebar-toggle { align-self: center; }
+			html[data-admin-sidebar-expanded="false"] .saas-shell > aside nav > button,
+			html[data-admin-sidebar-expanded="false"] .saas-shell > aside nav > a { justify-content: center; padding: .75rem; }
+			html[data-admin-sidebar-expanded="false"] .saas-shell > aside nav span,
+			html[data-admin-sidebar-expanded="false"] #saas-sidebar-status { display: none; }
+			html[data-admin-sidebar-expanded="false"] #saas-sidebar-logout button { justify-content: center; padding: .75rem; font-size: 0; }
+			html[data-admin-sidebar-expanded="false"] #saas-sidebar-logout button i { font-size: 1rem; }
+		}
     </style>
 		</head>
 		<body class="text-gray-900">
-			<div class="min-h-screen lg:grid lg:grid-cols-[248px_1fr]">
+			<div class="saas-shell min-h-screen lg:grid lg:grid-cols-[248px_1fr]">
 				<aside class="relative overflow-hidden bg-stone-950 px-4 py-4 text-white lg:sticky lg:top-0 lg:flex lg:h-screen lg:flex-col lg:px-5 lg:py-6" style="background: radial-gradient(circle at 15% 5%, rgba(59,130,246,.35), transparent 26%), radial-gradient(circle at 95% 85%, rgba(97,35,204,.45), transparent 32%), #17141f;">
-					<div class="flex items-center justify-between lg:block">
-						<div class="flex items-center gap-3 px-2">
-							<span class="grid h-10 w-10 place-items-center rounded-2xl bg-white text-purple-700 shadow-lg"><i class="fas fa-paper-plane"></i></span>
-							<div><p class="font-bold">Sophus</p><p class="text-[10px] uppercase tracking-[0.24em] text-stone-400">Administração</p></div>
+					<div class="flex items-center justify-between lg:flex-col lg:items-stretch lg:gap-3">
+						<div id="saas-sidebar-brand" class="flex items-center gap-3 px-2">
+							@BrandSymbol(false, "hidden h-10 w-10 shrink-0")
+							<div>@BrandLogo(true, "h-9 w-auto")<p class="mt-2 text-[10px] uppercase tracking-[0.24em] text-stone-400">Administração</p></div>
 						</div>
 						<form action="/logout" method="post" class="lg:hidden"><button type="submit" class="rounded-xl border border-white/10 px-3 py-2 text-xs text-stone-300 transition hover:bg-white/10"><i class="fas fa-arrow-right-from-bracket mr-1"></i> Sair</button></form>
+						<button id="saas-sidebar-toggle" type="button" aria-label="Retrair menu lateral" title="Retrair menu lateral" aria-expanded="true" aria-controls="saas-sidebar-links" class="hidden h-9 w-9 place-items-center self-end rounded-xl border border-white/15 bg-white/5 text-white hover:bg-white/15 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white lg:grid"><i class="fas fa-angles-left" aria-hidden="true"></i></button>
 					</div>
-					<nav class="mt-5 grid grid-cols-2 gap-2 lg:mt-10 lg:block lg:space-y-2" aria-label="Seções do console">
-						<button type="button" data-saas-tab="companies" aria-selected="true" class="saas-tab flex w-full items-center gap-3 rounded-xl px-4 py-3 text-left text-sm font-semibold text-stone-300 transition hover:bg-white/10 hover:text-white">
+					<nav id="saas-sidebar-links" class="mt-4 flex gap-2 overflow-x-auto lg:mt-10 lg:block lg:space-y-2 lg:overflow-visible" aria-label="Seções do console">
+						<button type="button" data-saas-tab="companies" aria-selected="true" class="saas-tab flex shrink-0 items-center gap-3 rounded-xl px-4 py-3 text-left text-sm font-semibold text-stone-300 transition hover:bg-white/10 hover:text-white lg:w-full">
 							<i class="fas fa-building w-5 text-center"></i><span>Empresas</span><span id="nav-company-count" class="ml-auto rounded-full bg-white/10 px-2 py-0.5 text-[10px]">0</span>
 						</button>
-						<button type="button" data-saas-tab="plans" aria-selected="false" class="saas-tab flex w-full items-center gap-3 rounded-xl px-4 py-3 text-left text-sm font-semibold text-stone-300 transition hover:bg-white/10 hover:text-white">
+						<button type="button" data-saas-tab="plans" aria-selected="false" class="saas-tab flex shrink-0 items-center gap-3 rounded-xl px-4 py-3 text-left text-sm font-semibold text-stone-300 transition hover:bg-white/10 hover:text-white lg:w-full">
 							<i class="fas fa-layer-group w-5 text-center"></i><span>Planos</span><span id="nav-plan-count" class="ml-auto rounded-full bg-white/10 px-2 py-0.5 text-[10px]">0</span>
 						</button>
-						<a href="/settings" class="flex w-full items-center gap-3 rounded-xl px-4 py-3 text-left text-sm font-semibold text-stone-300 transition hover:bg-white/10 hover:text-white">
+						<button type="button" data-saas-tab="invoices" aria-selected="false" class="saas-tab flex shrink-0 items-center gap-3 rounded-xl px-4 py-3 text-left text-sm font-semibold text-stone-300 transition hover:bg-white/10 hover:text-white lg:w-full">
+							<i class="fas fa-file-invoice-dollar w-5 text-center"></i><span>Faturas</span><span id="nav-invoice-count" class="ml-auto rounded-full bg-white/10 px-2 py-0.5 text-[10px]">0</span>
+						</button>
+						<button type="button" data-saas-tab="audit" aria-selected="false" class="saas-tab flex shrink-0 items-center gap-3 rounded-xl px-4 py-3 text-left text-sm font-semibold text-stone-300 transition hover:bg-white/10 hover:text-white lg:w-full"><i class="fas fa-clock-rotate-left w-5 text-center"></i><span>Logs de auditoria</span></button>
+						<a href="/settings" title="Configurações" aria-label="Configurações" class="flex shrink-0 items-center gap-3 rounded-xl px-4 py-3 text-left text-sm font-semibold text-stone-300 transition hover:bg-white/10 hover:text-white lg:w-full">
 							<i class="fas fa-sliders w-5 text-center"></i><span>Configurações</span>
 						</a>
 					</nav>
 					<div class="mt-auto hidden lg:block">
-						<div class="mb-4 rounded-2xl border border-white/10 bg-white/5 p-4">
+						<div id="saas-sidebar-status" class="mb-4 rounded-2xl border border-white/10 bg-white/5 p-4">
 							<div class="flex items-center gap-2 text-xs font-semibold text-emerald-300"><span class="h-2 w-2 rounded-full bg-emerald-400"></span> Operação online</div>
 							<p class="mt-2 text-xs leading-relaxed text-stone-400">Dados comerciais e de cobrança atualizados diretamente pela API.</p>
 						</div>
-						<form action="/logout" method="post"><button type="submit" class="flex w-full items-center gap-3 rounded-xl px-4 py-3 text-sm font-medium text-stone-300 transition hover:bg-white/10 hover:text-white"><i class="fas fa-arrow-right-from-bracket w-5 text-center"></i> Encerrar sessão</button></form>
+						<form id="saas-sidebar-logout" action="/logout" method="post"><button type="submit" title="Encerrar sessão" aria-label="Encerrar sessão" class="flex w-full items-center gap-3 rounded-xl px-4 py-3 text-sm font-medium text-stone-300 transition hover:bg-white/10 hover:text-white"><i class="fas fa-arrow-right-from-bracket w-5 text-center"></i> Encerrar sessão</button></form>
 					</div>
 				</aside>
 				<main class="min-w-0 bg-stone-100">
 					<header class="border-b border-stone-200 bg-white/90 px-4 py-4 backdrop-blur sm:px-6 lg:px-8">
-						<div class="mx-auto flex max-w-[1500px] items-center justify-between gap-4">
+						<div class="mx-auto flex max-w-[1280px] items-center justify-between gap-4">
 							<div>
 								<p class="text-[10px] font-bold uppercase tracking-[0.24em] text-purple-600">Visão operacional</p>
 								<h1 class="mt-1 text-xl font-black tracking-tight sm:text-2xl">Back office da plataforma</h1>
@@ -163,7 +186,7 @@ templ SaaSDashboard() {
 							<button id="header-primary-action" type="button" class="flex shrink-0 items-center gap-2 rounded-xl px-4 py-2.5 text-sm font-semibold text-white shadow-md transition hover:-translate-y-0.5 hover:shadow-lg" style="background: linear-gradient(to right, #3b82f6, #6123cc);"><i class="fas fa-plus"></i><span class="hidden sm:inline">Nova empresa</span><span class="sm:hidden">Novo</span></button>
 						</div>
 					</header>
-					<div class="mx-auto max-w-[1500px] p-4 sm:p-6 lg:p-8">
+					<div class="mx-auto max-w-[1280px] p-4 sm:p-6 lg:p-8">
 						<div id="saas-global-error" role="alert" class="mb-5 hidden items-start justify-between gap-4 rounded-2xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">
 							<div class="flex gap-3"><i class="fas fa-circle-exclamation mt-0.5"></i><span id="saas-global-error-text"></span></div>
 							<button type="button" onclick="this.parentElement.classList.add('hidden')" aria-label="Fechar aviso"><i class="fas fa-xmark"></i></button>
@@ -207,6 +230,30 @@ templ SaaSDashboard() {
 							</div>
 							<div id="plans-grid" class="mt-6 grid gap-5 md:grid-cols-2 2xl:grid-cols-3"></div>
 							<div id="plans-empty" class="mt-6 hidden rounded-2xl border border-dashed border-stone-300 bg-white p-12 text-center text-gray-500"><i class="fas fa-layer-group mb-3 text-3xl text-gray-300"></i><p>Nenhum plano cadastrado.</p></div>
+							<form id="addon-prices-form" class="mt-8 rounded-2xl border border-stone-200 bg-white p-5 shadow-sm sm:p-7">
+								<div class="flex items-start gap-3"><span class="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-purple-100 text-purple-700"><i class="fas fa-puzzle-piece"></i></span><div><h3 class="text-lg font-black text-gray-950">Preços globais dos adicionais</h3><p class="mt-1 text-sm text-gray-500">Valores mensais aplicáveis aos planos com “Permite adicionais?” habilitado. Defina o preço por conexão, usuário, GB extra e pela ferramenta de transcrição.</p></div></div>
+								<div id="addon-prices-error" role="alert" class="mt-4 hidden rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-700"></div>
+								<fieldset id="addon-prices-fields" disabled class="mt-5 grid gap-5 sm:grid-cols-2 disabled:opacity-60">
+									<div><label for="addon-connection-price" class="mb-2 block text-sm font-semibold text-gray-700">Conexão extra · R$/mês por conexão</label><input id="addon-connection-price" required inputmode="numeric" placeholder="R$ 0,00" class="w-full rounded-xl border border-stone-200 px-4 py-3 outline-none focus:border-purple-400 focus:ring-2 focus:ring-purple-100"/></div>
+									<div><label for="addon-agent-price" class="mb-2 block text-sm font-semibold text-gray-700">Usuário extra · R$/mês por usuário</label><input id="addon-agent-price" required inputmode="numeric" placeholder="R$ 0,00" class="w-full rounded-xl border border-stone-200 px-4 py-3 outline-none focus:border-purple-400 focus:ring-2 focus:ring-purple-100"/></div>
+									<div><label for="addon-storage-price" class="mb-2 block text-sm font-semibold text-gray-700">Espaço em disco · R$/mês por GB extra</label><input id="addon-storage-price" required inputmode="numeric" placeholder="R$ 0,00" class="w-full rounded-xl border border-stone-200 px-4 py-3 outline-none focus:border-purple-400 focus:ring-2 focus:ring-purple-100"/></div>
+									<div><label for="addon-transcription-price" class="mb-2 block text-sm font-semibold text-gray-700">Ferramenta de transcrição de áudio · R$/mês</label><input id="addon-transcription-price" required inputmode="numeric" placeholder="R$ 14,90" class="w-full rounded-xl border border-stone-200 px-4 py-3 outline-none focus:border-purple-400 focus:ring-2 focus:ring-purple-100"/></div>
+									<div class="flex justify-end sm:col-span-2"><button id="addon-prices-submit" type="submit" class="rounded-xl bg-gray-950 px-5 py-3 text-sm font-semibold text-white hover:bg-gray-800 disabled:cursor-wait disabled:opacity-60">Salvar preços dos adicionais</button></div>
+								</fieldset>
+							</form>
+						</section>
+						<section id="invoices-panel" class="hidden">
+							<div class="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between"><div><p class="text-xs font-bold uppercase tracking-[0.2em] text-purple-600">Financeiro</p><h2 class="mt-2 text-2xl font-black tracking-tight">Faturas da plataforma</h2><p class="mt-1 text-sm text-gray-500">Consulte cobranças, abra checkouts e ajuste faturas ainda não enviadas ao provedor.</p></div><label class="relative block sm:w-72"><i class="fas fa-magnifying-glass absolute left-3 top-1/2 -translate-y-1/2 text-sm text-gray-400"></i><input id="invoice-search" type="search" placeholder="Empresa ou status" class="w-full rounded-xl border border-stone-200 bg-white py-2.5 pl-10 pr-3 text-sm outline-none focus:border-purple-400 focus:ring-2 focus:ring-purple-100"/></label></div>
+							<div id="invoices-loading" class="mt-6 hidden rounded-2xl border border-stone-200 bg-white p-12 text-center text-sm text-gray-500"><i class="fas fa-circle-notch fa-spin mr-2 text-purple-600"></i> Carregando faturas...</div>
+							<div id="invoices-list" class="mt-6 space-y-3"></div>
+							<div id="invoices-empty" class="mt-6 hidden rounded-2xl border border-dashed border-stone-300 bg-white p-12 text-center text-gray-500"><i class="fas fa-file-circle-xmark mb-3 text-3xl text-gray-300"></i><p>Nenhuma fatura encontrada.</p></div>
+						</section>
+						<section id="audit-panel" class="hidden">
+							<div class="mb-5"><p class="text-xs font-bold uppercase tracking-widest text-purple-600">Auditoria</p><h2 class="mt-2 text-2xl font-black text-gray-950">Atividades e acessos</h2><p class="mt-1 text-sm text-gray-500">Consulte logins e alterações por empresa ou usuário. Até 50 registros por página.</p></div>
+							<form id="audit-filters" class="flex flex-wrap items-end gap-3 rounded-2xl border border-stone-200 bg-white p-4 shadow-sm"><label class="text-xs font-semibold text-gray-600">ID da empresa<input id="audit-company" type="number" min="1" placeholder="Todas" class="mt-1 block w-40 rounded-xl border border-stone-200 px-3 py-2 text-sm"/></label><label class="text-xs font-semibold text-gray-600">ID do usuário<input id="audit-actor" type="number" min="1" placeholder="Todos" class="mt-1 block w-40 rounded-xl border border-stone-200 px-3 py-2 text-sm"/></label><label class="min-w-48 flex-1 text-xs font-semibold text-gray-600">Email do usuário<input id="audit-email" type="search" placeholder="Buscar email" class="mt-1 block w-full rounded-xl border border-stone-200 px-3 py-2 text-sm"/></label><button class="rounded-xl bg-purple-700 px-4 py-2 text-sm font-bold text-white hover:bg-purple-800">Buscar</button></form>
+							<div id="audit-error" role="alert" class="mt-4 hidden rounded-xl bg-red-50 p-4 text-sm text-red-700"></div>
+							<div class="mt-4 overflow-x-auto rounded-2xl border border-stone-200 bg-white shadow-sm"><table class="w-full min-w-[820px] text-left text-sm"><thead class="bg-stone-50 text-xs text-gray-500"><tr><th class="p-3">Quando</th><th class="p-3">Empresa</th><th class="p-3">Usuário</th><th class="p-3">Evento</th><th class="p-3">Alvo</th><th class="p-3">IP</th></tr></thead><tbody id="audit-rows" class="divide-y divide-stone-100"></tbody></table><p id="audit-empty" class="hidden p-6 text-center text-sm text-gray-500">Nenhum evento encontrado.</p></div>
+							<div class="mt-4 flex items-center justify-end gap-3"><button id="audit-previous" type="button" class="rounded-xl border border-stone-200 bg-white px-4 py-2 text-sm disabled:opacity-40">Anterior</button><span id="audit-page" class="text-xs text-gray-500"></span><button id="audit-next" type="button" class="rounded-xl border border-stone-200 bg-white px-4 py-2 text-sm disabled:opacity-40">Próxima</button></div>
 						</section>
 					</div>
 				</main>
@@ -255,6 +302,7 @@ templ SaaSDashboard() {
 							<div><label for="plan-trial-days" class="mb-2 block text-sm font-semibold text-gray-700">Dias grátis para avaliação</label><input id="plan-trial-days" type="number" name="trialDays" required min="0" max="90" step="1" value="10" class="w-full rounded-xl border border-stone-200 px-4 py-3 outline-none focus:border-purple-400 focus:ring-2 focus:ring-purple-100"/></div>
 							<div><label for="plan-storage-limit" class="mb-2 block text-sm font-semibold text-gray-700">Armazenamento em GB</label><input id="plan-storage-limit" type="number" name="storageLimitGB" required min="1" max="100000" step="1" value="5" class="w-full rounded-xl border border-stone-200 px-4 py-3 outline-none focus:border-purple-400 focus:ring-2 focus:ring-purple-100"/></div>
 							<label class="flex cursor-pointer items-center gap-3 self-end rounded-xl border border-stone-200 bg-stone-50 px-4 py-3"><input id="plan-active" type="checkbox" name="isActive" checked class="peer sr-only"/><span class="grid h-5 w-5 shrink-0 place-items-center rounded-md border border-stone-300 bg-white text-[10px] text-transparent transition peer-checked:border-purple-600 peer-checked:bg-purple-600 peer-checked:text-white peer-focus-visible:ring-2 peer-focus-visible:ring-purple-200 peer-focus-visible:ring-offset-2"><i class="fas fa-check"></i></span><span><span class="block text-sm font-semibold text-gray-700">Plano ativo</span><span class="block text-xs text-gray-500">Disponível para novas empresas</span></span></label>
+							<label class="flex cursor-pointer items-center gap-3 self-end rounded-xl border border-stone-200 bg-stone-50 px-4 py-3"><input id="plan-allow-addons" type="checkbox" name="allowAddons" class="peer sr-only"/><span class="grid h-5 w-5 shrink-0 place-items-center rounded-md border border-stone-300 bg-white text-[10px] text-transparent transition peer-checked:border-purple-600 peer-checked:bg-purple-600 peer-checked:text-white peer-focus-visible:ring-2 peer-focus-visible:ring-purple-200 peer-focus-visible:ring-offset-2"><i class="fas fa-check"></i></span><span><span class="block text-sm font-semibold text-gray-700">Permite adicionais?</span><span class="block text-xs text-gray-500">Conexões, usuários, disco e transcrição</span></span></label>
 						</div>
 						<div class="mt-7 flex flex-col-reverse gap-3 sm:flex-row sm:justify-end"><button type="button" data-close-modal="plan-modal" class="rounded-xl border border-stone-200 px-5 py-3 text-sm font-semibold text-gray-700 hover:bg-stone-50">Cancelar</button><button id="plan-submit" type="submit" class="rounded-xl bg-gray-950 px-5 py-3 text-sm font-semibold text-white shadow-md hover:bg-gray-800 disabled:cursor-wait disabled:opacity-60">Salvar plano</button></div>
 					</form>
@@ -266,10 +314,76 @@ templ SaaSDashboard() {
 					<div class="p-5 sm:p-7"><div id="company-payments-list" class="space-y-3"></div></div>
 				</div>
 			</div>
+			<div id="invoice-edit-modal" class="saas-modal fixed inset-0 z-[55] hidden items-end justify-center bg-stone-950/60 p-0 sm:items-center sm:p-5" role="dialog" aria-modal="true" aria-labelledby="invoice-edit-title">
+				<div class="max-h-[100dvh] w-full max-w-lg overflow-y-auto rounded-t-3xl bg-white shadow-2xl sm:max-h-[calc(100dvh-2.5rem)] sm:rounded-3xl">
+					<div class="flex items-center justify-between border-b border-stone-200 px-5 py-4 sm:px-7"><div><p class="text-[10px] font-bold uppercase tracking-[0.2em] text-purple-600">Fatura pendente</p><h2 id="invoice-edit-title" class="mt-1 text-xl font-black">Editar cobrança</h2></div><button type="button" data-close-modal="invoice-edit-modal" class="grid h-10 w-10 place-items-center rounded-xl bg-stone-100 text-gray-500 hover:bg-stone-200" aria-label="Fechar"><i class="fas fa-xmark"></i></button></div>
+					<form id="invoice-edit-form" class="p-5 sm:p-7">
+						<div id="invoice-edit-error" role="alert" class="mb-5 hidden rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-700"></div>
+						<p id="invoice-edit-summary" class="mb-5 rounded-xl bg-stone-50 p-4 text-sm text-gray-600"></p>
+						<label for="invoice-edit-due-date" class="mb-2 block text-sm font-semibold text-gray-700">Vencimento</label>
+						<input id="invoice-edit-due-date" type="date" required class="w-full rounded-xl border border-stone-200 px-4 py-3 outline-none focus:border-purple-400 focus:ring-2 focus:ring-purple-100"/>
+						<p id="invoice-edit-checkout-help" class="mt-2 text-xs leading-relaxed text-gray-500">O link do Mercado Pago é atualizado com o novo valor e vencimento. Checkouts PIX já emitidos não podem ser alterados pelo provedor.</p>
+						<div class="mt-7 flex flex-col-reverse gap-3 sm:flex-row sm:justify-between"><button id="invoice-cancel-button" type="button" class="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-semibold text-red-700 hover:bg-red-100">Cancelar fatura</button><div class="flex gap-3"><button type="button" data-close-modal="invoice-edit-modal" class="rounded-xl border border-stone-200 px-4 py-3 text-sm font-semibold text-gray-700">Fechar</button><button id="invoice-edit-submit" type="submit" class="rounded-xl bg-gray-950 px-4 py-3 text-sm font-semibold text-white disabled:opacity-60">Salvar alterações</button></div></div>
+					</form>
+					<label id="invoice-edit-amount-field" for="invoice-edit-amount" class="hidden text-sm font-semibold text-gray-700">Valor da fatura (R$)<input id="invoice-edit-amount" type="number" required min="0.01" max="10000000" step="0.01" class="mt-2 w-full rounded-xl border border-stone-200 px-4 py-3 text-sm outline-none focus:border-purple-400 focus:ring-2 focus:ring-purple-100"/></label>
+					<div id="invoice-manual-controls" class="hidden border-t border-stone-100 pt-5"><label for="invoice-manual-reason" class="block text-sm font-semibold text-gray-700">Motivo da confirmação manual</label><textarea id="invoice-manual-reason" maxlength="500" rows="2" placeholder="Ex.: comprovante de transferência verificado" class="mt-2 w-full rounded-xl border border-stone-200 px-4 py-3 text-sm outline-none focus:border-purple-400 focus:ring-2 focus:ring-purple-100"></textarea><button id="invoice-manual-confirm" type="button" class="mt-3 rounded-xl bg-emerald-700 px-4 py-3 text-sm font-bold text-white hover:bg-emerald-800 disabled:opacity-60"><i class="fas fa-check mr-2"></i>Confirmar pagamento manualmente</button></div>
+				</div>
+			</div>
+			<div id="subscription-modal" class="saas-modal fixed inset-0 z-50 hidden items-end justify-center bg-stone-950/60 p-0 sm:items-center sm:p-5" role="dialog" aria-modal="true" aria-labelledby="subscription-modal-title">
+				<div class="saas-scroll max-h-[94vh] w-full max-w-3xl overflow-y-auto rounded-t-3xl bg-white shadow-2xl sm:rounded-3xl">
+					<div class="sticky top-0 z-10 flex items-center justify-between border-b border-stone-200 bg-white px-5 py-4 sm:px-7"><div><p class="text-[10px] font-bold uppercase tracking-[0.2em] text-purple-600">Controle de acesso</p><h2 id="subscription-modal-title" class="mt-1 text-xl font-black">Gerenciar assinatura</h2></div><button type="button" data-close-modal="subscription-modal" class="grid h-10 w-10 place-items-center rounded-xl bg-stone-100 text-gray-500 hover:bg-stone-200" aria-label="Fechar"><i class="fas fa-xmark"></i></button></div>
+					<div class="p-5 sm:p-7">
+						<div class="flex flex-wrap items-center justify-between gap-3 rounded-2xl bg-stone-950 p-4 text-white"><div><p id="subscription-company-name" class="font-bold"></p><p id="subscription-period-summary" class="mt-1 text-xs text-stone-400"></p></div><div id="subscription-current-status"></div></div>
+						<div class="mt-5 grid gap-4 md:grid-cols-2">
+							<form id="subscription-reactivate-form" class="rounded-2xl border border-emerald-200 bg-emerald-50 p-5"><span class="grid h-10 w-10 place-items-center rounded-xl bg-emerald-600 text-white"><i class="fas fa-rotate"></i></span><h3 class="mt-4 font-black text-emerald-950">Reativar assinatura</h3><p class="mt-1 text-xs leading-relaxed text-emerald-800">Altera o status para ativo e concede um novo período operacional. Esta ação não registra pagamento.</p><label for="subscription-reactivate-days" class="mt-4 block text-xs font-bold text-emerald-950">Dias ativos</label><input id="subscription-reactivate-days" type="number" required min="1" max="3650" value="30" class="mt-1 w-full rounded-xl border border-emerald-200 bg-white px-3 py-2.5 text-sm outline-none focus:ring-2 focus:ring-emerald-200"/><label for="subscription-reactivate-reason" class="mt-3 block text-xs font-bold text-emerald-950">Justificativa</label><textarea id="subscription-reactivate-reason" required minlength="3" maxlength="500" rows="3" class="mt-1 w-full resize-none rounded-xl border border-emerald-200 bg-white px-3 py-2.5 text-sm outline-none focus:ring-2 focus:ring-emerald-200" placeholder="Motivo da reativação"></textarea><button type="submit" class="mt-4 w-full rounded-xl bg-emerald-700 px-4 py-2.5 text-sm font-bold text-white hover:bg-emerald-800 disabled:opacity-60">Reativar acesso</button></form>
+							<form id="subscription-redemption-form" class="rounded-2xl border border-amber-200 bg-amber-50 p-5"><span class="grid h-10 w-10 place-items-center rounded-xl bg-amber-500 text-white"><i class="fas fa-hourglass-half"></i></span><h3 class="mt-4 font-black text-amber-950">Grace redemption</h3><p class="mt-1 text-xs leading-relaxed text-amber-800">Reabre uma assinatura vencida apenas para gerar e concluir o pagamento. Não concede acesso operacional.</p><label for="subscription-redemption-days" class="mt-4 block text-xs font-bold text-amber-950">Dias para pagamento</label><input id="subscription-redemption-days" type="number" required min="1" max="365" value="3" class="mt-1 w-full rounded-xl border border-amber-200 bg-white px-3 py-2.5 text-sm outline-none focus:ring-2 focus:ring-amber-200"/><label for="subscription-redemption-reason" class="mt-3 block text-xs font-bold text-amber-950">Justificativa</label><textarea id="subscription-redemption-reason" required minlength="3" maxlength="500" rows="3" class="mt-1 w-full resize-none rounded-xl border border-amber-200 bg-white px-3 py-2.5 text-sm outline-none focus:ring-2 focus:ring-amber-200" placeholder="Motivo da concessão"></textarea><button type="submit" class="mt-4 w-full rounded-xl bg-amber-600 px-4 py-2.5 text-sm font-bold text-white hover:bg-amber-700 disabled:opacity-60">Conceder resgate</button></form>
+						</div>
+					</div>
+				</div>
+			</div>
 			<div id="saas-toast" class="fixed bottom-5 right-5 z-[60] hidden max-w-sm items-center gap-3 rounded-2xl bg-gray-950 px-5 py-4 text-sm font-medium text-white shadow-2xl" role="status"><i id="saas-toast-icon" class="fas fa-check-circle text-emerald-400"></i><span id="saas-toast-text"></span></div>
 			@AdminControls()
+			@SubscriptionAddonManager()
+			@ReportCalendars("")
 			<script>
-	const saasState = { companies: [], plans: [], settings: null, tab: 'companies' };
+				let auditPage = 1;
+				async function loadAuditEvents() {
+					const params = new URLSearchParams({ page: String(auditPage) });
+					for (const [field, key] of [['audit-company', 'companyId'], ['audit-actor', 'actorId'], ['audit-email', 'email']]) { const value = document.getElementById(field).value.trim(); if (value) params.set(key, value); }
+					const errorBox = document.getElementById('audit-error'); errorBox.classList.add('hidden');
+					try {
+						const response = await fetch('/management/api/audit-events?' + params, { credentials: 'same-origin', headers: { Accept: 'application/json' } });
+						const payload = await response.json(); if (!response.ok) throw new Error(payload.error || 'Não foi possível carregar os logs.');
+						const rows = document.getElementById('audit-rows'); rows.replaceChildren();
+						for (const event of payload.data || []) {
+							const row = document.createElement('tr');
+							for (const value of [new Date(event.createdAt).toLocaleString('pt-BR'), event.companyId ?? 'Plataforma', event.actorEmail || '-', (event.action === 'login_failed' ? 'Falha no login' : event.action === 'login' ? 'Login' : event.action === 'surplus_payment_paid' ? 'Crédito por pagamento excedente' : event.action === 'surplus_payment_refunded' ? 'Crédito estornado' : event.action === 'confirm_paid' ? 'Pagamento confirmado manualmente' : event.action === 'discard' ? 'Cobrança descartada' : event.action + ' · ' + event.targetType), event.targetId || '-', event.ipAddress || '-']) { const cell = document.createElement('td'); cell.className = 'p-3 text-gray-700'; cell.textContent = String(value); row.appendChild(cell); }
+							rows.appendChild(row);
+						}
+						document.getElementById('audit-empty').classList.toggle('hidden', rows.childElementCount > 0);
+						document.getElementById('audit-page').textContent = 'Página ' + auditPage + ' · ' + payload.total + ' eventos';
+						document.getElementById('audit-previous').disabled = auditPage === 1;
+						document.getElementById('audit-next').disabled = auditPage * 50 >= payload.total;
+					} catch (error) { errorBox.textContent = error.message; errorBox.classList.remove('hidden'); }
+				}
+				document.getElementById('audit-filters').addEventListener('submit', event => { event.preventDefault(); auditPage = 1; loadAuditEvents(); });
+				document.getElementById('audit-previous').addEventListener('click', () => { if (auditPage > 1) { auditPage--; loadAuditEvents(); } });
+				document.getElementById('audit-next').addEventListener('click', () => { auditPage++; loadAuditEvents(); });
+			</script>
+			<script>
+	const saasState = { companies: [], plans: [], invoices: [], settings: null, tab: 'companies', invoicesLoaded: false };
+	const adminSidebarToggle = document.getElementById('saas-sidebar-toggle');
+	function updateAdminSidebarToggle() {
+		const expanded=document.documentElement.dataset.adminSidebarExpanded!=='false';const label=expanded?'Retrair menu lateral':'Expandir menu lateral';
+		adminSidebarToggle.setAttribute('aria-expanded',String(expanded));adminSidebarToggle.setAttribute('aria-label',label);adminSidebarToggle.title=label;
+		adminSidebarToggle.querySelector('i').className=expanded?'fas fa-angles-left':'fas fa-angles-right';
+	}
+	adminSidebarToggle.addEventListener('click',()=>{
+		const expanded=document.documentElement.dataset.adminSidebarExpanded==='false';document.documentElement.dataset.adminSidebarExpanded=String(expanded);
+		try{localStorage.setItem('sophus-admin-sidebar-expanded',String(expanded));}catch(_){}updateAdminSidebarToggle();
+	});
+	document.querySelectorAll('[data-saas-tab]').forEach(button=>{const label=button.querySelector('span').textContent;button.setAttribute('aria-label',label);button.title=label;});
+	updateAdminSidebarToggle();
 
     function saasElement(tag, className, text) {
         const node = document.createElement(tag);
@@ -419,11 +533,15 @@ templ SaaSDashboard() {
         const actions = saasElement('div', compact ? 'flex flex-wrap gap-2' : 'flex justify-end gap-1');
         actions.append(
 			actionButton('fa-chart-pie', 'Visão interna', 'bg-emerald-50 text-emerald-700 hover:bg-emerald-100', () => { window.location.href = '/companies/' + company.id; }, !compact),
+			actionButton('fa-headset', 'Acessar como suporte', 'bg-violet-50 text-violet-700 hover:bg-violet-100', event => startCompanySupport(company,event.currentTarget), !compact),
             actionButton('fa-pen', 'Editar', 'bg-stone-100 text-gray-700 hover:bg-stone-200', () => openCompanyModal(company), !compact),
-            actionButton('fa-receipt', 'Pagamentos', 'bg-blue-50 text-blue-700 hover:bg-blue-100', () => showCompanyPayments(company), !compact),
-            actionButton('fa-credit-card', 'Checkout', 'bg-purple-50 text-purple-700 hover:bg-purple-100', () => startCompanyCheckout(company), !compact),
-            actionButton(company.isActive ? 'fa-pause' : 'fa-play', company.isActive ? 'Suspender' : 'Ativar', company.isActive ? 'bg-amber-50 text-amber-700 hover:bg-amber-100' : 'bg-emerald-50 text-emerald-700 hover:bg-emerald-100', () => toggleCompanyStatus(company), !compact)
+			 actionButton('fa-receipt', 'Pagamentos', 'bg-blue-50 text-blue-700 hover:bg-blue-100', () => showCompanyPayments(company), !compact),
+			 actionButton('fa-credit-card', 'Checkout', 'bg-purple-50 text-purple-700 hover:bg-purple-100', () => startCompanyCheckout(company), !compact),
+			 actionButton('fa-arrows-rotate', 'Assinatura', 'bg-cyan-50 text-cyan-700 hover:bg-cyan-100', () => openSubscriptionModal(company), !compact),
+			 actionButton(company.isActive ? 'fa-pause' : 'fa-play', company.isActive ? 'Suspender' : 'Despausar', company.isActive ? 'bg-amber-50 text-amber-700 hover:bg-amber-100' : 'bg-emerald-50 text-emerald-700 hover:bg-emerald-100', () => toggleCompanyStatus(company), !compact)
         );
+		const currentPlan=saasState.plans.find(plan=>Number(plan.id)===Number(company.currentPlanId));
+		if(currentPlan&&currentPlan.allowAddons)actions.append(actionButton('fa-puzzle-piece','Adicionais','bg-violet-50 text-violet-700 hover:bg-violet-100',()=>window.openSubscriptionAddons('/management/api/companies/'+company.id+'/addons','Adicionais · '+company.name),!compact));
         return actions;
     }
 
@@ -442,8 +560,9 @@ templ SaaSDashboard() {
 
             const plan = saasElement('td', 'px-5 py-4');
 		plan.append(saasElement('p', 'font-semibold text-gray-800', companyPlanName(company)), saasElement('p', 'mt-0.5 text-xs text-gray-500', company.priceCents == null ? 'Valor não informado' : formatMoney(company.priceCents) + ' · ' + billingCycleLabel(company.billingCycle)));
-            const subscription = saasElement('td', 'px-5 py-4');
-            subscription.append(statusBadge(company.subscriptionStatus));
+			 const subscription = saasElement('td', 'px-5 py-4');
+			 subscription.append(statusBadge(company.subscriptionStatus));
+			 if (company.redemptionEndsAt) subscription.append(saasElement('p', 'mt-1 text-[11px] font-semibold text-amber-700', 'Resgate até ' + formatDate(company.redemptionEndsAt, false, company.timezone)));
 			const period = saasElement('td', 'px-5 py-4 text-gray-700', formatDate(company.currentPeriodEnd, false, company.timezone));
             const active = saasElement('td', 'px-5 py-4');
             active.append(accessBadge(company.isActive));
@@ -523,12 +642,93 @@ templ SaaSDashboard() {
 			storage.append(saasElement('p', 'text-xs text-gray-500', 'Mídias'), saasElement('p', 'mt-1 font-bold text-gray-900', String(plan.storageLimitGB) + ' GB'));
 			limits.append(storage);
             const toggle = actionButton(plan.isActive ? 'fa-toggle-off' : 'fa-toggle-on', plan.isActive ? 'Desativar oferta' : 'Ativar oferta', plan.isActive ? 'mt-4 w-full justify-center bg-amber-50 text-amber-700 hover:bg-amber-100' : 'mt-4 w-full justify-center bg-emerald-50 text-emerald-700 hover:bg-emerald-100', () => togglePlan(plan));
-            card.append(stripe, top, price, description, limits, toggle);
+            const addons = saasElement('p', 'mt-3 text-xs font-semibold ' + (plan.allowAddons ? 'text-purple-600' : 'text-gray-500'), plan.allowAddons ? 'Adicionais permitidos' : 'Adicionais desabilitados');
+            card.append(stripe, top, price, description, limits, addons, toggle);
             grid.appendChild(card);
         });
 		const companyForm = document.getElementById('company-form');
 		fillCompanyPlanSelect(companyForm.dataset.companyId ? companyForm.dataset.planId : null);
     }
+
+	async function startCompanySupport(company,button) {
+		button.disabled=true;
+		try {
+			const response=await saasAPI('POST','/management/api/companies/'+company.id+'/support',{});
+			window.location.assign(response.data.redirectURL);
+		} catch(error) {showToast(error.message,true);button.disabled=false;}
+	}
+
+	function invoiceCompany(payment) {
+		return saasState.companies.find(company => Number(company.id) === Number(payment.companyId));
+	}
+
+	function invoiceIsEditable(payment) {
+		return payment.status === 'pending' && (!payment.providerPaymentId || (payment.provider === 'abacate_pay' && payment.providerPreferenceId === payment.providerPaymentId));
+	}
+
+	function renderInvoices() {
+		const query = document.getElementById('invoice-search').value.trim().toLocaleLowerCase('pt-BR');
+		const invoices = saasState.invoices.filter(payment => !query || String(payment.companyName || '').toLocaleLowerCase('pt-BR').includes(query) || String(statusLabels[payment.status] || payment.status).toLocaleLowerCase('pt-BR').includes(query));
+		const list = document.getElementById('invoices-list');
+		list.replaceChildren();
+		document.getElementById('nav-invoice-count').textContent = String(saasState.invoices.length);
+		document.getElementById('invoices-empty').classList.toggle('hidden', invoices.length > 0);
+		invoices.forEach(payment => {
+			const company = invoiceCompany(payment);
+			const timezone = company && company.timezone;
+			const card = saasElement('article', 'flex flex-col gap-4 rounded-2xl border border-stone-200 bg-white p-5 shadow-sm md:flex-row md:items-center md:justify-between');
+			const info = saasElement('div', 'min-w-0');
+			info.append(saasElement('p', 'truncate font-black text-gray-950', payment.companyName || 'Empresa #' + payment.companyId), saasElement('p', 'mt-1 text-sm font-semibold text-gray-700', 'Fatura #' + payment.id + ' · ' + formatMoney(payment.amountCents)), saasElement('p', 'mt-1 text-xs text-gray-500', 'Vencimento: ' + formatDate(payment.dueDate, false, timezone) + ' · ' + (payment.provider === 'abacate_pay' ? 'PIX' : 'PIX/Cartão')));
+			const actions = saasElement('div', 'flex flex-wrap items-center gap-2');
+			actions.appendChild(statusBadge(payment.status));
+			const checkoutURL = safeCheckoutURL((payment.status === 'pending' || payment.status === 'processing') ? payment.checkoutURL : (payment.receiptURL || payment.checkoutURL));
+			if (checkoutURL) {
+				const link = saasElement('a', 'inline-flex items-center gap-1.5 rounded-lg bg-purple-50 px-3 py-2 text-xs font-semibold text-purple-700 hover:bg-purple-100', payment.status === 'paid' ? 'Comprovante' : 'Abrir checkout');
+				link.href = checkoutURL; link.target = '_blank'; link.rel = 'noopener noreferrer';
+				actions.appendChild(link);
+			} else if ((payment.status === 'pending' || payment.status === 'processing') && company) {
+				actions.appendChild(actionButton('fa-link', 'Gerar link', 'bg-purple-50 text-purple-700 hover:bg-purple-100', async () => { await startCompanyCheckout(company); await loadInvoices(true); }));
+			}
+			if (invoiceIsEditable(payment)) actions.appendChild(actionButton('fa-pen', 'Editar', 'bg-stone-100 text-gray-700 hover:bg-stone-200', () => openInvoiceEditor(payment)));
+			card.append(info, actions);
+			list.appendChild(card);
+		});
+	}
+
+	async function loadInvoices(force) {
+		if (saasState.invoicesLoaded && !force) { renderInvoices(); return; }
+		const loading = document.getElementById('invoices-loading');
+		loading.classList.remove('hidden');
+		try {
+			const response = await saasAPI('GET', '/management/api/payments');
+			const data = response && Array.isArray(response.data) ? response.data : [];
+			saasState.invoices = data.map(item => Object.assign({}, item.payment || {}, { companyName: item.companyName || '' }));
+			saasState.invoicesLoaded = true;
+			renderInvoices();
+		} finally { loading.classList.add('hidden'); }
+	}
+
+	function openInvoiceEditor(payment) {
+		const company = invoiceCompany(payment);
+		const form = document.getElementById('invoice-edit-form');
+		const discardable = payment.status === 'pending' && payment.provider === 'abacate_pay' && Boolean(payment.checkoutURL);
+		form.dataset.discardable = String(discardable);
+		document.getElementById('invoice-edit-submit').classList.toggle('hidden', discardable);
+		document.getElementById('invoice-cancel-button').textContent = discardable ? 'Descartar cobrança' : 'Cancelar fatura';
+		document.getElementById('invoice-edit-amount-field').classList.toggle('hidden', discardable);
+		document.getElementById('invoice-edit-checkout-help').textContent = discardable
+			? 'O checkout PIX antigo permanece no provedor, mas não será exibido nem usado pela plataforma. Um pagamento por esse link não ativará o plano; verifique o log de auditoria se isso ocorrer.'
+			: 'O link do Mercado Pago é atualizado com o novo valor e vencimento.';
+		form.dataset.companyId = String(payment.companyId);
+		form.dataset.paymentId = String(payment.id);
+		document.getElementById('invoice-manual-controls').classList.toggle('hidden', payment.status !== 'pending');
+		document.getElementById('invoice-manual-reason').value = '';
+		document.getElementById('invoice-edit-error').classList.add('hidden');
+		document.getElementById('invoice-edit-summary').textContent = (payment.companyName || 'Empresa') + ' · ' + formatMoney(payment.amountCents) + ' · Fatura #' + payment.id;
+		document.getElementById('invoice-edit-amount').value = (Number(payment.amountCents) / 100).toFixed(2);
+		document.getElementById('invoice-edit-due-date').value = companyDateInput(payment.dueDate, company && company.timezone);
+		openModal('invoice-edit-modal');
+	}
 
     function fillCompanyPlanSelect(selectedId) {
         const select = document.getElementById('company-plan');
@@ -565,9 +765,13 @@ templ SaaSDashboard() {
         document.querySelectorAll('[data-saas-tab]').forEach(button => button.setAttribute('aria-selected', String(button.dataset.saasTab === tab)));
         document.getElementById('companies-panel').classList.toggle('hidden', tab !== 'companies');
         document.getElementById('plans-panel').classList.toggle('hidden', tab !== 'plans');
-        const action = document.getElementById('header-primary-action');
-        action.querySelector('.sm\\:inline').textContent = tab === 'companies' ? 'Nova empresa' : 'Novo plano';
-        action.querySelector('.sm\\:hidden').textContent = 'Novo';
+		document.getElementById('invoices-panel').classList.toggle('hidden', tab !== 'invoices');
+		document.getElementById('audit-panel').classList.toggle('hidden', tab !== 'audit');
+		const action = document.getElementById('header-primary-action');
+		action.classList.toggle('hidden', tab === 'invoices' || tab === 'audit');
+		if (tab !== 'invoices' && tab !== 'audit') action.querySelector('.sm\\:inline').textContent = tab === 'companies' ? 'Nova empresa' : 'Novo plano';
+		if (tab === 'invoices') loadInvoices(false).catch(showError);
+		if (tab === 'audit') loadAuditEvents();
     }
 
 	function openCompanyModal(company) {
@@ -602,6 +806,23 @@ templ SaaSDashboard() {
         openModal('company-modal');
 	}
 
+	function openSubscriptionModal(company) {
+		const modal = document.getElementById('subscription-modal');
+		modal.dataset.companyId = String(company.id);
+		document.getElementById('subscription-company-name').textContent = company.name || 'Empresa';
+		document.getElementById('subscription-period-summary').textContent = 'Vencimento atual: ' + formatDate(company.currentPeriodEnd, false, company.timezone) + (company.redemptionEndsAt ? ' · Resgate até ' + formatDate(company.redemptionEndsAt, false, company.timezone) : '');
+		const status = document.getElementById('subscription-current-status');
+		status.replaceChildren(statusBadge(company.subscriptionStatus));
+		document.getElementById('subscription-reactivate-form').reset();
+		const redemptionForm = document.getElementById('subscription-redemption-form');
+		redemptionForm.reset();
+		const redemptionEligible = company.subscriptionStatus === 'past_due' || company.subscriptionStatus === 'expired';
+		redemptionForm.querySelectorAll('input, textarea, button').forEach(input => { input.disabled = !redemptionEligible; });
+		redemptionForm.classList.toggle('opacity-50', !redemptionEligible);
+		redemptionForm.title = redemptionEligible ? '' : 'Disponível apenas para assinaturas em atraso ou expiradas.';
+		openModal('subscription-modal');
+	}
+
 	function setSaaSTimezone(value) {
 		const select = document.getElementById('company-timezone');
 		if (value && !Array.from(select.options).some(option => option.value === value)) {
@@ -617,6 +838,7 @@ templ SaaSDashboard() {
         form.reset();
         document.getElementById('plan-form-error').classList.add('hidden');
         form.dataset.planId = plan ? String(plan.id) : '';
+		document.getElementById('plan-allow-addons').checked = Boolean(plan && plan.allowAddons);
         document.getElementById('plan-modal-title').textContent = plan ? 'Editar plano' : 'Novo plano';
         document.getElementById('plan-submit').textContent = plan ? 'Salvar alterações' : 'Criar plano';
         if (plan) {
@@ -644,19 +866,36 @@ templ SaaSDashboard() {
     function planPayload(plan, isActive) {
         return {
 			name: plan.name, description: plan.description, monthlyPriceCents: Number(plan.monthlyPriceCents), annualPriceCents: Number(plan.annualPriceCents),
-			agentLimit: Number(plan.agentLimit), connectionLimit: Number(plan.connectionLimit), trialDays: Number(plan.trialDays || 0), storageLimitGB: Number(plan.storageLimitGB || 1), isActive: isActive
+			agentLimit: Number(plan.agentLimit), connectionLimit: Number(plan.connectionLimit), trialDays: Number(plan.trialDays || 0), storageLimitGB: Number(plan.storageLimitGB || 1), isActive: isActive, allowAddons: Boolean(plan.allowAddons)
         };
     }
 
-    async function toggleCompanyStatus(company) {
-        const action = company.isActive ? 'suspender' : 'ativar';
+	async function toggleCompanyStatus(company) {
+		const action = company.isActive ? 'suspender' : 'despausar';
         if (!confirm('Deseja ' + action + ' o acesso de ' + company.name + '?')) return;
         try {
             await saasAPI('PUT', '/management/api/companies/' + company.id + '/status', { isActive: !company.isActive });
             showToast('Status da empresa atualizado.');
             await loadOverview();
         } catch (error) { showError(error); }
-    }
+	}
+
+	async function submitSubscriptionAdjustment(form, action) {
+		const modal = document.getElementById('subscription-modal');
+		const companyId = Number(modal.dataset.companyId);
+		const prefix = action === 'reactivate' ? 'subscription-reactivate' : 'subscription-redemption';
+		const days = Number(document.getElementById(prefix + '-days').value);
+		const reason = document.getElementById(prefix + '-reason').value.trim();
+		const button = form.querySelector('button[type="submit"]');
+		button.disabled = true;
+		try {
+			await saasAPI('POST', '/management/api/companies/' + companyId + '/subscription/' + action, { days: days, reason: reason });
+			closeModal('subscription-modal');
+			showToast(action === 'reactivate' ? 'Assinatura reativada.' : 'Janela de resgate concedida.');
+			await loadOverview();
+		} catch (error) { showError(error); }
+		finally { button.disabled = false; }
+	}
 
     async function togglePlan(plan) {
         try {
@@ -672,10 +911,19 @@ templ SaaSDashboard() {
         list.replaceChildren(saasElement('div', 'py-12 text-center text-sm text-gray-500', 'Carregando pagamentos...'));
         openModal('payments-modal');
         try {
-            const response = await saasAPI('GET', '/management/api/companies/' + company.id + '/payments');
-            const data = response && response.data;
-            const payments = Array.isArray(data) ? data : (data && Array.isArray(data.payments) ? data.payments : []);
-            list.replaceChildren();
+			const [response, creditResponse] = await Promise.all([
+				saasAPI('GET', '/management/api/companies/' + company.id + '/payments'),
+				saasAPI('GET', '/management/api/companies/' + company.id + '/credits')
+			]);
+			const data = response && response.data;
+			const credits = creditResponse && creditResponse.data || { balanceCents: 0, entries: [] };
+			const payments = Array.isArray(data) ? data : (data && Array.isArray(data.payments) ? data.payments : []);
+			list.replaceChildren();
+			const creditCard = saasElement('div', 'rounded-2xl border border-purple-200 bg-purple-50 p-4');
+			creditCard.append(saasElement('p', 'text-xs font-bold uppercase tracking-wider text-purple-700', 'Créditos da empresa'), saasElement('p', 'mt-2 text-xl font-black text-gray-950', Number(credits.balanceCents) < 0 ? 'Saldo a compensar: ' + formatMoney(-credits.balanceCents) : formatMoney(credits.balanceCents)));
+			const creditLabels = { credit: 'Recebido', apply: 'Usado na fatura', release: 'Devolvido', reversal: 'Estornado' };
+			(credits.entries || []).forEach(entry => creditCard.appendChild(saasElement('p', 'mt-2 text-xs text-gray-600', (creditLabels[entry.kind] || entry.kind) + ' · #' + (entry.sourcePaymentId || entry.paymentId || '-') + ' · ' + (entry.amountCents > 0 ? '+' : '') + formatMoney(entry.amountCents))));
+			list.appendChild(creditCard);
             if (!payments.length) {
                 const empty = saasElement('div', 'rounded-2xl bg-stone-50 py-12 text-center text-sm text-gray-500');
                 empty.append(saasElement('i', 'fas fa-receipt mb-3 block text-3xl text-gray-300'), saasElement('p', '', 'Nenhum pagamento registrado.'));
@@ -690,15 +938,15 @@ templ SaaSDashboard() {
                 const right = saasElement('div', 'flex items-center gap-2');
                 right.append(statusBadge(payment.status));
 				const checkoutURL = safeCheckoutURL(payment.receiptURL || payment.checkoutURL);
-                if (checkoutURL) {
-                    const link = saasElement('a', 'grid h-9 w-9 place-items-center rounded-lg bg-purple-50 text-purple-700 hover:bg-purple-100');
-                    link.href = checkoutURL;
-                    link.target = '_blank';
-                    link.rel = 'noopener noreferrer';
-                    link.title = 'Abrir checkout';
-                    link.appendChild(saasElement('i', 'fas fa-arrow-up-right-from-square'));
-                    right.appendChild(link);
-                }
+				if (checkoutURL) {
+					const link = saasElement('a', 'inline-flex h-9 items-center gap-1.5 rounded-lg bg-purple-50 px-3 text-xs font-semibold text-purple-700 hover:bg-purple-100', payment.status === 'paid' ? 'Comprovante' : 'Abrir');
+					link.href = checkoutURL;
+					link.target = '_blank';
+					link.rel = 'noopener noreferrer';
+					link.title = 'Abrir checkout';
+					right.appendChild(link);
+				} else if (payment.status === 'pending' || payment.status === 'processing') right.appendChild(actionButton('fa-link', 'Gerar link', 'bg-purple-50 text-purple-700 hover:bg-purple-100', async () => { await startCompanyCheckout(company); await showCompanyPayments(company); }));
+				if (invoiceIsEditable(payment)) right.appendChild(actionButton('fa-pen', 'Editar', 'bg-stone-100 text-gray-700 hover:bg-stone-200', () => openInvoiceEditor(Object.assign({}, payment, { companyName: company.name }))));
                 row.append(info, right);
                 list.appendChild(row);
             });
@@ -718,12 +966,26 @@ templ SaaSDashboard() {
 				if (checkoutWindow) checkoutWindow.location.replace(checkoutURL);
 				else window.location.href = checkoutURL;
 				showToast('Checkout aberto em uma nova aba.');
+				saasState.invoicesLoaded = false;
 			} else {
 				if (checkoutWindow) checkoutWindow.close();
-				showToast('Nenhum checkout é necessário para este plano.', false);
+				showToast(payment && payment.status === 'paid' ? 'Fatura quitada com créditos da empresa.' : 'Nenhum checkout é necessário para este plano.', false);
+				if (payment && payment.status === 'paid') { saasState.invoicesLoaded = false; await loadOverview(); }
 			}
 		} catch (error) { if (checkoutWindow) checkoutWindow.close(); showError(error); }
     }
+
+	const addonPriceInputs = {
+		extraConnectionPriceCents: 'addon-connection-price',
+		extraAgentPriceCents: 'addon-agent-price',
+		extraStorageGBPriceCents: 'addon-storage-price',
+		audioTranscriptionPriceCents: 'addon-transcription-price'
+	};
+	function renderAddonPrices(prices) {
+		if (!prices) return;
+		Object.entries(addonPriceInputs).forEach(([key, id]) => { document.getElementById(id).value = currencyInputValue(prices[key]); });
+		document.getElementById('addon-prices-fields').disabled = false;
+	}
 
     async function loadOverview() {
         const response = await saasAPI('GET', '/management/api/overview');
@@ -733,17 +995,39 @@ templ SaaSDashboard() {
 		saasState.settings = data.settings || null;
         renderCompanies();
         renderPlans();
+		renderAddonPrices(data.addonPrices);
     }
 
-    document.querySelectorAll('[data-saas-tab]').forEach(button => button.addEventListener('click', () => setTab(button.dataset.saasTab)));
+	document.querySelectorAll('[data-saas-tab]').forEach(button => button.addEventListener('click', () => setTab(button.dataset.saasTab)));
+	document.getElementById('subscription-reactivate-form').addEventListener('submit', event => { event.preventDefault(); submitSubscriptionAdjustment(event.currentTarget, 'reactivate'); });
+	document.getElementById('subscription-redemption-form').addEventListener('submit', event => { event.preventDefault(); submitSubscriptionAdjustment(event.currentTarget, 'redemption'); });
     document.querySelectorAll('[data-close-modal]').forEach(button => button.addEventListener('click', () => closeModal(button.dataset.closeModal)));
     document.querySelectorAll('.saas-modal').forEach(modal => modal.addEventListener('click', event => { if (event.target === modal) closeModal(modal.id); }));
     document.addEventListener('keydown', event => { if (event.key === 'Escape') document.querySelectorAll('.saas-modal.flex').forEach(modal => closeModal(modal.id)); });
     document.getElementById('company-search').addEventListener('input', renderCompanies);
+	document.getElementById('invoice-search').addEventListener('input', renderInvoices);
     document.getElementById('new-plan-button').addEventListener('click', () => openPlanModal(null));
     document.getElementById('header-primary-action').addEventListener('click', () => saasState.tab === 'companies' ? openCompanyModal(null) : openPlanModal(null));
 	bindCurrencyInput(document.getElementById('plan-monthly-price'));
 	bindCurrencyInput(document.getElementById('plan-annual-price'));
+	Object.values(addonPriceInputs).forEach(id => bindCurrencyInput(document.getElementById(id)));
+	document.getElementById('addon-prices-form').addEventListener('submit', async event => {
+		event.preventDefault();
+		const fields = document.getElementById('addon-prices-fields');
+		const errorBox = document.getElementById('addon-prices-error');
+		errorBox.classList.add('hidden');
+		const payload = Object.fromEntries(Object.entries(addonPriceInputs).map(([key, id]) => [key, currencyInputToCents(document.getElementById(id).value)]));
+		fields.disabled = true;
+		try {
+			if (Object.values(payload).some(price => !Number.isSafeInteger(price) || price < 0)) throw new Error('Informe preços válidos para todos os adicionais.');
+			const response = await saasAPI('PUT', '/management/api/addon-prices', payload);
+			renderAddonPrices(response.data);
+			showToast('Preços globais dos adicionais salvos.');
+		} catch (error) {
+			errorBox.textContent = error.message;
+			errorBox.classList.remove('hidden');
+		} finally { fields.disabled = false; }
+	});
 	if (window.refreshAdminSelects) window.refreshAdminSelects();
 
     document.getElementById('company-form').addEventListener('submit', async event => {
@@ -789,13 +1073,23 @@ templ SaaSDashboard() {
 		if (!companyId || !planId) return;
 		errorBox.classList.add('hidden');
 		button.disabled = true;
+		const checkoutWindow = window.open('about:blank', '_blank');
+		if (checkoutWindow) checkoutWindow.opener = null;
 		try {
-			await saasAPI('PUT', '/management/api/companies/' + companyId + '/plan', { planId, billingCycle });
+			const response = await saasAPI('PUT', '/management/api/companies/' + companyId + '/plan', { planId, billingCycle });
+			const payment = response && response.data;
+			saasState.invoicesLoaded = false;
+			const checkoutURL = payment && safeCheckoutURL(payment.checkoutURL);
+			if (checkoutURL) {
+				if (checkoutWindow) checkoutWindow.location.replace(checkoutURL);
+				else window.location.href = checkoutURL;
+			} else if (checkoutWindow) checkoutWindow.close();
 			form.dataset.planId = String(planId);
 			form.dataset.billingCycle = billingCycle;
-			showToast('Plano e ciclo atualizados.');
+			showToast(payment && payment.status === 'paid' ? 'Plano atualizado.' : 'Cobrança criada; o plano atual permanece até o pagamento.');
 			await loadOverview();
 		} catch (error) {
+			if (checkoutWindow) checkoutWindow.close();
 			errorBox.textContent = error.message;
 			errorBox.classList.remove('hidden');
 		} finally { button.disabled = false; }
@@ -821,6 +1115,43 @@ templ SaaSDashboard() {
 		} finally { button.disabled = false; }
 	});
 
+	async function updateInvoice(action) {
+		const form = document.getElementById('invoice-edit-form');
+		const errorBox = document.getElementById('invoice-edit-error');
+		const submit = document.getElementById('invoice-edit-submit');
+		const cancel = document.getElementById('invoice-cancel-button');
+		const manual = document.getElementById('invoice-manual-confirm');
+		errorBox.classList.add('hidden');
+		submit.disabled = true; cancel.disabled = true; manual.disabled = true;
+		try {
+			const amountCents = Math.round(Number(document.getElementById('invoice-edit-amount').value) * 100);
+			await saasAPI('PUT', '/management/api/companies/' + form.dataset.companyId + '/payments/' + form.dataset.paymentId, { action: action, dueDate: document.getElementById('invoice-edit-due-date').value, amountCents, reason: document.getElementById('invoice-manual-reason').value.trim() });
+			closeModal('invoice-edit-modal');
+			showToast(action === 'confirm_paid' ? 'Pagamento confirmado; assinatura atualizada.' : action === 'discard' ? 'Cobrança descartada. O cliente pode selecionar um novo plano.' : action === 'cancel' ? 'Fatura cancelada.' : 'Valor, vencimento e link da fatura atualizados.');
+			await loadInvoices(true);
+			if (action === 'confirm_paid') await loadOverview();
+		} catch (error) {
+			errorBox.textContent = error.message;
+			errorBox.classList.remove('hidden');
+		} finally { submit.disabled = false; cancel.disabled = false; manual.disabled = false; }
+	}
+
+	const invoiceForm = document.getElementById('invoice-edit-form');
+	const amountField = document.getElementById('invoice-edit-amount-field');
+	invoiceForm.appendChild(document.getElementById('invoice-manual-controls'));
+	amountField.classList.remove('hidden'); amountField.classList.add('mb-4', 'block');
+	invoiceForm.insertBefore(amountField, invoiceForm.querySelector('[for="invoice-edit-due-date"]'));
+	invoiceForm.addEventListener('submit', event => { event.preventDefault(); updateInvoice('update'); });
+	document.getElementById('invoice-cancel-button').addEventListener('click', () => {
+		const discardable = document.getElementById('invoice-edit-form').dataset.discardable === 'true';
+		if (confirm(discardable ? 'Descartar esta cobrança? O checkout PIX antigo ainda poderá ser pago fora da plataforma, mas não ativará o plano.' : 'Cancelar esta fatura pendente?')) updateInvoice(discardable ? 'discard' : 'cancel');
+	});
+	document.getElementById('invoice-manual-confirm').addEventListener('click', () => {
+		const reason = document.getElementById('invoice-manual-reason').value.trim();
+		if (!reason) { const error = document.getElementById('invoice-edit-error'); error.textContent = 'Informe o motivo da confirmação manual.'; error.classList.remove('hidden'); return; }
+		if (confirm('Confirmar recebimento da fatura e ativar a assinatura? Faça isso somente após verificar o pagamento.')) updateInvoice('confirm_paid');
+	});
+
     document.getElementById('plan-form').addEventListener('submit', async event => {
         event.preventDefault();
         const form = event.currentTarget;
@@ -835,7 +1166,8 @@ templ SaaSDashboard() {
 			agentLimit: Number(document.getElementById('plan-agent-limit').value), connectionLimit: Number(document.getElementById('plan-connection-limit').value),
 			trialDays: Number(document.getElementById('plan-trial-days').value),
 			storageLimitGB: Number(document.getElementById('plan-storage-limit').value),
-			isActive: document.getElementById('plan-active').checked
+			isActive: document.getElementById('plan-active').checked,
+			allowAddons: document.getElementById('plan-allow-addons').checked
         };
         try {
             await saasAPI(planId ? 'PUT' : 'POST', planId ? '/management/api/plans/' + planId : '/management/api/plans', payload);
@@ -852,6 +1184,7 @@ templ SaaSDashboard() {
         document.getElementById('companies-loading').classList.add('hidden');
         showError(error);
     });
+	document.addEventListener('subscription:addons-changed',()=>{saasState.invoicesLoaded=false;loadOverview().catch(showError);});
     </script>
 		</body>
 	</html>

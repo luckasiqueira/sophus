@@ -1,6 +1,7 @@
 package sse
 
 import (
+	"encoding/json"
 	"strconv"
 	"sync"
 )
@@ -37,6 +38,20 @@ var Instances = NewHub(false)
 
 func NotifyConversations(companyID int) {
 	Conversations.SendEvent(strconv.Itoa(companyID), "conversation", "refresh")
+}
+
+func NotifyContactAvatar(companyID, contactID int) {
+	payload, err := json.Marshal(map[string]int{"contactId": contactID})
+	if err == nil {
+		Conversations.SendEvent(strconv.Itoa(companyID), "contact-avatar", string(payload))
+	}
+}
+
+func NotifyIncomingMessage(companyID int, conversationURL, messageID string) {
+	payload, err := json.Marshal(map[string]string{"conversation": conversationURL, "messageId": messageID})
+	if err == nil {
+		Conversations.SendEvent(strconv.Itoa(companyID), "incoming-message", string(payload))
+	}
 }
 
 func NotifyInstances(companyID int) {

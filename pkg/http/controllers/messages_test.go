@@ -27,3 +27,24 @@ func TestConversationTab(t *testing.T) {
 		})
 	}
 }
+
+func TestQuotedMessageParticipant(t *testing.T) {
+	tests := []struct {
+		name       string
+		message    repo.MessageData
+		contact    repo.Contact
+		connection repo.ConnectionEVO
+		want       string
+	}{
+		{name: "incoming individual", contact: repo.Contact{JID: "5511999999999@s.whatsapp.net"}, want: "5511999999999@s.whatsapp.net"},
+		{name: "incoming group", message: repo.MessageData{IsGroup: true, Sender: "5511888888888@s.whatsapp.net"}, want: "5511888888888@s.whatsapp.net"},
+		{name: "outgoing", message: repo.MessageData{IsFromMe: true}, connection: repo.ConnectionEVO{Number: "5511777777777"}, want: "5511777777777@s.whatsapp.net"},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			if got := quotedMessageParticipant(test.message, test.contact, test.connection); got != test.want {
+				t.Fatalf("quotedMessageParticipant() = %q, want %q", got, test.want)
+			}
+		})
+	}
+}

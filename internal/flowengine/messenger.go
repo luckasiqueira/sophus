@@ -31,7 +31,8 @@ const (
 )
 
 type Messenger struct {
-	Connection repo.ConnectionEVO
+	Connection   repo.ConnectionEVO
+	chatSettings *repo.CompanyOperationSettings
 }
 
 type menuRow struct {
@@ -54,8 +55,36 @@ type menuPayload struct {
 	Sections    []menuSection `json:"sections"`
 }
 
+type replyButton struct {
+	Type        string `json:"type"`
+	DisplayText string `json:"displayText"`
+	ID          string `json:"id"`
+}
+
+type buttonsPayload struct {
+	Number      string        `json:"number"`
+	Title       string        `json:"title,omitempty"`
+	Description string        `json:"description"`
+	Footer      string        `json:"footer,omitempty"`
+	Buttons     []replyButton `json:"buttons"`
+	Delay       int           `json:"delay"`
+}
+
 func NewMessenger(connection repo.ConnectionEVO) *Messenger {
 	return &Messenger{Connection: connection}
+}
+
+// Chat sends use the already validated policy/contact and have no artificial
+// typing delay. The default messenger retains flow typing behavior.
+func NewChatMessenger(connection repo.ConnectionEVO, settings repo.CompanyOperationSettings) *Messenger {
+	return &Messenger{Connection: connection, chatSettings: &settings}
+}
+
+func (m *Messenger) typingDelay(text string) int {
+	if m.chatSettings != nil {
+		return 0
+	}
+	return repo.TypingDelayMilliseconds(text)
 }
 
 func (m *Messenger) SendText(conversation repo.Conversation, message string) error {
@@ -66,7 +95,7 @@ func (m *Messenger) SendText(conversation repo.Conversation, message string) err
 	msg := repo.TextMessageEVO{
 		MessageBaseEVO: repo.MessageBaseEVO{
 			Number: contact.Number,
-			Delay:  repo.TypingDelayMilliseconds(message),
+			Delay:  m.typingDelay(message),
 		},
 		Text: message,
 	}
@@ -77,32 +106,78 @@ func (m *Messenger) SendText(conversation repo.Conversation, message string) err
 	if status != 200 {
 		return fmt.Errorf("send text failed with status %d", status)
 	}
-	return repo.SaveFlowMessage(conversation.Id, evolutionMessageID(responseBody), message)
+	return repo.SaveFlowMessage(conversation.Id, evolutionMessageID(responseBody), message, m.Connection.CompanyID)
 }
 
 func (m *Messenger) SendMedia(conversation repo.Conversation, mediaType, mediaURL, caption string) error {
-	return m.sendMedia(conversation, mediaType, mediaURL, caption, "")
+	_, err := m.sendMedia(conversation, mediaType, mediaURL, caption, "", "", "")
+	return err
 }
 
 func (m *Messenger) SendAudio(conversation repo.Conversation, mediaURL string) error {
-	return m.sendMedia(conversation, "audio", mediaURL, "", "")
+	_, err := m.sendMedia(conversation, "audio", mediaURL, "", "", "", "")
+	return err
 }
 
 func (m *Messenger) SendDocument(conversation repo.Conversation, mediaURL, caption, fileName string) error {
-	return m.sendMedia(conversation, "document", mediaURL, caption, fileName)
+	_, err := m.sendMedia(conversation, "document", mediaURL, caption, fileName, "", "")
+	return err
 }
 
-func (m *Messenger) sendMedia(conversation repo.Conversation, mediaType, mediaURL, caption, fileName string) error {
-	contact, err := repo.GetContactById(conversation.Contact.Id)
-	if err != nil {
-		return err
+func (m *Messenger) SendStoredMedia(conversation repo.Conversation, mediaType, mediaURL, caption, fileName, mediaScope, mediaPath string) error {
+	_, err := m.SendStoredMediaMessage(conversation, mediaType, mediaURL, caption, fileName, mediaScope, mediaPath)
+	return err
+}
+
+func (m *Messenger) SendStoredMediaMessage(conversation repo.Conversation, mediaType, mediaURL, caption, fileName, mediaScope, mediaPath string) (string, error) {
+	return m.sendMedia(conversation, mediaType, mediaURL, caption, fileName, mediaScope, mediaPath)
+}
+
+func (m *Messenger) sendMedia(conversation repo.Conversation, mediaType, mediaURL, caption, fileName, mediaScope, mediaPath string) (string, error) {
+	var settings repo.CompanyOperationSettings
+	var err error
+	if m.chatSettings != nil {
+		settings = *m.chatSettings
+	} else {
+		settings, err = repo.GetCompanyOperationSettings(m.Connection.CompanyID)
+		if err != nil {
+			return "", err
+		}
 	}
-	payload := buildMediaPayload(contact.Number, mediaType, mediaURL, caption, fileName)
+	allowed := false
+	for _, kind := range settings.AllowedAttachmentTypes {
+		if kind == mediaType {
+			allowed = true
+			break
+		}
+	}
+	if !allowed {
+		return "", fmt.Errorf("media type %s is disabled by company policy", mediaType)
+	}
+	contact := conversation.Contact
+	if m.chatSettings == nil {
+		contact, err = repo.GetContactById(conversation.Contact.Id)
+		if err != nil {
+			return "", err
+		}
+	} else if contact.Id <= 0 || contact.CompanyId != m.Connection.CompanyID || conversation.ConnectionID != m.Connection.Id {
+		return "", errors.New("invalid chat media context")
+	}
+	number := contact.Number
+	if contact.IsGroup {
+		number = contact.JID
+	}
+	payload := buildMediaPayload(number, mediaType, mediaURL, caption, fileName)
+	payload["delay"] = m.typingDelay(caption)
+	timeout := 2 * time.Minute
+	if mediaType == "audio" && mediaPath != "" {
+		timeout = 60 * time.Second
+	}
 	r := requests.Request{
 		URL:     repo.ApiBaseURL + "/send/media",
 		Method:  "POST",
 		Payload: payload,
-		Timeout: 2 * time.Minute,
+		Timeout: timeout,
 		Headers: map[string]string{
 			"Content-Type": "application/json",
 			"apikey":       m.Connection.EvolutionAPIKey(),
@@ -111,16 +186,20 @@ func (m *Messenger) sendMedia(conversation repo.Conversation, mediaType, mediaUR
 	}
 	err = r.Do()
 	if err != nil {
-		return err
+		return "", err
 	}
 	if r.StatusCode < 200 || r.StatusCode >= 300 {
-		return fmt.Errorf("send media failed with status %d: %s", r.StatusCode, string(r.Response.Body))
+		return "", fmt.Errorf("send media failed with status %d: %s", r.StatusCode, string(r.Response.Body))
 	}
 	text := caption
-	if strings.TrimSpace(text) == "" {
+	if strings.TrimSpace(text) == "" && mediaPath == "" {
 		text = fmt.Sprintf("%s enviado pelo fluxo", mediaType)
 	}
-	return repo.SaveFlowMessage(conversation.Id, evolutionMessageID(r.Response.Body), text)
+	if mediaPath != "" {
+		return repo.SaveOutgoingMediaMessage(conversation.Id, evolutionMessageID(r.Response.Body), text, mediaType, mediaScope, mediaPath, m.Connection.CompanyID)
+	}
+	messageID := evolutionMessageID(r.Response.Body)
+	return messageID, repo.SaveFlowMessage(conversation.Id, messageID, text, m.Connection.CompanyID)
 }
 
 func buildMediaPayload(number, mediaType, mediaURL, caption, fileName string) map[string]interface{} {
@@ -243,6 +322,70 @@ func (m *Messenger) SendMenu(conversation repo.Conversation, data map[string]int
 	}
 	log.Printf("flow text menu sent: conversation=%d connection=%d duration=%s", conversation.Id, m.Connection.Id, time.Since(startedAt).Round(time.Millisecond))
 	return nil
+}
+
+func buildButtonsPayload(number string, data map[string]interface{}, ctx ExecutionContext) (buttonsPayload, error) {
+	if err := validateButtonsNode(data); err != nil {
+		return buttonsPayload{}, err
+	}
+	payload := buttonsPayload{
+		Number: number, Title: ReplaceVariables(stringVal(data, "title"), ctx),
+		Description: ReplaceVariables(stringVal(data, "description"), ctx),
+		Footer:      strings.TrimSpace(ReplaceVariables(stringVal(data, "footer"), ctx)),
+	}
+	if strings.TrimSpace(payload.Description) == "" {
+		return buttonsPayload{}, fmt.Errorf("mensagem dos botões é obrigatória")
+	}
+	for _, item := range flowButtons(data) {
+		button := replyButton{Type: "reply", DisplayText: strings.TrimSpace(ReplaceVariables(stringVal(item, "text"), ctx)), ID: strings.TrimSpace(ReplaceVariables(stringVal(item, "id"), ctx))}
+		if button.DisplayText == "" || len(button.DisplayText) > 25 || button.ID == "" || len(button.ID) > 100 {
+			return buttonsPayload{}, fmt.Errorf("texto ou ID do botão inválido após substituição de variáveis")
+		}
+		for _, previous := range payload.Buttons {
+			if previous.ID == button.ID {
+				return buttonsPayload{}, fmt.Errorf("IDs dos botões repetidos após substituição de variáveis")
+			}
+		}
+		payload.Buttons = append(payload.Buttons, button)
+	}
+	payload.Delay = repo.TypingDelayMilliseconds(payload.Description)
+	return payload, nil
+}
+
+func buttonResponseHandle(data map[string]interface{}, response string, ctx ExecutionContext) string {
+	response = strings.TrimSpace(response)
+	for _, button := range flowButtons(data) {
+		if response != "" && response == strings.TrimSpace(ReplaceVariables(stringVal(button, "id"), ctx)) {
+			return "button-" + stringVal(button, "_handleId")
+		}
+	}
+	return "fallback"
+}
+
+func (m *Messenger) SendButtons(conversation repo.Conversation, data map[string]interface{}, ctx ExecutionContext) error {
+	contact, err := repo.GetContactById(conversation.Contact.Id)
+	if err != nil {
+		return err
+	}
+	number := contact.Number
+	if contact.IsGroup {
+		number = contact.JID
+	}
+	payload, err := buildButtonsPayload(number, data, ctx)
+	if err != nil {
+		return err
+	}
+	r := requests.Request{
+		URL: repo.ApiBaseURL + "/send/button", Method: "POST", Payload: payload,
+		Headers: map[string]string{"Content-Type": "application/json", "apikey": m.Connection.EvolutionAPIKey()},
+	}
+	if err := r.Do(); err != nil {
+		return err
+	}
+	if r.StatusCode < 200 || r.StatusCode >= 300 {
+		return fmt.Errorf("send buttons failed with status %d: %s", r.StatusCode, string(r.Response.Body))
+	}
+	return repo.SaveFlowMessage(conversation.Id, evolutionMessageID(r.Response.Body), payload.Description, m.Connection.CompanyID)
 }
 
 func formatMenuAsText(payload menuPayload) string {

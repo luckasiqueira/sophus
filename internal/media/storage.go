@@ -15,6 +15,7 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"time"
 
 	"sophus/utils/env"
 
@@ -31,7 +32,7 @@ var allowedTypes = map[string]map[string]string{
 		"video/mp4": ".mp4", "video/webm": ".webm", "video/quicktime": ".mov",
 	},
 	"audio": {
-		"audio/webm": ".webm", "audio/ogg": ".ogg", "audio/mpeg": ".mp3", "audio/mp4": ".m4a",
+		"audio/webm": ".weba", "audio/ogg": ".ogg", "audio/mpeg": ".mp3", "audio/mp4": ".m4a",
 		"audio/wav": ".wav", "audio/x-wav": ".wav",
 	},
 	"document": {
@@ -59,6 +60,10 @@ type Stored struct {
 }
 
 func Save(companyID int, kind, originalName, declaredType string, source io.Reader) (Stored, error) {
+	return SaveScoped(companyID, ScopeFlows, kind, originalName, declaredType, source)
+}
+
+func SaveScoped(companyID int, scope, kind, originalName, declaredType string, source io.Reader) (Stored, error) {
 	allowed, ok := allowedTypes[kind]
 	if !ok {
 		return Stored{}, errors.New("tipo de mídia inválido")
@@ -80,15 +85,14 @@ func Save(companyID int, kind, originalName, declaredType string, source io.Read
 		return Stored{}, fmt.Errorf("formato de %s não suportado: %s", kind, mimeType)
 	}
 
-	directory := filepath.Join(root, strconv.Itoa(companyID), "flows")
+	directory, err := scopeDirectory(companyID, scope)
+	if err != nil {
+		return Stored{}, err
+	}
 	if err := os.MkdirAll(directory, 0o755); err != nil {
 		return Stored{}, err
 	}
 	fileName := uuid.NewString() + extension
-	token, err := Sign(companyID, fileName)
-	if err != nil {
-		return Stored{}, err
-	}
 	filePath := filepath.Join(directory, fileName)
 	file, err := os.OpenFile(filePath, os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0o644)
 	if err != nil {
@@ -113,10 +117,18 @@ func Save(companyID int, kind, originalName, declaredType string, source io.Read
 	if err := file.Close(); err != nil {
 		return Stored{}, err
 	}
+	mediaURL := fmt.Sprintf("/management/api/media/%s/%s/content", scope, fileName)
+	if scope == ScopeFlows {
+		token, err := Sign(companyID, fileName)
+		if err != nil {
+			return Stored{}, err
+		}
+		mediaURL = fmt.Sprintf("/medias/%d/flows/%s?token=%s", companyID, fileName, token)
+	}
 	saved = true
 	return Stored{
 		Path:     fileName,
-		URL:      fmt.Sprintf("/medias/%d/flows/%s?token=%s", companyID, fileName, token),
+		URL:      mediaURL,
 		MimeType: mimeType,
 		Name:     filepath.Base(originalName),
 		Size:     written,
@@ -176,6 +188,47 @@ func Verify(companyID int, fileName, token string) bool {
 		return false
 	}
 	return hmac.Equal([]byte(expected), []byte(token))
+}
+
+func ScopedSignedURL(companyID int, scope, fileName string, lifetime time.Duration) (string, error) {
+	if _, err := ScopedPath(companyID, scope, fileName); err != nil {
+		return "", err
+	}
+	baseURL, err := publicBaseURL()
+	if err != nil {
+		return "", err
+	}
+	expires := time.Now().UTC().Add(lifetime).Unix()
+	token, err := SignScoped(companyID, scope, fileName, expires)
+	if err != nil {
+		return "", err
+	}
+	return fmt.Sprintf("%s/media-public/%d/%s/%s?expires=%d&token=%s", baseURL, companyID,
+		url.PathEscape(scope), url.PathEscape(fileName), expires, token), nil
+}
+
+func SignScoped(companyID int, scope, fileName string, expires int64) (string, error) {
+	if expires <= 0 {
+		return "", errors.New("expiração de mídia inválida")
+	}
+	if _, err := ScopedPath(companyID, scope, fileName); err != nil {
+		return "", err
+	}
+	secret := strings.TrimSpace(env.Backend["SALT_JWT"])
+	if secret == "" {
+		return "", errors.New("SALT_JWT não configurado")
+	}
+	mac := hmac.New(sha256.New, []byte(secret))
+	fmt.Fprintf(mac, "forward:%d:%s:%s:%d", companyID, scope, fileName, expires)
+	return hex.EncodeToString(mac.Sum(nil)), nil
+}
+
+func VerifyScoped(companyID int, scope, fileName string, expires int64, token string) bool {
+	if expires < time.Now().UTC().Unix() {
+		return false
+	}
+	expected, err := SignScoped(companyID, scope, fileName, expires)
+	return err == nil && hmac.Equal([]byte(expected), []byte(token))
 }
 
 func publicBaseURL() (string, error) {
