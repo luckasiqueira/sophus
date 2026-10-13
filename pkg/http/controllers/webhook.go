@@ -267,7 +267,7 @@ func processMessageWebhook(connection repo.ConnectionEVO, body []byte) error {
 		}
 		return publishUpdatedWebhookMessage(stored, conversation, connection)
 	}
-	if repo.IsInternalWhatsAppEvent(msg) {
+	if repo.IsInternalWhatsAppEvent(msg) || repo.IsNonConversationChat(msg) {
 		return nil
 	}
 	if targetID := msg.Data.Message.Reaction.Key.ID; targetID != "" {

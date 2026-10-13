@@ -164,7 +164,7 @@ func (msg EventMessageEVO) Save(connection ConnectionEVO) error {
 		}
 		number, jid, lid := canonicalWhatsAppIdentity(identifiers...)
 		if number == "" && lid == "" {
-			return errors.New("mensagem sem identidade de contato canônica")
+			return fmt.Errorf("%w de contato canônica", ErrMessageWithoutIdentity)
 		}
 		if name == "" {
 			name, _ = GetWhatsAppContactName(number, connection.EvolutionAPIKey())

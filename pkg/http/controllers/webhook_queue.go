@@ -56,7 +56,12 @@ func initializeWebhookQueue(ctx context.Context) error {
 		if err != nil {
 			return err
 		}
-		return processMessageWebhook(connection, payload)
+		err = processMessageWebhook(connection, payload)
+		if errors.Is(err, repo.ErrMessageWithoutIdentity) {
+			log.Printf("message webhook discarded: connection=%d error=%v", connectionID, err)
+			return nil
+		}
+		return err
 	})
 	return nil
 }
