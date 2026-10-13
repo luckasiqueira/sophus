@@ -2,7 +2,7 @@ package web
 
 templ AgentPreferencesRuntime() {
 	<script>
-		window.agentPreferences = { scrollAfterSend: true, scrollAfterSendMode: 'always', messageSignatureEnabled: true, messageSignatureTemplate: '{agentName}', notifications: { toast: true, sound: true, browser: true, preview: true, groups: true } };
+		window.agentPreferences = { scrollAfterSend: true, scrollAfterSendMode: 'always', messageSignatureEnabled: true, messageSignatureTemplate: '*{agentName}*', notifications: { toast: true, sound: true, browser: true, preview: true, groups: true } };
 		window.applyAgentPreferences = function (preferences) { window.agentPreferences = preferences; window.dispatchEvent(new CustomEvent('agent-preferences-changed')); };
 		window.agentPreferencesReady = fetch('/management/api/preferences', { credentials: 'same-origin', cache: 'no-store', headers: { Accept: 'application/json' } })
 			.then(async response => { const payload = await response.json(); if (!response.ok || !payload.data || !payload.data.notifications) throw new Error(payload.error || 'Não foi possível carregar suas preferências.'); window.agentOnboardingAdmin = Boolean(payload.isAdmin); window.applyAgentPreferences(payload.data); return payload.data; })
@@ -27,7 +27,7 @@ templ AgentPreferencesPage() {
 								</div>
 								<div class="space-y-4">
 									@companySettingToggle("agent-signature-enabled", "Adicionar assinatura do atendente", "Inclui sua identificação no começo das mensagens que você envia.")
-									<label class="block text-sm font-bold text-gray-700">Texto da assinatura<input id="agent-signature-template" maxlength="160" placeholder="{agentName}" class="mt-2 w-full rounded-xl border border-stone-200 px-4 py-3 text-sm outline-none focus:border-purple-400"/><span class="mt-2 block text-xs font-normal text-gray-500">Use <code class="text-purple-700">{ "{agentName}" }</code> para inserir seu nome automaticamente.</span></label>
+									<label class="block text-sm font-bold text-gray-700">Texto da assinatura<input id="agent-signature-template" maxlength="160" placeholder="*{agentName}*" class="mt-2 w-full rounded-xl border border-stone-200 px-4 py-3 text-sm outline-none focus:border-purple-400"/><span class="mt-2 block text-xs font-normal text-gray-500">Use <code class="text-purple-700">{ "{agentName}" }</code> para inserir seu nome automaticamente.</span></label>
 								</div>
 							</div>
 						</section>

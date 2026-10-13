@@ -52,6 +52,51 @@ const assert=require('node:assert/strict'),{PGlite}=require(process.env.ZUBLY_TE
 	}
 }
 
+func TestBoldSignatureMigrationKeepsCustomTemplates(t *testing.T) {
+	if os.Getenv("ZUBLY_TEST_PGLITE") == "" {
+		t.Skip("set ZUBLY_TEST_PGLITE for migration tests")
+	}
+	node, err := exec.LookPath("node")
+	if err != nil {
+		t.Skip("Node.js required")
+	}
+	migration, err := migrations.ReadFile("migrations/84__bold_default_message_signature.sql")
+	if err != nil {
+		t.Fatal(err)
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+	command := exec.CommandContext(ctx, node, "-e", `
+const assert=require('node:assert/strict'),{PGlite}=require(process.env.ZUBLY_TEST_PGLITE),migration=require('node:fs').readFileSync(0,'utf8');
+(async()=>{const db=new PGlite();try {
+ await db.exec(`+"`"+`CREATE TABLE companies(id integer PRIMARY KEY,"operationSettings" jsonb NOT NULL DEFAULT '{}');
+ CREATE TABLE agents(id integer PRIMARY KEY,preferences jsonb NOT NULL DEFAULT '{}');
+ CREATE TABLE platform_support_sessions(id integer PRIMARY KEY,preferences jsonb NOT NULL);
+ INSERT INTO companies VALUES(1,'{"messageSignatureTemplate":"{agentName}","acceptCalls":true}'),(2,'{"messageSignatureTemplate":"Att, {agentName}"}');
+ INSERT INTO agents VALUES(1,'{"messageSignatureTemplate":"{agentName}","scrollAfterSend":false}'),(2,'{"messageSignatureTemplate":"_{agentName}_"}');
+ INSERT INTO platform_support_sessions VALUES(1,'{"messageSignatureTemplate":"{agentName}"}');`+"`"+`);
+ const [up,down]=migration.split('-- +goose Down');
+ await db.exec(up);
+ const template=async(table,column,id)=>(await db.query('SELECT '+column+'->>\'messageSignatureTemplate\' AS t FROM '+table+' WHERE id=$1',[id])).rows[0].t;
+ assert.equal(await template('companies','"operationSettings"',1),'*{agentName}*');assert.equal(await template('companies','"operationSettings"',2),'Att, {agentName}');
+ assert.equal(await template('agents','preferences',1),'*{agentName}*');assert.equal(await template('agents','preferences',2),'_{agentName}_');
+ assert.equal(await template('platform_support_sessions','preferences',1),'*{agentName}*');
+ const kept=(await db.query('SELECT "operationSettings" s FROM companies WHERE id=1')).rows[0].s;assert.equal(kept.acceptCalls,true);
+ await db.exec('INSERT INTO companies(id) VALUES(3);INSERT INTO agents(id) VALUES(3)');
+ assert.equal(await template('companies','"operationSettings"',3),'*{agentName}*');assert.equal(await template('agents','preferences',3),'*{agentName}*');
+ const created=(await db.query('SELECT "operationSettings" s FROM companies WHERE id=3')).rows[0].s;assert.equal(created.maxAttachmentMB,50);
+ await db.exec(down);
+ assert.equal(await template('companies','"operationSettings"',1),'{agentName}');assert.equal(await template('agents','preferences',1),'{agentName}');assert.equal(await template('agents','preferences',2),'_{agentName}_');
+ console.log('PASS: bold default signature migration and rollback');
+}finally{await db.close();}})().catch(error=>{console.error(error);process.exitCode=1});`)
+	command.Stdin = strings.NewReader(string(migration))
+	if output, err := command.CombinedOutput(); err != nil {
+		t.Fatalf("signature migration failed: %v\n%s", err, output)
+	} else {
+		t.Log(string(output))
+	}
+}
+
 func TestAgentSignatureUsesIndividualChoice(t *testing.T) {
 	preferences := DefaultAgentPreferences()
 	preferences.MessageSignatureTemplate = "*{agentName}*:"

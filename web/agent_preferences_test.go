@@ -30,7 +30,7 @@ const assert=require('node:assert/strict'),{chromium}=require(process.env.ZUBLY_
  try {
   const page=await browser.newPage();const errors=[];page.on('pageerror',error=>errors.push(error.message));
   await page.addInitScript(()=>{window.EventSource=class extends EventTarget{close(){}};});
-  const defaults={scrollAfterSend:true,scrollAfterSendMode:'always',messageSignatureEnabled:true,messageSignatureTemplate:'{agentName}',notifications:{toast:true,sound:true,browser:true,preview:true,groups:true}};
+  const defaults={scrollAfterSend:true,scrollAfterSendMode:'always',messageSignatureEnabled:true,messageSignatureTemplate:'*{agentName}*',notifications:{toast:true,sound:true,browser:true,preview:true,groups:true}};
   const accounts=[structuredClone(defaults),structuredClone(defaults)];let account=0,fail=false;
   await page.route('**/*',route=>{
    const request=route.request(),url=new URL(request.url());
@@ -44,7 +44,7 @@ const assert=require('node:assert/strict'),{chromium}=require(process.env.ZUBLY_
   await page.goto('http://ui.test/preferences');await page.waitForFunction(()=>!document.getElementById('agent-preferences-fields').disabled);
   await page.locator('#message-scroll-after-send').uncheck({force:true});
   await page.locator('#agent-signature-enabled').uncheck({force:true});
-  await page.locator('#agent-signature-template').fill('*{agentName}*');
+  await page.locator('#agent-signature-template').fill('_{agentName}_');
   for(const setting of Object.keys(defaults.notifications))await page.locator('[data-notification-setting='+setting+']').uncheck({force:true});
   await page.locator('#agent-preferences-form').evaluate(form=>form.requestSubmit());
    await page.waitForFunction(()=>document.getElementById('app-toast-text').textContent==='Preferências salvas.'&&!document.getElementById('app-toast').classList.contains('hidden'));
@@ -52,13 +52,13 @@ const assert=require('node:assert/strict'),{chromium}=require(process.env.ZUBLY_
   for(const value of Object.values(accounts[0].notifications))assert.equal(value,false);
   assert.equal(await page.evaluate(()=>window.shouldAutoScrollAfterSend()),false);
   await page.reload();await page.waitForFunction(()=>!document.getElementById('agent-preferences-fields').disabled);
-  assert.equal(await page.locator('#agent-signature-template').inputValue(),'*{agentName}*');assert.equal(await page.locator('#message-scroll-after-send').isChecked(),false);
+  assert.equal(await page.locator('#agent-signature-template').inputValue(),'_{agentName}_');assert.equal(await page.locator('#message-scroll-after-send').isChecked(),false);
    await page.locator('#message-scroll-after-send').check({force:true});await page.getByRole('button',{name:'Comportamento da rolagem'}).click();await page.getByRole('option',{name:'Exceto em citações'}).click();
   await page.locator('#agent-preferences-form').evaluate(form=>form.requestSubmit());await page.waitForFunction(()=>window.getAutoScrollAfterSendMode()==='except_quotes');
   assert.equal(await page.evaluate(()=>window.shouldAutoScrollAfterSend(true)),false);assert.equal(await page.evaluate(()=>window.shouldAutoScrollAfterSend(false)),true);
-  fail=true;await page.locator('#agent-signature-template').fill('Não salvar');await page.locator('#agent-preferences-form').evaluate(form=>form.requestSubmit());await page.waitForFunction(()=>document.getElementById('agent-preferences-error').textContent==='Falha simulada');assert.equal(accounts[0].messageSignatureTemplate,'*{agentName}*');
+  fail=true;await page.locator('#agent-signature-template').fill('Não salvar');await page.locator('#agent-preferences-form').evaluate(form=>form.requestSubmit());await page.waitForFunction(()=>document.getElementById('agent-preferences-error').textContent==='Falha simulada');assert.equal(accounts[0].messageSignatureTemplate,'_{agentName}_');
   account=1;fail=false;await page.reload();await page.waitForFunction(()=>!document.getElementById('agent-preferences-fields').disabled);
-  assert.equal(await page.locator('#message-scroll-after-send').isChecked(),true);assert.equal(await page.locator('#agent-signature-enabled').isChecked(),true);assert.equal(await page.locator('[data-notification-setting=sound]').isChecked(),true);assert.equal(await page.locator('#agent-signature-template').inputValue(),'{agentName}');
+  assert.equal(await page.locator('#message-scroll-after-send').isChecked(),true);assert.equal(await page.locator('#agent-signature-enabled').isChecked(),true);assert.equal(await page.locator('[data-notification-setting=sound]').isChecked(),true);assert.equal(await page.locator('#agent-signature-template').inputValue(),'*{agentName}*');
   assert.deepEqual(errors,[]);console.log('PASS: save/reload, quote exception, notifications, failed save and account isolation');
  } finally {await browser.close();}
 })().catch(error=>{console.error(error);process.exitCode=1});`)

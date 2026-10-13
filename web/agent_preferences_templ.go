@@ -29,7 +29,7 @@ func AgentPreferencesRuntime() templ.Component {
 			templ_7745c5c3_Var1 = templ.NopComponent
 		}
 		ctx = templ.ClearChildren(ctx)
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 1, "<script>\n\t\twindow.agentPreferences = { scrollAfterSend: true, scrollAfterSendMode: 'always', messageSignatureEnabled: true, messageSignatureTemplate: '{agentName}', notifications: { toast: true, sound: true, browser: true, preview: true, groups: true } };\n\t\twindow.applyAgentPreferences = function (preferences) { window.agentPreferences = preferences; window.dispatchEvent(new CustomEvent('agent-preferences-changed')); };\n\t\twindow.agentPreferencesReady = fetch('/management/api/preferences', { credentials: 'same-origin', cache: 'no-store', headers: { Accept: 'application/json' } })\n\t\t\t.then(async response => { const payload = await response.json(); if (!response.ok || !payload.data || !payload.data.notifications) throw new Error(payload.error || 'Não foi possível carregar suas preferências.'); window.agentOnboardingAdmin = Boolean(payload.isAdmin); window.applyAgentPreferences(payload.data); return payload.data; })\n\t\t\t.catch(error => { window.agentPreferencesError = error; return null; });\n\t</script>")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 1, "<script>\n\t\twindow.agentPreferences = { scrollAfterSend: true, scrollAfterSendMode: 'always', messageSignatureEnabled: true, messageSignatureTemplate: '*{agentName}*', notifications: { toast: true, sound: true, browser: true, preview: true, groups: true } };\n\t\twindow.applyAgentPreferences = function (preferences) { window.agentPreferences = preferences; window.dispatchEvent(new CustomEvent('agent-preferences-changed')); };\n\t\twindow.agentPreferencesReady = fetch('/management/api/preferences', { credentials: 'same-origin', cache: 'no-store', headers: { Accept: 'application/json' } })\n\t\t\t.then(async response => { const payload = await response.json(); if (!response.ok || !payload.data || !payload.data.notifications) throw new Error(payload.error || 'Não foi possível carregar suas preferências.'); window.agentOnboardingAdmin = Boolean(payload.isAdmin); window.applyAgentPreferences(payload.data); return payload.data; })\n\t\t\t.catch(error => { window.agentPreferencesError = error; return null; });\n\t</script>")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -94,14 +94,14 @@ func AgentPreferencesPage() templ.Component {
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 5, "<label class=\"block text-sm font-bold text-gray-700\">Texto da assinatura<input id=\"agent-signature-template\" maxlength=\"160\" placeholder=\"{agentName}\" class=\"mt-2 w-full rounded-xl border border-stone-200 px-4 py-3 text-sm outline-none focus:border-purple-400\"><span class=\"mt-2 block text-xs font-normal text-gray-500\">Use <code class=\"text-purple-700\">")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 5, "<label class=\"block text-sm font-bold text-gray-700\">Texto da assinatura<input id=\"agent-signature-template\" maxlength=\"160\" placeholder=\"*{agentName}*\" class=\"mt-2 w-full rounded-xl border border-stone-200 px-4 py-3 text-sm outline-none focus:border-purple-400\"><span class=\"mt-2 block text-xs font-normal text-gray-500\">Use <code class=\"text-purple-700\">")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
 			var templ_7745c5c3_Var4 string
 			templ_7745c5c3_Var4, templ_7745c5c3_Err = templ.JoinStringErrs("{agentName}")
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/agent_preferences.templ`, Line: 30, Col: 379}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/agent_preferences.templ`, Line: 30, Col: 381}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var4))
 			if templ_7745c5c3_Err != nil {

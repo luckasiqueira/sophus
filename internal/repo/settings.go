@@ -250,7 +250,7 @@ func normalizeCompanyOperationSettings(settings CompanyOperationSettings) Compan
 		settings.MessageEditPolicy = MessageEditingDisabled
 	}
 	if settings.MessageSignatureTemplate == "" {
-		settings.MessageSignatureTemplate = "{agentName}"
+		settings.MessageSignatureTemplate = DefaultMessageSignatureTemplate
 	}
 	if settings.BusinessHoursStart == "" {
 		settings.BusinessHoursStart = "08:00"

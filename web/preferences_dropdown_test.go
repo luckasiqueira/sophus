@@ -7,7 +7,7 @@ func TestScrollPreferenceDropdownKeepsLoadedAndSavedValues(t *testing.T) {
 const assert=require('node:assert/strict'); const {JSDOM}=require(process.env.ZUBLY_TEST_JSDOM);
 const dom=new JSDOM(require('node:fs').readFileSync(0,'utf8'),{runScripts:'outside-only',url:'https://zubly.test/preferences'});
 const w=dom.window,d=w.document; w.CSS={escape:value=>value};
-const preferences={scrollAfterSend:true,scrollAfterSendMode:'except_quotes',messageSignatureEnabled:true,messageSignatureTemplate:'{agentName}',notifications:{toast:true,sound:true,browser:true,preview:true,groups:true}};
+const preferences={scrollAfterSend:true,scrollAfterSendMode:'except_quotes',messageSignatureEnabled:true,messageSignatureTemplate:'*{agentName}*',notifications:{toast:true,sound:true,browser:true,preview:true,groups:true}};
 w.agentPreferencesReady=Promise.resolve(preferences); let saved;
 w.applyAgentPreferences=value=>{saved=value;};
 w.fetch=async(url,options)=>({ok:true,json:async()=>({data:JSON.parse(options.body)})});

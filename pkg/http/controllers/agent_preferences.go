@@ -74,7 +74,7 @@ func UpdateAgentPreferences(ctx iris.Context) {
 		return
 	}
 	if preferences.MessageSignatureTemplate == "" {
-		preferences.MessageSignatureTemplate = "{agentName}"
+		preferences.MessageSignatureTemplate = repo.DefaultMessageSignatureTemplate
 	}
 	if session, support := middlewares.SupportSession(ctx); support {
 		if err := repo.UpdatePlatformSupportPreferences(session, preferences); err != nil {

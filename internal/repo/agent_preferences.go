@@ -28,10 +28,13 @@ type AgentOnboarding struct {
 	Step      int  `json:"step"`
 }
 
+// DefaultMessageSignatureTemplate renders the agent name in WhatsApp bold.
+const DefaultMessageSignatureTemplate = "*{agentName}*"
+
 func DefaultAgentPreferences() AgentPreferences {
 	return AgentPreferences{
 		ScrollAfterSend: true, ScrollAfterSendMode: "always",
-		MessageSignatureEnabled: true, MessageSignatureTemplate: "{agentName}",
+		MessageSignatureEnabled: true, MessageSignatureTemplate: DefaultMessageSignatureTemplate,
 		Notifications: AgentNotificationPreferences{Toast: true, Sound: true, Browser: true, Preview: true, Groups: true},
 	}
 }
