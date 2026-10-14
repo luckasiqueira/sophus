@@ -259,7 +259,27 @@ func CreateCompanyCheckout(ctx iris.Context) {
 	if !ok {
 		return
 	}
-	payment, err := createPaymentCheckout(ctx, agent.CompanyId, "/settings#settings-billing")
+	var body struct {
+		BillingType string `json:"billingType"`
+	}
+	if ctx.Request().ContentLength != 0 {
+		if err := ctx.ReadJSON(&body); err != nil {
+			writeJSONError(ctx, iris.StatusBadRequest, "JSON inválido")
+			return
+		}
+	}
+	billingType := ""
+	if strings.TrimSpace(body.BillingType) != "" {
+		normalized, valid := payments.NormalizeAsaasBillingType(body.BillingType)
+		if !valid || normalized == payments.AsaasBillingTypeUndefined {
+			writeJSONError(ctx, iris.StatusBadRequest, "forma de pagamento inválida")
+			return
+		}
+		billingType = normalized
+	}
+	payment, err := createPaymentCheckoutFor(ctx, agent.CompanyId, checkoutRequest{
+		returnPath: "/settings#settings-billing", billingType: billingType, awaitAsaasMethod: true,
+	})
 	if err != nil {
 		writeCheckoutError(ctx, err)
 		return
@@ -312,7 +332,7 @@ func UpdateCompanyBillingCycle(ctx iris.Context) {
 		return
 	}
 	if payment.Status != repo.PaymentStatusPaid {
-		payment, err = createPaymentCheckout(ctx, agent.CompanyId, "/settings#settings-billing")
+		payment, err = createPaymentCheckoutFor(ctx, agent.CompanyId, checkoutRequest{returnPath: "/settings#settings-billing", awaitAsaasMethod: true})
 		if err != nil {
 			writeCheckoutError(ctx, err)
 			return
@@ -365,7 +385,7 @@ func UpdateCompanyBillingPlan(ctx iris.Context) {
 		return
 	}
 	if payment.Status != repo.PaymentStatusPaid {
-		payment, err = createPaymentCheckout(ctx, agent.CompanyId, "/settings#settings-billing")
+		payment, err = createPaymentCheckoutFor(ctx, agent.CompanyId, checkoutRequest{returnPath: "/settings#settings-billing", awaitAsaasMethod: true})
 		if err != nil {
 			writeCheckoutError(ctx, err)
 			return
@@ -374,7 +394,21 @@ func UpdateCompanyBillingPlan(ctx iris.Context) {
 	ctx.JSON(iris.Map{"data": payment})
 }
 
+// checkoutRequest describes how an invoice checkout is opened. billingType
+// selects the Asaas payment method (PIX, BOLETO or CREDIT_CARD); with
+// awaitAsaasMethod, an Asaas invoice gets no link until the payer picks one.
+type checkoutRequest struct {
+	returnPath       string
+	billingType      string
+	awaitAsaasMethod bool
+}
+
 func createPaymentCheckout(ctx iris.Context, companyID int, returnPath string) (repo.Payment, error) {
+	return createPaymentCheckoutFor(ctx, companyID, checkoutRequest{returnPath: returnPath})
+}
+
+func createPaymentCheckoutFor(ctx iris.Context, companyID int, request checkoutRequest) (repo.Payment, error) {
+	returnPath := request.returnPath
 	company, err := repo.GetCompanyById(companyID)
 	if err != nil {
 		return repo.Payment{}, checkoutRepositoryError(err, "não foi possível consultar a empresa")
@@ -396,6 +430,9 @@ func createPaymentCheckout(ctx iris.Context, companyID int, returnPath string) (
 		return repo.Payment{}, checkoutRepositoryError(err, "não foi possível consultar o plano")
 	}
 	if payment.CheckoutURL != nil && strings.TrimSpace(*payment.CheckoutURL) != "" {
+		if payment.Provider == repo.PaymentProviderAsaas && request.billingType != "" {
+			return switchAsaasCheckoutMethod(ctx, company, plan, payment, request.billingType)
+		}
 		if payment.Provider != repo.PaymentProviderAbacatePay {
 			return payment, nil
 		}
@@ -415,7 +452,7 @@ func createPaymentCheckout(ctx iris.Context, companyID int, returnPath string) (
 					return repo.Payment{}, checkoutRepositoryError(cancelErr, "não foi possível substituir o checkout PIX incompleto")
 				}
 				if canceled {
-					return createPaymentCheckout(ctx, companyID, returnPath)
+					return createPaymentCheckoutFor(ctx, companyID, request)
 				}
 			}
 			if errors.As(err, &orphan) {
@@ -445,6 +482,9 @@ func createPaymentCheckout(ctx iris.Context, companyID int, returnPath string) (
 		return payment, nil
 	}
 	if payment.AmountCents == 0 {
+		return payment, nil
+	}
+	if request.awaitAsaasMethod && request.billingType == "" && payment.Provider == repo.PaymentProviderAsaas {
 		return payment, nil
 	}
 	if err := validateCheckoutProviderConfiguration(payment.Provider); err != nil {
@@ -477,6 +517,8 @@ func createPaymentCheckout(ctx iris.Context, companyID int, returnPath string) (
 		payment, err = createMercadoPagoCheckout(ctx, company, plan, payment, checkoutKey, newCheckoutKey, recoverPreference, returnPath)
 	case repo.PaymentProviderAbacatePay:
 		payment, err = createAbacatePayCheckout(ctx, company, plan, payment, checkoutKey, newCheckoutKey, recoverPreference, returnPath)
+	case repo.PaymentProviderAsaas:
+		payment, err = createAsaasCheckout(ctx, company, plan, payment, checkoutKey, newCheckoutKey, recoverPreference, request.billingType)
 	default:
 		return repo.Payment{}, &checkoutHTTPError{status: iris.StatusUnprocessableEntity, message: "provedor de pagamento inválido"}
 	}
@@ -716,6 +758,10 @@ func validateCheckoutProviderConfiguration(provider string) error {
 	case repo.PaymentProviderAbacatePay:
 		if strings.TrimSpace(env.Backend["ABACATEPAY_API_KEY"]) == "" {
 			return &checkoutHTTPError{status: iris.StatusServiceUnavailable, message: "PIX não configurado"}
+		}
+	case repo.PaymentProviderAsaas:
+		if !asaasConfigured() {
+			return &checkoutHTTPError{status: iris.StatusServiceUnavailable, message: "Asaas não configurado"}
 		}
 	default:
 		return &checkoutHTTPError{status: iris.StatusUnprocessableEntity, message: "provedor de pagamento inválido"}

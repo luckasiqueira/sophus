@@ -14,7 +14,7 @@ templ companyBillingPanel() {
 				<section id="billing-addons-panel" class="hidden rounded-2xl border border-purple-200 bg-purple-50 p-5"><div class="flex flex-wrap items-center justify-between gap-3"><div><h3 class="font-black text-purple-900"><i class="fas fa-puzzle-piece mr-2"></i>Adicionais do plano</h3><p id="billing-addons-summary" class="mt-2 text-xs text-purple-700"></p></div><button id="billing-manage-addons" type="button" class="rounded-xl bg-purple-700 px-4 py-2.5 text-xs font-bold text-white hover:bg-purple-800">Contratar ou gerenciar adicionais</button></div></section>
 				<section class="rounded-2xl border border-purple-200 bg-purple-50/50 p-5"><div class="flex items-start gap-3"><span class="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-purple-100 text-purple-700"><i class="fas fa-wallet"></i></span><div class="min-w-0 flex-1"><p class="text-xs font-bold uppercase tracking-wider text-purple-700">Créditos da empresa</p><p id="billing-credit-balance" class="mt-1 text-2xl font-black text-gray-950">R$ 0,00</p><p class="mt-1 text-xs text-gray-500">Saldo aplicado automaticamente à próxima fatura antes de gerar o link de pagamento.</p></div></div><div id="billing-credit-entries" class="mt-4 divide-y divide-purple-100 text-xs text-gray-600"></div></section>
 				<section class="grid gap-4 md:grid-cols-3"><article class="rounded-2xl border border-stone-200 bg-white p-5 shadow-sm"><div class="flex items-start justify-between gap-3"><div><p class="text-xs font-semibold uppercase tracking-wider text-gray-500">Empresa</p><p id="billing-company-name" class="mt-3 font-black text-gray-950">-</p><p id="billing-company-email" class="mt-1 truncate text-xs text-gray-500">-</p></div><span class="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-purple-100 text-purple-700"><i class="fas fa-building"></i></span></div></article><article class="rounded-2xl border border-stone-200 bg-white p-5 shadow-sm"><div class="flex items-start justify-between gap-3"><div><p class="text-xs font-semibold uppercase tracking-wider text-gray-500">Fim do período atual</p><p id="billing-period-end" class="mt-3 font-black text-gray-950">-</p><p id="billing-period-start" class="mt-1 text-xs text-gray-500">-</p></div><span class="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-blue-100 text-blue-700"><i class="fas fa-calendar-check"></i></span></div></article><article class="rounded-2xl border border-stone-200 bg-white p-5 shadow-sm"><div class="flex items-start justify-between gap-3"><div><p class="text-xs font-semibold uppercase tracking-wider text-gray-500">Próximo vencimento</p><p id="billing-next-due" class="mt-3 font-black text-gray-950">-</p><p id="billing-next-due-status" class="mt-1 text-xs text-gray-500">-</p></div><span class="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-amber-100 text-amber-700"><i class="fas fa-clock"></i></span></div></article></section>
-				<section class="relative overflow-hidden rounded-3xl bg-stone-950 p-6 text-white shadow-xl sm:p-8" style="background: radial-gradient(circle at 85% 20%, rgba(59,130,246,.5), transparent 28%), radial-gradient(circle at 10% 100%, rgba(97,35,204,.55), transparent 35%), #17141f;"><div class="absolute inset-0 opacity-10" style="background-image: linear-gradient(rgba(255,255,255,.15) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,.15) 1px, transparent 1px); background-size: 38px 38px;"></div><div class="relative grid gap-8 lg:grid-cols-[1fr_auto] lg:items-end"><div><div class="flex flex-wrap items-center gap-3"><span class="rounded-full border border-white/10 bg-white/10 px-3 py-1 text-xs font-semibold text-stone-200"><i class="fas fa-layer-group mr-1.5"></i> Plano atual</span><span id="billing-status-badge" class="rounded-full px-3 py-1 text-xs font-bold"></span></div><h2 id="billing-plan-name" class="mt-5 text-3xl font-black tracking-tight sm:text-4xl">-</h2><p id="billing-plan-description" class="mt-3 max-w-2xl text-sm leading-relaxed text-stone-300">-</p><div class="mt-6 flex flex-wrap gap-x-6 gap-y-3 text-sm text-stone-300"><span><i class="fas fa-headset mr-2 text-purple-300"></i><strong id="billing-agent-limit" class="text-white">-</strong> agentes</span><span><i class="fas fa-link mr-2 text-blue-300"></i><strong id="billing-connection-limit" class="text-white">-</strong> conexões</span><span><i class="fas fa-calendar-days mr-2 text-emerald-300"></i><strong id="billing-duration" class="text-white">-</strong> dias por ciclo</span><span><i class="fas fa-hard-drive mr-2 text-amber-300"></i><strong id="billing-storage-limit" class="text-white">-</strong> GB de mídias</span></div></div><div class="lg:text-right"><p class="text-xs font-semibold uppercase tracking-[0.18em] text-stone-400">Valor do ciclo</p><p id="billing-amount" class="mt-2 text-4xl font-black tracking-tight">-</p><p class="mt-2 text-xs text-stone-400">Forma de pagamento: <strong id="billing-provider" class="text-stone-200">-</strong></p><button id="billing-checkout" type="button" class="mt-5 inline-flex w-full items-center justify-center gap-2 rounded-xl bg-white px-5 py-3 text-sm font-bold text-purple-700 shadow-lg transition hover:-translate-y-0.5 hover:shadow-xl lg:w-auto"><i class="fas fa-credit-card"></i> Contratar agora</button><div id="billing-free-state" class="mt-5 hidden rounded-xl border border-emerald-300/20 bg-emerald-400/10 px-4 py-3 text-sm font-semibold text-emerald-200"><i class="fas fa-gift mr-2"></i> Este é um plano gratuito</div><div id="billing-trial-state" class="mt-5 hidden max-w-sm rounded-xl border border-blue-300/20 bg-blue-400/10 px-4 py-3 text-left text-sm text-blue-100"><i class="fas fa-hourglass-half mr-2"></i><span id="billing-trial-message"></span></div></div></div></section>
+				<section class="relative overflow-hidden rounded-3xl bg-stone-950 p-6 text-white shadow-xl sm:p-8" style="background: radial-gradient(circle at 85% 20%, rgba(59,130,246,.5), transparent 28%), radial-gradient(circle at 10% 100%, rgba(97,35,204,.55), transparent 35%), #17141f;"><div class="absolute inset-0 opacity-10" style="background-image: linear-gradient(rgba(255,255,255,.15) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,.15) 1px, transparent 1px); background-size: 38px 38px;"></div><div class="relative grid gap-8 lg:grid-cols-[1fr_auto] lg:items-end"><div><div class="flex flex-wrap items-center gap-3"><span class="rounded-full border border-white/10 bg-white/10 px-3 py-1 text-xs font-semibold text-stone-200"><i class="fas fa-layer-group mr-1.5"></i> Plano atual</span><span id="billing-status-badge" class="rounded-full px-3 py-1 text-xs font-bold"></span></div><h2 id="billing-plan-name" class="mt-5 text-3xl font-black tracking-tight sm:text-4xl">-</h2><p id="billing-plan-description" class="mt-3 max-w-2xl text-sm leading-relaxed text-stone-300">-</p><div class="mt-6 flex flex-wrap gap-x-6 gap-y-3 text-sm text-stone-300"><span><i class="fas fa-headset mr-2 text-purple-300"></i><strong id="billing-agent-limit" class="text-white">-</strong> agentes</span><span><i class="fas fa-link mr-2 text-blue-300"></i><strong id="billing-connection-limit" class="text-white">-</strong> conexões</span><span><i class="fas fa-calendar-days mr-2 text-emerald-300"></i><strong id="billing-duration" class="text-white">-</strong> dias por ciclo</span><span><i class="fas fa-hard-drive mr-2 text-amber-300"></i><strong id="billing-storage-limit" class="text-white">-</strong> GB de mídias</span></div></div><div class="lg:text-right"><p class="text-xs font-semibold uppercase tracking-[0.18em] text-stone-400">Valor do ciclo</p><p id="billing-amount" class="mt-2 text-4xl font-black tracking-tight">-</p><p class="mt-2 text-xs text-stone-400">Forma de pagamento: <strong id="billing-provider" class="text-stone-200">-</strong></p><button id="billing-checkout" type="button" class="mt-5 inline-flex w-full items-center justify-center gap-2 rounded-xl bg-white px-5 py-3 text-sm font-bold text-purple-700 shadow-lg transition hover:-translate-y-0.5 hover:shadow-xl lg:w-auto"><i class="fas fa-credit-card"></i> Contratar agora</button><div id="billing-checkout-methods" class="mt-5 hidden lg:text-right"><p class="text-xs font-semibold text-stone-300">Pagar com</p><div class="mt-2 grid grid-cols-3 gap-2 lg:inline-grid"><button type="button" data-billing-method="PIX" class="inline-flex items-center justify-center gap-2 rounded-xl bg-white px-4 py-3 text-sm font-bold text-purple-700 shadow-lg transition hover:-translate-y-0.5 hover:shadow-xl disabled:opacity-60"><i class="fas fa-qrcode"></i> PIX</button><button type="button" data-billing-method="BOLETO" class="inline-flex items-center justify-center gap-2 rounded-xl bg-white px-4 py-3 text-sm font-bold text-purple-700 shadow-lg transition hover:-translate-y-0.5 hover:shadow-xl disabled:opacity-60"><i class="fas fa-barcode"></i> Boleto</button><button type="button" data-billing-method="CREDIT_CARD" class="inline-flex items-center justify-center gap-2 rounded-xl bg-white px-4 py-3 text-sm font-bold text-purple-700 shadow-lg transition hover:-translate-y-0.5 hover:shadow-xl disabled:opacity-60"><i class="fas fa-credit-card"></i> Cartão</button></div></div><div id="billing-free-state" class="mt-5 hidden rounded-xl border border-emerald-300/20 bg-emerald-400/10 px-4 py-3 text-sm font-semibold text-emerald-200"><i class="fas fa-gift mr-2"></i> Este é um plano gratuito</div><div id="billing-trial-state" class="mt-5 hidden max-w-sm rounded-xl border border-blue-300/20 bg-blue-400/10 px-4 py-3 text-left text-sm text-blue-100"><i class="fas fa-hourglass-half mr-2"></i><span id="billing-trial-message"></span></div></div></div></section>
 				<section class="rounded-2xl border border-stone-200 bg-white p-5 shadow-sm sm:p-6"><div class="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between"><div><p class="text-xs font-bold uppercase tracking-[0.18em] text-purple-600">Periodicidade</p><h2 class="mt-2 font-black text-gray-950">Escolha como contratar o plano</h2><p class="mt-1 text-sm text-gray-500">Selecione um plano abaixo e defina o ciclo da próxima cobrança.</p></div><button id="billing-save-cycle" type="button" class="rounded-xl bg-gray-950 px-4 py-2.5 text-sm font-bold text-white shadow-sm transition hover:bg-gray-800 disabled:cursor-not-allowed disabled:opacity-40">Atualizar contratação</button></div><div class="mt-5 grid gap-3 sm:grid-cols-2"><button type="button" data-billing-cycle="monthly" class="billing-cycle-option flex items-center justify-between rounded-2xl border border-stone-200 p-4 text-left transition hover:border-purple-300"><span><span class="block text-xs font-bold uppercase tracking-wider text-purple-600">Mensal</span><strong id="billing-monthly-price" class="mt-1 block text-xl text-gray-950">-</strong><span class="mt-1 block text-xs text-gray-500">30 dias de acesso</span></span><span class="billing-cycle-check grid h-7 w-7 place-items-center rounded-full border border-stone-300 text-transparent"><i class="fas fa-check text-xs"></i></span></button><button type="button" data-billing-cycle="annual" class="billing-cycle-option flex items-center justify-between rounded-2xl border border-stone-200 p-4 text-left transition hover:border-purple-300"><span><span class="block text-xs font-bold uppercase tracking-wider text-blue-600">Anual</span><strong id="billing-annual-price" class="mt-1 block text-xl text-gray-950">-</strong><span class="mt-1 block text-xs text-gray-500">365 dias de acesso</span></span><span class="billing-cycle-check grid h-7 w-7 place-items-center rounded-full border border-stone-300 text-transparent"><i class="fas fa-check text-xs"></i></span></button></div></section>
 				<section class="rounded-2xl border border-stone-200 bg-white p-5 shadow-sm sm:p-6"><div><p class="text-xs font-bold uppercase tracking-[0.18em] text-purple-600">Planos disponíveis</p><h2 class="mt-2 text-xl font-black text-gray-950">Encontre o plano certo para sua operação</h2><p class="mt-1 text-sm text-gray-500">O período de avaliação é concedido apenas na criação da conta e não exige pagamento imediato.</p></div><div id="billing-plans-grid" class="mt-5 grid gap-4 md:grid-cols-2 xl:grid-cols-3"></div></section>
 				<section class="overflow-hidden rounded-2xl border border-stone-200 bg-white shadow-sm"><div class="flex items-center justify-between gap-3 border-b border-stone-200 p-5"><div><h2 class="font-bold text-gray-950">Histórico de pagamentos</h2><p class="mt-1 text-sm text-gray-500">Cobranças emitidas e confirmações recebidas.</p></div><span id="billing-payment-count" class="rounded-full bg-stone-100 px-3 py-1 text-xs font-semibold text-gray-600">0 registros</span></div><div id="billing-payments-table" class="hidden overflow-x-auto"><table class="w-full min-w-[800px] text-left text-sm"><thead class="bg-stone-50 text-[11px] uppercase tracking-wider text-gray-500"><tr><th class="px-5 py-3 font-semibold">Cobrança</th><th class="px-5 py-3 font-semibold">Valor</th><th class="px-5 py-3 font-semibold">Vencimento</th><th class="px-5 py-3 font-semibold">Pagamento</th><th class="px-5 py-3 font-semibold">Status</th><th class="px-5 py-3 text-right font-semibold">Comprovante</th></tr></thead><tbody id="billing-payments-body" class="divide-y divide-stone-100"></tbody></table></div><div id="billing-payments-mobile" class="divide-y divide-stone-100 lg:hidden"></div><div id="billing-payments-empty" class="hidden p-12 text-center"><span class="mx-auto grid h-14 w-14 place-items-center rounded-2xl bg-stone-100 text-xl text-gray-400"><i class="fas fa-receipt"></i></span><p class="mt-4 font-semibold text-gray-700">Nenhum pagamento registrado</p><p id="billing-empty-message" class="mt-1 text-sm text-gray-500">As próximas cobranças aparecerão aqui.</p></div></section>
@@ -260,7 +260,7 @@ function configurePaymentReturnBanner() {
 }
 
 function paymentProvider(provider) {
-	return provider === 'mercado_pago' ? 'PIX/Cartão de crédito' : (provider === 'abacate_pay' ? 'PIX' : 'Não informado');
+	return provider === 'mercado_pago' ? 'PIX/Cartão de crédito' : (provider === 'abacate_pay' ? 'PIX' : (provider === 'asaas' ? 'PIX/Boleto/Cartão de crédito' : 'Não informado'));
 }
 
 function selectedBillingPlan() {
@@ -297,9 +297,25 @@ function renderBillingPlans() {
 	});
 }
 
+const billingMethods = [['PIX', 'PIX', 'fas fa-qrcode'], ['BOLETO', 'Boleto', 'fas fa-barcode'], ['CREDIT_CARD', 'Cartão', 'fas fa-credit-card']];
+
+function billingMethodButtons(compact) {
+	const group = billingElement('div', compact ? 'flex flex-wrap gap-1.5' : 'flex flex-wrap gap-2');
+	billingMethods.forEach(([method, label, icon]) => {
+		const button = billingElement('button', 'inline-flex items-center gap-1.5 rounded-lg bg-purple-600 px-3 py-2 text-xs font-semibold text-white hover:bg-purple-700 disabled:opacity-60', label);
+		button.type = 'button';
+		button.dataset.billingMethod = method;
+		button.prepend(billingElement('i', icon));
+		group.appendChild(button);
+	});
+	return group;
+}
+
 function receiptLink(payment) {
 	const open = payment.status === 'pending' || payment.status === 'processing';
-	const checkoutURL = safeBillingCheckoutURL(open ? payment.checkoutURL : (payment.receiptURL || payment.checkoutURL));
+	if (payment.status === 'pending' && payment.provider === 'asaas' && !payment.providerPaymentId) return billingMethodButtons(true);
+	// A closed Asaas invoice only links to its receipt: its payment links are deleted once paid.
+	const checkoutURL = safeBillingCheckoutURL(open ? payment.checkoutURL : (payment.receiptURL || (payment.provider === 'asaas' ? null : payment.checkoutURL)));
 	if (!checkoutURL && open) {
 		const button = billingElement('button', 'inline-flex items-center gap-1.5 rounded-lg bg-purple-600 px-3 py-2 text-xs font-semibold text-white hover:bg-purple-700', 'Gerar link');
 		button.type = 'button';
@@ -406,7 +422,10 @@ function renderBilling() {
     const checkout = document.getElementById('billing-checkout');
 	const freeState = document.getElementById('billing-free-state');
 	const trialState = document.getElementById('billing-trial-state');
-	checkout.classList.toggle('hidden', amountCents === 0 || status === 'active');
+	const checkoutVisible = amountCents !== 0 && status !== 'active';
+	const asaasCheckout = billingState.paymentProvider === 'asaas';
+	checkout.classList.toggle('hidden', !checkoutVisible || asaasCheckout);
+	document.getElementById('billing-checkout-methods').classList.toggle('hidden', !checkoutVisible || !asaasCheckout);
 	freeState.classList.toggle('hidden', amountCents !== 0);
 	trialState.classList.toggle('hidden', status !== 'trialing');
 	if (status === 'trialing') {
@@ -530,7 +549,8 @@ async function registerCompany(event) {
 
 async function saveBillingCycle() {
 	const button = document.getElementById('billing-save-cycle');
-	const checkoutWindow = window.open('about:blank', '_blank');
+	const awaitsMethod = billingState.paymentProvider === 'asaas';
+	const checkoutWindow = awaitsMethod ? null : window.open('about:blank', '_blank');
 	if (checkoutWindow) checkoutWindow.opener = null;
 	button.disabled = true;
 	try {
@@ -541,19 +561,19 @@ async function saveBillingCycle() {
 			if (checkoutWindow) checkoutWindow.location.replace(checkoutURL);
 			else window.location.href = checkoutURL;
 		} else if (checkoutWindow) checkoutWindow.close();
-		showBillingToast(payment && payment.status === 'paid' ? 'Plano atualizado.' : 'Fatura criada. A alteração será aplicada após o pagamento.');
+		showBillingToast(payment && payment.status === 'paid' ? 'Plano atualizado.' : (awaitsMethod && !checkoutURL ? 'Fatura criada. Escolha PIX, boleto ou cartão para pagar.' : 'Fatura criada. A alteração será aplicada após o pagamento.'));
 		await loadBilling();
 	} catch (error) { if (checkoutWindow) checkoutWindow.close(); showBillingError(error); }
 	finally { renderBillingCycleOptions(); }
 }
 
-async function startBillingCheckout() {
-    const button = document.getElementById('billing-checkout');
+async function startBillingCheckout(billingType) {
+	const buttons = [document.getElementById('billing-checkout'), ...document.querySelectorAll('[data-billing-method]')];
 	const checkoutWindow = window.open('about:blank', '_blank');
 	if (checkoutWindow) checkoutWindow.opener = null;
-    button.disabled = true;
+	buttons.forEach(button => { button.disabled = true; });
     try {
-        const response = await billingAPI('POST', '/management/api/billing/checkout');
+        const response = await billingAPI('POST', '/management/api/billing/checkout', typeof billingType === 'string' ? { billingType: billingType } : undefined);
         const data = response && response.data;
         const payment = data && (data.payment || data);
         const checkoutURL = payment && safeBillingCheckoutURL(payment.checkoutURL);
@@ -568,11 +588,15 @@ async function startBillingCheckout() {
 			await loadBilling();
 		}
 	} catch (error) { if (checkoutWindow) checkoutWindow.close(); showBillingError(error); }
-    finally { button.disabled = false; }
+    finally { buttons.forEach(button => { button.disabled = false; }); }
 }
 
 const billingCheckout = document.getElementById('billing-checkout');
-if (billingCheckout) billingCheckout.addEventListener('click', startBillingCheckout);
+if (billingCheckout) billingCheckout.addEventListener('click', () => startBillingCheckout());
+document.addEventListener('click', event => {
+	const button = event.target.closest('[data-billing-method]');
+	if (button && !button.disabled) startBillingCheckout(button.dataset.billingMethod);
+});
 const billingRegistrationForm = document.getElementById('billing-registration-form');
 if (billingRegistrationForm) billingRegistrationForm.addEventListener('submit', registerCompany);
 const billingSaveCycle = document.getElementById('billing-save-cycle');

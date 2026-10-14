@@ -12,6 +12,7 @@ import (
 var (
 	ErrUnknownMercadoPagoStatus = errors.New("unknown Mercado Pago payment status")
 	ErrUnknownAbacatePayStatus  = errors.New("unknown AbacatePay payment status")
+	ErrUnknownAsaasStatus       = errors.New("unknown Asaas payment status")
 	ErrProviderPaymentMismatch  = errors.New("provider payment does not match the internal payment")
 	ErrDiscardedPayment         = errors.New("checkout belongs to a discarded payment")
 	ErrManuallyConfirmedPayment = errors.New("checkout belongs to a manually confirmed payment")
@@ -309,14 +310,15 @@ func ReleaseStaleUnlinkedPaymentCheckout(id, companyID int) error {
 }
 
 // UpdatePendingPaymentDetails applies a one-off invoice amount. Issued Mercado
-// Pago preferences must be updated by the caller before this is invoked.
+// Pago preferences and Asaas payment links must be updated by the caller before
+// this is invoked.
 func UpdatePendingPaymentDetails(id, companyID int, amountCents int64, dueDate time.Time, expectedPreferenceID string) (Payment, error) {
 	return scanPayment(db.QueryRow(`UPDATE payments SET "amountCents" = $1, "dueDate" = $2,
 		"manualAmount" = true, "updatedAt" = now()
 		WHERE id = $3 AND "companyId" = $4 AND status = 'pending' AND "checkoutCreating" = false
 			AND "providerPaymentId" IS NULL AND "creditAppliedCents" = 0
 			AND (("providerPreferenceId" IS NULL AND "checkoutURL" IS NULL AND "checkoutKey" IS NULL AND $5 = '')
-				OR (provider = 'mercado_pago' AND "providerPreferenceId" = $5 AND "checkoutURL" IS NOT NULL AND "checkoutKey" IS NOT NULL AND $5 <> ''))
+				OR (provider IN ('mercado_pago', 'asaas') AND "providerPreferenceId" = $5 AND "checkoutURL" IS NOT NULL AND "checkoutKey" IS NOT NULL AND $5 <> ''))
 		RETURNING id, "companyId", "subscriptionId", status, "amountCents", "dueDate", provider,
 			"providerPaymentId", "providerPreferenceId", "checkoutURL", "receiptURL", "checkoutKey", "paidAt", "createdAt", "updatedAt"`,
 		amountCents, dueDate, id, companyID, expectedPreferenceID))
@@ -326,6 +328,8 @@ func CancelPendingPayment(id, companyID int) (Payment, error) {
 	return cancelPendingPayment(id, companyID, "")
 }
 
+// CancelPendingMercadoPagoPayment cancels an issued Mercado Pago preference or
+// Asaas payment link after the caller has deactivated it at the provider.
 func CancelPendingMercadoPagoPayment(id, companyID int, preferenceID string) (Payment, error) {
 	if preferenceID == "" {
 		return Payment{}, sql.ErrNoRows
@@ -347,7 +351,7 @@ func cancelPendingPayment(id, companyID int, expectedPreferenceID string) (Payme
 		WHERE id = $1 AND "companyId" = $2 AND status = 'pending' AND "checkoutCreating" = false
 			AND "providerPaymentId" IS NULL
 			AND (("providerPreferenceId" IS NULL AND "checkoutURL" IS NULL AND "checkoutKey" IS NULL AND $3 = '')
-				OR (provider = 'mercado_pago' AND "providerPreferenceId" = $3 AND "checkoutURL" IS NOT NULL AND "checkoutKey" IS NOT NULL AND $3 <> ''))
+				OR (provider IN ('mercado_pago', 'asaas') AND "providerPreferenceId" = $3 AND "checkoutURL" IS NOT NULL AND "checkoutKey" IS NOT NULL AND $3 <> ''))
 		RETURNING id, "companyId", "subscriptionId", status, "amountCents", "dueDate", provider,
 			"providerPaymentId", "providerPreferenceId", "checkoutURL", "receiptURL", "checkoutKey", "paidAt", "createdAt", "updatedAt"`,
 		id, companyID, expectedPreferenceID))
@@ -442,8 +446,11 @@ func ConfirmPendingPaymentManually(paymentID, companyID, adminID int, reason str
 	return payment, tx.Commit()
 }
 
-// RecordDiscardedCheckoutEvent acknowledges a provider event once and makes
+// RecordSurplusCheckoutEvent acknowledges a provider event once and makes
 // unexpected payments visible to platform administrators without billing users.
+// A charge is surplus when its invoice was discarded or manually confirmed, or
+// when the invoice was already settled by a different charge of the same
+// provider (such as a second payment through one Asaas payment link).
 func RecordSurplusCheckoutEvent(companyID, paymentID int, provider, eventID, transactionID, status string) error {
 	tx, err := db.Begin()
 	if err != nil {
@@ -465,8 +472,9 @@ func RecordSurplusCheckoutEvent(companyID, paymentID int, provider, eventID, tra
 	if inserted == 1 {
 		var amount int64
 		var ignored bool
-		if err := tx.QueryRow(`SELECT "amountCents", ("ignoredAt" IS NOT NULL OR "manualConfirmedAt" IS NOT NULL) FROM payments
-			WHERE id = $1 AND "companyId" = $2 FOR UPDATE`, paymentID, companyID).Scan(&amount, &ignored); err != nil {
+		if err := tx.QueryRow(`SELECT "amountCents", ("ignoredAt" IS NOT NULL OR "manualConfirmedAt" IS NOT NULL
+				OR (provider = $3 AND $4 <> '' AND "providerPaymentId" IS NOT NULL AND "providerPaymentId" <> $4))
+			FROM payments WHERE id = $1 AND "companyId" = $2 FOR UPDATE`, paymentID, companyID, provider, transactionID).Scan(&amount, &ignored); err != nil {
 			return err
 		}
 		if !ignored {
@@ -519,7 +527,7 @@ func CreatePaymentForCurrentSubscription(companyID int, provider string) (Paymen
 	}
 	if _, err := tx.Exec(`WITH canceled AS (
 		UPDATE payments SET status = 'canceled', "checkoutCreating" = false, "updatedAt" = now()
-		WHERE "companyId" = $1 AND provider = 'mercado_pago' AND status = 'pending' AND "dueDate" <= now() AND "creditAppliedCents" = 0
+		WHERE "companyId" = $1 AND provider IN ('mercado_pago', 'asaas') AND status = 'pending' AND "dueDate" <= now() AND "creditAppliedCents" = 0
 			AND NOT EXISTS(SELECT 1 FROM payment_fixed_entitlements fixed WHERE fixed."paymentId" = payments.id)
 		RETURNING id
 	) UPDATE subscription_plan_changes SET status = 'canceled', "updatedAt" = now()
@@ -1251,6 +1259,26 @@ func MapAbacatePayPaymentStatus(providerStatus string) (string, error) {
 	}
 }
 
+// MapAsaasPaymentStatus maps a charge made through an Asaas payment link.
+// OVERDUE only expires that PIX/boleto: the invoice link can still be paid, so
+// the invoice stays pending. Refund and chargeback requests stay in progress
+// until Asaas reports the charge as REFUNDED.
+func MapAsaasPaymentStatus(providerStatus string) (string, error) {
+	switch strings.ToUpper(strings.TrimSpace(providerStatus)) {
+	case "PENDING", "OVERDUE", "DUNNING_REQUESTED":
+		return PaymentStatusPending, nil
+	case "AWAITING_RISK_ANALYSIS", "REFUND_REQUESTED", "REFUND_IN_PROGRESS",
+		"CHARGEBACK_REQUESTED", "CHARGEBACK_DISPUTE", "AWAITING_CHARGEBACK_REVERSAL":
+		return PaymentStatusProcessing, nil
+	case "RECEIVED", "CONFIRMED", "RECEIVED_IN_CASH", "DUNNING_RECEIVED":
+		return PaymentStatusPaid, nil
+	case "REFUNDED":
+		return PaymentStatusRefunded, nil
+	default:
+		return "", ErrUnknownAsaasStatus
+	}
+}
+
 func isValidPaymentStatus(status string) bool {
 	switch status {
 	case PaymentStatusPending, PaymentStatusProcessing, PaymentStatusPaid, PaymentStatusFailed,
@@ -1318,7 +1346,7 @@ func UpdateCurrentSubscriptionDueDate(companyID int, dueDate time.Time) (Subscri
 		WHERE "subscriptionId" = $1 AND status = 'pending' AND (
 			("providerPaymentId" IS NULL AND "providerPreferenceId" IS NULL
 				AND "checkoutURL" IS NULL AND "checkoutKey" IS NULL AND "checkoutCreating" = false)
-			OR (provider = 'mercado_pago' AND "dueDate" <= now() AND "creditAppliedCents" = 0)
+			OR (provider IN ('mercado_pago', 'asaas') AND "dueDate" <= now() AND "creditAppliedCents" = 0)
 		) AND NOT EXISTS(SELECT 1 FROM payment_fixed_entitlements fixed WHERE fixed."paymentId" = payments.id)
 		RETURNING id) UPDATE subscription_plan_changes SET status = 'canceled', "updatedAt" = now()
 		WHERE "paymentId" IN (SELECT id FROM canceled) AND status = 'pending'`, current.Id); err != nil {
@@ -1450,7 +1478,7 @@ func cancelStaleAndCheckOpenPayments(tx *sql.Tx, subscriptionID int) error {
 	if _, err := tx.Exec(`WITH canceled AS (UPDATE payments SET status = 'canceled', "checkoutCreating" = false, "updatedAt" = now()
 		WHERE "subscriptionId" = $1 AND status = 'pending' AND (
 			("providerPaymentId" IS NULL AND "providerPreferenceId" IS NULL AND "checkoutURL" IS NULL AND "checkoutKey" IS NULL AND "checkoutCreating" = false)
-			OR (provider = 'mercado_pago' AND "dueDate" <= now() AND "creditAppliedCents" = 0))
+			OR (provider IN ('mercado_pago', 'asaas') AND "dueDate" <= now() AND "creditAppliedCents" = 0))
 			AND NOT EXISTS(SELECT 1 FROM payment_fixed_entitlements fixed WHERE fixed."paymentId" = payments.id)
 		RETURNING id)
 		UPDATE subscription_plan_changes SET status = 'canceled', "updatedAt" = now()

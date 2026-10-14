@@ -25,6 +25,7 @@ const (
 const (
 	PaymentProviderMercadoPago = "mercado_pago"
 	PaymentProviderAbacatePay  = "abacate_pay"
+	PaymentProviderAsaas       = "asaas"
 )
 
 const (
@@ -37,7 +38,7 @@ func IsValidBillingCycle(cycle string) bool {
 }
 
 func IsValidPaymentProvider(provider string) bool {
-	return provider == PaymentProviderMercadoPago || provider == PaymentProviderAbacatePay
+	return provider == PaymentProviderMercadoPago || provider == PaymentProviderAbacatePay || provider == PaymentProviderAsaas
 }
 
 func IsValidMediaRetention(days *int) bool {

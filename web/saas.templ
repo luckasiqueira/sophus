@@ -678,10 +678,10 @@ templ SaaSDashboard() {
 			const timezone = company && company.timezone;
 			const card = saasElement('article', 'flex flex-col gap-4 rounded-2xl border border-stone-200 bg-white p-5 shadow-sm md:flex-row md:items-center md:justify-between');
 			const info = saasElement('div', 'min-w-0');
-			info.append(saasElement('p', 'truncate font-black text-gray-950', payment.companyName || 'Empresa #' + payment.companyId), saasElement('p', 'mt-1 text-sm font-semibold text-gray-700', 'Fatura #' + payment.id + ' · ' + formatMoney(payment.amountCents)), saasElement('p', 'mt-1 text-xs text-gray-500', 'Vencimento: ' + formatDate(payment.dueDate, false, timezone) + ' · ' + (payment.provider === 'abacate_pay' ? 'PIX' : 'PIX/Cartão')));
+			info.append(saasElement('p', 'truncate font-black text-gray-950', payment.companyName || 'Empresa #' + payment.companyId), saasElement('p', 'mt-1 text-sm font-semibold text-gray-700', 'Fatura #' + payment.id + ' · ' + formatMoney(payment.amountCents)), saasElement('p', 'mt-1 text-xs text-gray-500', 'Vencimento: ' + formatDate(payment.dueDate, false, timezone) + ' · ' + (payment.provider === 'abacate_pay' ? 'PIX' : payment.provider === 'asaas' ? 'PIX/Boleto/Cartão' : 'PIX/Cartão')));
 			const actions = saasElement('div', 'flex flex-wrap items-center gap-2');
 			actions.appendChild(statusBadge(payment.status));
-			const checkoutURL = safeCheckoutURL((payment.status === 'pending' || payment.status === 'processing') ? payment.checkoutURL : (payment.receiptURL || payment.checkoutURL));
+			const checkoutURL = safeCheckoutURL((payment.status === 'pending' || payment.status === 'processing') ? payment.checkoutURL : (payment.receiptURL || (payment.provider === 'asaas' ? null : payment.checkoutURL)));
 			if (checkoutURL) {
 				const link = saasElement('a', 'inline-flex items-center gap-1.5 rounded-lg bg-purple-50 px-3 py-2 text-xs font-semibold text-purple-700 hover:bg-purple-100', payment.status === 'paid' ? 'Comprovante' : 'Abrir checkout');
 				link.href = checkoutURL; link.target = '_blank'; link.rel = 'noopener noreferrer';
@@ -933,11 +933,12 @@ templ SaaSDashboard() {
             payments.forEach(payment => {
                 const row = saasElement('div', 'flex flex-col gap-3 rounded-2xl border border-stone-200 p-4 sm:flex-row sm:items-center sm:justify-between');
                 const info = saasElement('div');
-				const providerName = payment.provider === 'abacate_pay' ? 'PIX' : payment.provider === 'mercado_pago' ? 'PIX/Cartão de crédito' : 'Forma de pagamento não informada';
+				const providerName = payment.provider === 'abacate_pay' ? 'PIX' : payment.provider === 'mercado_pago' ? 'PIX/Cartão de crédito' : payment.provider === 'asaas' ? 'PIX/Boleto/Cartão de crédito' : 'Forma de pagamento não informada';
 				info.append(saasElement('p', 'font-bold text-gray-900', formatMoney(payment.amountCents)), saasElement('p', 'mt-1 text-xs text-gray-500', 'Vencimento: ' + formatDate(payment.dueDate, false, company.timezone) + (payment.paidAt ? ' · Pago em ' + formatDate(payment.paidAt, true, company.timezone) : '')), saasElement('p', 'mt-1 text-[11px] font-semibold text-purple-600', providerName));
                 const right = saasElement('div', 'flex items-center gap-2');
                 right.append(statusBadge(payment.status));
-				const checkoutURL = safeCheckoutURL(payment.receiptURL || payment.checkoutURL);
+				const closedAsaas = payment.provider === 'asaas' && payment.status !== 'pending' && payment.status !== 'processing';
+				const checkoutURL = safeCheckoutURL(payment.receiptURL || (closedAsaas ? null : payment.checkoutURL));
 				if (checkoutURL) {
 					const link = saasElement('a', 'inline-flex h-9 items-center gap-1.5 rounded-lg bg-purple-50 px-3 text-xs font-semibold text-purple-700 hover:bg-purple-100', payment.status === 'paid' ? 'Comprovante' : 'Abrir');
 					link.href = checkoutURL;

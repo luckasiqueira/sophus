@@ -31,6 +31,7 @@ func Router(r *iris.Application) {
 	r.Post("/webhook/{webhookId:uuid}", middlewares.RequireStructuredContentType, middlewares.AuthWebhook, controllers.Webhook)
 	r.Post("/payments/mercado-pago/webhook", middlewares.IPRateLimit(60, time.Minute), middlewares.RequireStructuredContentType, controllers.MercadoPagoWebhook)
 	r.Post("/payments/abacatepay/webhook", middlewares.IPRateLimit(60, time.Minute), middlewares.RequireStructuredContentType, controllers.AbacatePayWebhook)
+	r.Post("/payments/asaas/webhook", middlewares.IPRateLimit(60, time.Minute), middlewares.RequireStructuredContentType, controllers.AsaasWebhook)
 	r.Get("/integrations/whatsapp/{publicId:uuid}/widget.js", controllers.ServeWhatsAppWidget)
 	r.Get("/media-public/{companyId:int}/{scope:string}/{file:string}", controllers.ServeForwardMedia)
 	r.Get("/medias/{companyId:int}/flows/{file:string}", middlewares.AuthFlowMedia, controllers.ServeFlowMedia)

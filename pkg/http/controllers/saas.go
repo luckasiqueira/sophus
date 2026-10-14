@@ -1,6 +1,7 @@
 package controllers
 
 import (
+	"context"
 	"crypto/subtle"
 	"database/sql"
 	"errors"
@@ -682,6 +683,24 @@ func UpdateSaaSCompanyPayment(ctx iris.Context) {
 					writeJSONError(ctx, iris.StatusBadGateway, "não foi possível desativar o link no Mercado Pago")
 					return
 				}
+			case repo.PaymentProviderAsaas:
+				if current.ProviderPreferenceId == nil || current.CheckoutKey == nil {
+					writeJSONError(ctx, iris.StatusConflict, "checkout sem identificação verificável")
+					return
+				}
+				if !asaasConfigured() {
+					writeJSONError(ctx, iris.StatusServiceUnavailable, "Asaas não configurado")
+					return
+				}
+				links, linksErr := asaasInvoiceLinks(current)
+				if linksErr != nil {
+					writeJSONError(ctx, iris.StatusInternalServerError, "não foi possível consultar os links da cobrança")
+					return
+				}
+				if err := (asaasIssuedLink{client: newAsaasClient(paymentProviderRequestTimeout), links: links}).Expire(ctx.Request().Context()); err != nil {
+					writeJSONError(ctx, iris.StatusBadGateway, "não foi possível desativar o link no Asaas")
+					return
+				}
 			default:
 				writeJSONError(ctx, iris.StatusBadRequest, "provedor da cobrança inválido")
 				return
@@ -746,7 +765,7 @@ func UpdateSaaSCompanyPayment(ctx iris.Context) {
 		ctx.JSON(iris.Map{"data": payment})
 		return
 	}
-	if issued && current.Provider != repo.PaymentProviderMercadoPago {
+	if issued && current.Provider != repo.PaymentProviderMercadoPago && current.Provider != repo.PaymentProviderAsaas {
 		writeJSONError(ctx, iris.StatusConflict, "o provedor PIX não permite alterar ou cancelar um checkout emitido; este link ainda pode ser pago")
 		return
 	}
@@ -764,19 +783,38 @@ func UpdateSaaSCompanyPayment(ctx iris.Context) {
 		}
 	}
 	var preferenceID, checkoutKey string
-	var client *payments.MercadoPagoClient
+	var link issuedCheckoutLink
+	providerName := "Mercado Pago"
+	if current.Provider == repo.PaymentProviderAsaas {
+		providerName = "Asaas"
+	}
 	if issued {
 		if current.ProviderPreferenceId == nil || current.CheckoutKey == nil || strings.TrimSpace(*current.ProviderPreferenceId) == "" || strings.TrimSpace(*current.CheckoutKey) == "" {
 			writeJSONError(ctx, iris.StatusConflict, "checkout sem identificação verificável no provedor")
 			return
 		}
 		preferenceID, checkoutKey = *current.ProviderPreferenceId, *current.CheckoutKey
-		if strings.TrimSpace(env.Backend["MERCADO_PAGO_ACCESS_TOKEN"]) == "" {
-			writeJSONError(ctx, iris.StatusServiceUnavailable, "Mercado Pago não configurado")
-			return
+		switch current.Provider {
+		case repo.PaymentProviderAsaas:
+			if !asaasConfigured() {
+				writeJSONError(ctx, iris.StatusServiceUnavailable, "Asaas não configurado")
+				return
+			}
+			links, linksErr := asaasInvoiceLinks(current)
+			if linksErr != nil {
+				writeJSONError(ctx, iris.StatusInternalServerError, "não foi possível consultar os links da cobrança")
+				return
+			}
+			link = asaasIssuedLink{client: newAsaasClient(paymentProviderRequestTimeout), links: links}
+		default:
+			if strings.TrimSpace(env.Backend["MERCADO_PAGO_ACCESS_TOKEN"]) == "" {
+				writeJSONError(ctx, iris.StatusServiceUnavailable, "Mercado Pago não configurado")
+				return
+			}
+			link = mercadoPagoIssuedPreference{client: payments.NewMercadoPagoClient(&http.Client{Timeout: paymentProviderRequestTimeout},
+				env.Backend["MERCADO_PAGO_ACCESS_TOKEN"], env.Backend["MERCADO_PAGO_WEBHOOK_SECRET"], env.Backend["MERCADO_PAGO_BASE_URL"]),
+				preferenceID: preferenceID, externalReference: strconv.Itoa(paymentID), checkoutKey: checkoutKey}
 		}
-		client = payments.NewMercadoPagoClient(&http.Client{Timeout: paymentProviderRequestTimeout},
-			env.Backend["MERCADO_PAGO_ACCESS_TOKEN"], env.Backend["MERCADO_PAGO_WEBHOOK_SECRET"], env.Backend["MERCADO_PAGO_BASE_URL"])
 	}
 	var payment repo.Payment
 	providerUpdated := false
@@ -816,10 +854,9 @@ func UpdateSaaSCompanyPayment(ctx iris.Context) {
 				writeJSONError(ctx, iris.StatusInternalServerError, "não foi possível consultar o plano")
 				return
 			}
-			if err = client.UpdatePreferenceAmount(ctx.Request().Context(), preferenceID, strconv.Itoa(paymentID), checkoutKey,
-				fmt.Sprintf("Plano %s - %s", plan.Name, company.Name), amount, dueDate); err != nil {
+			if err = link.Update(ctx.Request().Context(), fmt.Sprintf("Plano %s - %s", plan.Name, company.Name), amount, dueDate); err != nil {
 				log.Printf("payment preference update failed: payment=%d: %v", paymentID, err)
-				writeJSONError(ctx, iris.StatusBadGateway, "não foi possível confirmar a atualização do link no Mercado Pago; atualize a fatura antes de tentar novamente")
+				writeJSONError(ctx, iris.StatusBadGateway, "não foi possível confirmar a atualização do link no "+providerName+"; atualize a fatura antes de tentar novamente")
 				return
 			}
 			providerUpdated = true
@@ -827,9 +864,9 @@ func UpdateSaaSCompanyPayment(ctx iris.Context) {
 		payment, err = repo.UpdatePendingPaymentDetails(paymentID, companyID, amount, dueDate, preferenceID)
 	case "cancel":
 		if issued {
-			if err = client.ExpirePreference(ctx.Request().Context(), preferenceID, strconv.Itoa(paymentID), checkoutKey); err != nil {
+			if err = link.Expire(ctx.Request().Context()); err != nil {
 				log.Printf("payment preference expiry failed: payment=%d: %v", paymentID, err)
-				writeJSONError(ctx, iris.StatusBadGateway, "não foi possível desativar o link no Mercado Pago; a fatura continua pendente")
+				writeJSONError(ctx, iris.StatusBadGateway, "não foi possível desativar o link no "+providerName+"; a fatura continua pendente")
 				return
 			}
 			providerUpdated = true
@@ -859,6 +896,28 @@ func UpdateSaaSCompanyPayment(ctx iris.Context) {
 		log.Printf("payment audit failed: payment=%d: %v", paymentID, auditErr)
 	}
 	ctx.JSON(iris.Map{"data": payment})
+}
+
+// issuedCheckoutLink updates or deactivates a checkout link already sent to
+// the customer (a Mercado Pago preference or an Asaas payment link).
+type issuedCheckoutLink interface {
+	Update(ctx context.Context, title string, amountCents int64, dueDate time.Time) error
+	Expire(ctx context.Context) error
+}
+
+type mercadoPagoIssuedPreference struct {
+	client            *payments.MercadoPagoClient
+	preferenceID      string
+	externalReference string
+	checkoutKey       string
+}
+
+func (p mercadoPagoIssuedPreference) Update(ctx context.Context, title string, amountCents int64, dueDate time.Time) error {
+	return p.client.UpdatePreferenceAmount(ctx, p.preferenceID, p.externalReference, p.checkoutKey, title, amountCents, dueDate)
+}
+
+func (p mercadoPagoIssuedPreference) Expire(ctx context.Context) error {
+	return p.client.ExpirePreference(ctx, p.preferenceID, p.externalReference, p.checkoutKey)
 }
 
 func canManagePendingCompanyPayment(payment repo.Payment) bool {
@@ -922,6 +981,20 @@ func clearUnlinkedInvoiceCheckout(ctx iris.Context, payment repo.Payment) error 
 		}
 		if found {
 			return &checkoutHTTPError{status: iris.StatusConflict, message: "o checkout PIX antigo ainda pode ser pago e não pode ser cancelado pelo provedor"}
+		}
+	case repo.PaymentProviderAsaas:
+		if !asaasConfigured() {
+			return &checkoutHTTPError{status: iris.StatusServiceUnavailable, message: "Asaas não configurado"}
+		}
+		client := newAsaasClient(paymentProviderRequestTimeout)
+		links, err := client.FindPaymentLinks(ctx.Request().Context(), payment.Id, key)
+		if err != nil {
+			return &checkoutHTTPError{status: iris.StatusBadGateway, message: "não foi possível verificar o link antigo no Asaas"}
+		}
+		for _, link := range links {
+			if err := client.DeletePaymentLink(ctx.Request().Context(), link.ID, link.ExternalReference); err != nil {
+				return &checkoutHTTPError{status: iris.StatusBadGateway, message: "não foi possível desativar o link antigo no Asaas"}
+			}
 		}
 	default:
 		return &checkoutHTTPError{status: iris.StatusUnprocessableEntity, message: "provedor de pagamento inválido"}

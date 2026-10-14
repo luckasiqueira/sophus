@@ -40,7 +40,7 @@ func UpdateCompanyAddons(ctx iris.Context) {
 	if !ok {
 		return
 	}
-	if updateCompanyAddons(ctx, agent.CompanyId, "/settings#settings-billing") {
+	if updateCompanyAddons(ctx, agent.CompanyId, checkoutRequest{returnPath: "/settings#settings-billing", awaitAsaasMethod: true}) {
 		recordCompanyAction(ctx, agent, "update_addons", "company", strconv.Itoa(agent.CompanyId))
 	}
 }
@@ -54,13 +54,13 @@ func UpdateSaaSCompanyAddons(ctx iris.Context) {
 		writeJSONError(ctx, 400, "empresa inválida")
 		return
 	}
-	if updateCompanyAddons(ctx, id, "/") {
+	if updateCompanyAddons(ctx, id, checkoutRequest{returnPath: "/"}) {
 		if err := repo.RecordAuditEvent(repo.AuditEvent{CompanyID: &id, ActorID: &admin.Id, ActorEmail: admin.Email, ActorType: "platform", Action: "update_addons", TargetType: "company", TargetID: strconv.Itoa(id), IPAddress: ctx.RemoteAddr()}); err != nil {
 			ctx.Application().Logger().Errorf("addon management audit failed: company=%d error=%v", id, err)
 		}
 	}
 }
-func updateCompanyAddons(ctx iris.Context, id int, returnPath string) bool {
+func updateCompanyAddons(ctx iris.Context, id int, request checkoutRequest) bool {
 	var input struct {
 		ExtraConnections   *int  `json:"extraConnections"`
 		ExtraAgents        *int  `json:"extraAgents"`
@@ -96,7 +96,7 @@ func updateCompanyAddons(ctx iris.Context, id int, returnPath string) bool {
 		return false
 	}
 	if payment.Status != repo.PaymentStatusPaid {
-		payment, err = createPaymentCheckout(ctx, id, returnPath)
+		payment, err = createPaymentCheckoutFor(ctx, id, request)
 		if err != nil {
 			writeCheckoutError(ctx, err)
 			return false

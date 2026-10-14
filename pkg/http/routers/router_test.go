@@ -32,7 +32,7 @@ func TestEveryRouteUsesExpectedAuthenticationMiddleware(t *testing.T) {
 			assertHasMiddleware(t, route.Method, route.Path, handlerNames, "AuthPlatform")
 		case route.Path == "/login" || route.Path == "/login/2fa" || route.Path == "/dologin" || route.Path == "/setup" || route.Path == "/logout" ||
 			route.Path == "/billing" || strings.HasPrefix(route.Path, "/billing/api/") ||
-			route.Path == "/payments/mercado-pago/webhook" || route.Path == "/payments/abacatepay/webhook" ||
+			route.Path == "/payments/mercado-pago/webhook" || route.Path == "/payments/abacatepay/webhook" || route.Path == "/payments/asaas/webhook" ||
 			strings.HasPrefix(route.Path, "/integrations/whatsapp/") || strings.HasPrefix(route.Path, "/media-public/") || strings.HasPrefix(route.Path, "/logos/"):
 			assertNoAuthMiddleware(t, route.Method, route.Path, handlerNames)
 		case strings.HasPrefix(route.Path, "/webhook/"):

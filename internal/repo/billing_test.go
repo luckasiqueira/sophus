@@ -66,6 +66,38 @@ func TestMapAbacatePayPaymentStatus(t *testing.T) {
 	}
 }
 
+func TestMapAsaasPaymentStatus(t *testing.T) {
+	tests := []struct {
+		providerStatus string
+		want           string
+	}{
+		{providerStatus: "PENDING", want: PaymentStatusPending},
+		{providerStatus: "OVERDUE", want: PaymentStatusPending},
+		{providerStatus: "AWAITING_RISK_ANALYSIS", want: PaymentStatusProcessing},
+		{providerStatus: "CHARGEBACK_DISPUTE", want: PaymentStatusProcessing},
+		{providerStatus: " received ", want: PaymentStatusPaid},
+		{providerStatus: "CONFIRMED", want: PaymentStatusPaid},
+		{providerStatus: "RECEIVED_IN_CASH", want: PaymentStatusPaid},
+		{providerStatus: "REFUNDED", want: PaymentStatusRefunded},
+	}
+
+	for _, test := range tests {
+		t.Run(test.providerStatus, func(t *testing.T) {
+			got, err := MapAsaasPaymentStatus(test.providerStatus)
+			if err != nil {
+				t.Fatalf("MapAsaasPaymentStatus(%q) returned error: %v", test.providerStatus, err)
+			}
+			if got != test.want {
+				t.Fatalf("MapAsaasPaymentStatus(%q) = %q, want %q", test.providerStatus, got, test.want)
+			}
+		})
+	}
+
+	if _, err := MapAsaasPaymentStatus("unknown"); !errors.Is(err, ErrUnknownAsaasStatus) {
+		t.Fatalf("unknown status error = %v, want %v", err, ErrUnknownAsaasStatus)
+	}
+}
+
 func TestAdvanceSubscriptionPeriodEnd(t *testing.T) {
 	currentEnd := time.Date(2026, time.August, 31, 12, 0, 0, 0, time.UTC)
 	paidEarly := time.Date(2026, time.August, 15, 12, 0, 0, 0, time.UTC)
