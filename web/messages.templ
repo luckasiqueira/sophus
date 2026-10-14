@@ -248,6 +248,16 @@ templ conversationListItems(conversations []repo.Conversation, tab string, selec
                                 if conversation.Status == repo.ConversationStatusRunning {
                                     <span class="mt-1 inline-flex items-center gap-1 rounded-full bg-purple-100 px-1.5 py-0.5 text-[9px] font-semibold text-purple-700"><i class="fas fa-diagram-project text-[8px]"></i>Flow em execução</span>
                                 }
+								if len(conversation.Tags) > 0 {
+									<div class="mt-1.5 flex min-w-0 items-center gap-1 overflow-hidden" title={ conversationTagsLabel(conversation) } aria-label={ conversationTagsLabel(conversation) } data-conversation-tags>
+										for _, tag := range conversationCardTags(conversation) {
+											<span class={ "inline-flex min-w-0 max-w-[9rem] items-center gap-1 rounded-md px-1.5 py-0.5 text-[10px] font-semibold leading-3", tagColorStyle(tag.Color).Chip }><span class={ "h-1.5 w-1.5 shrink-0 rounded-full", tagColorStyle(tag.Color).Dot } aria-hidden="true"></span><span class="truncate">{ tag.Name }</span></span>
+										}
+										if conversationHiddenTagCount(conversation) > 0 {
+											<span class="shrink-0 rounded-md bg-stone-100 px-1.5 py-0.5 text-[10px] font-semibold leading-3 text-stone-600" title={ conversationHiddenTagsLabel(conversation) }>+{ fmt.Sprint(conversationHiddenTagCount(conversation)) }</span>
+										}
+									</div>
+								}
                             </div>
                         </div>
                     </a>

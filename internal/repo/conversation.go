@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/lib/pq"
 )
 
 var ErrInvalidConversationTransferTarget = errors.New("invalid conversation transfer target")
@@ -29,6 +30,7 @@ type Conversation struct {
 	AgentName            string
 	DepartmentName       string
 	DepartmentColor      string
+	Tags                 []ConversationTag
 	LastContactMessage   string
 	LastContactMediaType string
 	LastContactMessageAt time.Time
@@ -39,6 +41,11 @@ type Conversation struct {
 	UpdatedAt            time.Time
 	Timezone             string
 	CanEditMessages      bool `json:"-"`
+}
+
+type ConversationTag struct {
+	Name  string
+	Color string
 }
 
 type ConversationScopeCounts struct {
@@ -141,7 +148,8 @@ func conversationListQuery(tab string) string {
 		ct.id, ct.name, ct.number, ct.email, ct."companyId", COALESCE(ct.jid, ''), COALESCE(ct.lid, ''), COALESCE(ct."isGroup", false), COALESCE(ct."isBlocked", false),
 		COALESCE(owner.name, ''), COALESCE(d.name, ''), COALESCE(d.color, '#E7E5E4'),
 		COALESCE(last_contact.text, ''), COALESCE(last_contact."mediaType", ''),
-		COALESCE(last_contact."createdAt", cv."updatedAt"), COALESCE(unread.count, 0),COALESCE(last_contact."isFromMe",false), cv.protocol
+		COALESCE(last_contact."createdAt", cv."updatedAt"), COALESCE(unread.count, 0),COALESCE(last_contact."isFromMe",false), cv.protocol,
+		COALESCE(contact_tags.names, '{}'), COALESCE(contact_tags.colors, '{}')
 		FROM conversations cv
 		INNER JOIN contacts ct ON ct.id = cv."contactId" AND ct."companyId" = $1
 		LEFT JOIN agents owner ON owner.id = cv."agentId"
@@ -158,6 +166,11 @@ func conversationListQuery(tab string) string {
 			WHERE unread_message."conversationId" = cv.id
 			AND unread_message."isFromMe" = false AND unread_message."isRead" = false AND unread_message."isDeleted" = false
 		) unread ON true
+		LEFT JOIN LATERAL (
+			SELECT array_agg(tag.name ORDER BY lower(tag.name)) AS names, array_agg(tag.color ORDER BY lower(tag.name)) AS colors
+			FROM contact_tag_assignments assignment JOIN company_tags tag ON tag.id = assignment."tagId"
+			WHERE assignment."contactId" = ct.id AND tag."companyId" = $1
+		) contact_tags ON true
 		WHERE cv."companyId" = $1 AND (` + statusFilter + `)
 		AND COALESCE(ct."isGroup", false) = $4
 		AND ($2 OR cv."agentId" = $3
@@ -175,6 +188,7 @@ func GetConversationsByAgent(agent Agent, tab string, groups bool) ([]Conversati
 	defer rows.Close()
 	for rows.Next() {
 		var conversation Conversation
+		var tagNames, tagColors pq.StringArray
 		if err := rows.Scan(&conversation.Id,
 			&conversation.Status,
 			&conversation.Contact.Id,
@@ -202,8 +216,17 @@ func GetConversationsByAgent(agent Agent, tab string, groups bool) ([]Conversati
 			&conversation.UnreadCount,
 			&conversation.LastMessageFromMe,
 			&conversation.Protocol,
+			&tagNames,
+			&tagColors,
 		); err != nil {
 			return nil, err
+		}
+		for index, name := range tagNames {
+			color := DefaultContactTagColor
+			if index < len(tagColors) {
+				color = tagColors[index]
+			}
+			conversation.Tags = append(conversation.Tags, ConversationTag{Name: name, Color: color})
 		}
 		conversations = append(conversations, conversation)
 	}

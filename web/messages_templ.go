@@ -206,7 +206,7 @@ func messagesDefault(conversations []repo.Conversation, tab, scope string, count
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 3, "<script>\r\n\t\t\t(function () {\r\n\t\t\t\tfunction openContactSearch() { if (window.openConversationPicker) window.openConversationPicker({ query: document.getElementById('contact-global-search').value.trim() }); }\r\n\t\t\t\tdocument.getElementById('new-conversation-sidebar').onclick = () => window.openConversationPicker && window.openConversationPicker({});\r\n\t\t\t\tdocument.getElementById('contact-global-search-button').onclick = openContactSearch;\n\t\t\t\tdocument.getElementById('contact-global-search').addEventListener('keydown', event => { if (event.key === 'Enter') { event.preventDefault(); openContactSearch(); } });\n\t\t\t\tdocument.getElementById('conversation-navigation').addEventListener('click', async event => { const button = event.target.closest('[data-conversation-ignore-url]'); if (!button || button.disabled) return; event.preventDefault(); const confirmed = await window.confirmAction('Encerrar conversa', 'Esta conversa será encerrada e removida da fila de atendimentos pendentes.', { eyebrow: 'Encerrar atendimento', label: 'Encerrar conversa', icon: 'fa-comment-slash' }); if (!confirmed) return; button.disabled = true; try { const response = await fetch(button.dataset.conversationIgnoreUrl, { method: 'POST', credentials: 'same-origin', headers: { Accept: 'text/html' } }); if (!response.ok) throw new Error(); window.refreshConversationSidebar?.(); } catch (_) { window.showAppNotice?.('Não foi possível encerrar', 'Tente novamente em instantes.', true); } finally { if (button.isConnected) button.disabled = false; } });\n\t\t\t})();\r\n\t\t</script></div>")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 3, "<script>\r\n\t\t\t(function () {\r\n\t\t\t\tfunction openContactSearch() { if (window.openConversationPicker) window.openConversationPicker({ query: document.getElementById('contact-global-search').value.trim() }); }\r\n\t\t\t\tdocument.getElementById('new-conversation-sidebar').onclick = () => window.openConversationPicker && window.openConversationPicker({});\r\n\t\t\t\tdocument.getElementById('contact-global-search-button').onclick = openContactSearch;\r\n\t\t\t\tdocument.getElementById('contact-global-search').addEventListener('keydown', event => { if (event.key === 'Enter') { event.preventDefault(); openContactSearch(); } });\r\n\t\t\t\tdocument.getElementById('conversation-navigation').addEventListener('click', async event => { const button = event.target.closest('[data-conversation-ignore-url]'); if (!button || button.disabled) return; event.preventDefault(); const confirmed = await window.confirmAction('Encerrar conversa', 'Esta conversa será encerrada e removida da fila de atendimentos pendentes.', { eyebrow: 'Encerrar atendimento', label: 'Encerrar conversa', icon: 'fa-comment-slash' }); if (!confirmed) return; button.disabled = true; try { const response = await fetch(button.dataset.conversationIgnoreUrl, { method: 'POST', credentials: 'same-origin', headers: { Accept: 'text/html' } }); if (!response.ok) throw new Error(); window.refreshConversationSidebar?.(); } catch (_) { window.showAppNotice?.('Não foi possível encerrar', 'Tente novamente em instantes.', true); } finally { if (button.isConnected) button.disabled = false; } });\r\n\t\t\t})();\r\n\t\t</script></div>")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
@@ -1103,59 +1103,186 @@ func conversationListItems(conversations []repo.Conversation, tab string, select
 				return templ_7745c5c3_Err
 			}
 			if conversation.Status == repo.ConversationStatusRunning {
-				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 73, "<span class=\"mt-1 inline-flex items-center gap-1 rounded-full bg-purple-100 px-1.5 py-0.5 text-[9px] font-semibold text-purple-700\"><i class=\"fas fa-diagram-project text-[8px]\"></i>Flow em execução</span>")
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 73, "<span class=\"mt-1 inline-flex items-center gap-1 rounded-full bg-purple-100 px-1.5 py-0.5 text-[9px] font-semibold text-purple-700\"><i class=\"fas fa-diagram-project text-[8px]\"></i>Flow em execução</span> ")
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 74, "</div></div></a> ")
-			if templ_7745c5c3_Err != nil {
-				return templ_7745c5c3_Err
-			}
-			if tab == "pending" {
-				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 75, "<div class=\"absolute bottom-0 right-2.5 z-10 flex translate-y-1/2 gap-1.5\"><button type=\"button\" data-conversation-ignore-url=\"")
+			if len(conversation.Tags) > 0 {
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 74, "<div class=\"mt-1.5 flex min-w-0 items-center gap-1 overflow-hidden\" title=\"")
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
 				var templ_7745c5c3_Var64 string
-				templ_7745c5c3_Var64, templ_7745c5c3_Err = templ.ResolveAttributeValue(fmt.Sprintf("/messages/%s/ignore", conversation.URL.String()))
+				templ_7745c5c3_Var64, templ_7745c5c3_Err = templ.ResolveAttributeValue(conversationTagsLabel(conversation))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/messages.templ`, Line: 256, Col: 121}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/messages.templ`, Line: 252, Col: 120}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var64)
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
-				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 76, "\" title=\"Encerrar conversa\" aria-label=\"Encerrar conversa\" class=\"grid h-8 w-8 place-items-center rounded-full border border-red-200 bg-white text-red-600 shadow-sm transition hover:border-red-300 hover:bg-red-50 focus:outline-none focus:ring-2 focus:ring-red-200 disabled:cursor-wait disabled:opacity-60\"><i class=\"fas fa-times text-[11px]\"></i></button> <button type=\"button\" hx-post=\"")
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 75, "\" aria-label=\"")
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
 				var templ_7745c5c3_Var65 string
-				templ_7745c5c3_Var65, templ_7745c5c3_Err = templ.ResolveAttributeValue(fmt.Sprintf("/messages/%s/accept", conversation.URL.String()))
+				templ_7745c5c3_Var65, templ_7745c5c3_Err = templ.ResolveAttributeValue(conversationTagsLabel(conversation))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/messages.templ`, Line: 259, Col: 121}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/messages.templ`, Line: 252, Col: 171}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var65)
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
-				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 77, "\" hx-swap=\"none\" title=\"Aceitar conversa\" aria-label=\"Aceitar conversa\" class=\"grid h-8 w-8 place-items-center rounded-full bg-purple-600 text-white shadow-sm transition hover:bg-purple-700 focus:outline-none focus:ring-2 focus:ring-purple-300\"><i class=\"fas fa-check text-[11px]\"></i></button></div>")
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 76, "\" data-conversation-tags>")
+				if templ_7745c5c3_Err != nil {
+					return templ_7745c5c3_Err
+				}
+				for _, tag := range conversationCardTags(conversation) {
+					var templ_7745c5c3_Var66 = []any{"inline-flex min-w-0 max-w-[9rem] items-center gap-1 rounded-md px-1.5 py-0.5 text-[10px] font-semibold leading-3", tagColorStyle(tag.Color).Chip}
+					templ_7745c5c3_Err = templ.RenderCSSItems(ctx, templ_7745c5c3_Buffer, templ_7745c5c3_Var66...)
+					if templ_7745c5c3_Err != nil {
+						return templ_7745c5c3_Err
+					}
+					templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 77, "<span class=\"")
+					if templ_7745c5c3_Err != nil {
+						return templ_7745c5c3_Err
+					}
+					var templ_7745c5c3_Var67 string
+					templ_7745c5c3_Var67, templ_7745c5c3_Err = templ.ResolveAttributeValue(templ.CSSClasses(templ_7745c5c3_Var66).String())
+					if templ_7745c5c3_Err != nil {
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/messages.templ`, Line: 1, Col: 0}
+					}
+					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var67)
+					if templ_7745c5c3_Err != nil {
+						return templ_7745c5c3_Err
+					}
+					templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 78, "\">")
+					if templ_7745c5c3_Err != nil {
+						return templ_7745c5c3_Err
+					}
+					var templ_7745c5c3_Var68 = []any{"h-1.5 w-1.5 shrink-0 rounded-full", tagColorStyle(tag.Color).Dot}
+					templ_7745c5c3_Err = templ.RenderCSSItems(ctx, templ_7745c5c3_Buffer, templ_7745c5c3_Var68...)
+					if templ_7745c5c3_Err != nil {
+						return templ_7745c5c3_Err
+					}
+					templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 79, "<span class=\"")
+					if templ_7745c5c3_Err != nil {
+						return templ_7745c5c3_Err
+					}
+					var templ_7745c5c3_Var69 string
+					templ_7745c5c3_Var69, templ_7745c5c3_Err = templ.ResolveAttributeValue(templ.CSSClasses(templ_7745c5c3_Var68).String())
+					if templ_7745c5c3_Err != nil {
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/messages.templ`, Line: 1, Col: 0}
+					}
+					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var69)
+					if templ_7745c5c3_Err != nil {
+						return templ_7745c5c3_Err
+					}
+					templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 80, "\" aria-hidden=\"true\"></span><span class=\"truncate\">")
+					if templ_7745c5c3_Err != nil {
+						return templ_7745c5c3_Err
+					}
+					var templ_7745c5c3_Var70 string
+					templ_7745c5c3_Var70, templ_7745c5c3_Err = templ.JoinStringErrs(tag.Name)
+					if templ_7745c5c3_Err != nil {
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/messages.templ`, Line: 254, Col: 314}
+					}
+					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var70))
+					if templ_7745c5c3_Err != nil {
+						return templ_7745c5c3_Err
+					}
+					templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 81, "</span></span> ")
+					if templ_7745c5c3_Err != nil {
+						return templ_7745c5c3_Err
+					}
+				}
+				if conversationHiddenTagCount(conversation) > 0 {
+					templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 82, "<span class=\"shrink-0 rounded-md bg-stone-100 px-1.5 py-0.5 text-[10px] font-semibold leading-3 text-stone-600\" title=\"")
+					if templ_7745c5c3_Err != nil {
+						return templ_7745c5c3_Err
+					}
+					var templ_7745c5c3_Var71 string
+					templ_7745c5c3_Var71, templ_7745c5c3_Err = templ.ResolveAttributeValue(conversationHiddenTagsLabel(conversation))
+					if templ_7745c5c3_Err != nil {
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/messages.templ`, Line: 257, Col: 172}
+					}
+					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var71)
+					if templ_7745c5c3_Err != nil {
+						return templ_7745c5c3_Err
+					}
+					templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 83, "\">+")
+					if templ_7745c5c3_Err != nil {
+						return templ_7745c5c3_Err
+					}
+					var templ_7745c5c3_Var72 string
+					templ_7745c5c3_Var72, templ_7745c5c3_Err = templ.JoinStringErrs(fmt.Sprint(conversationHiddenTagCount(conversation)))
+					if templ_7745c5c3_Err != nil {
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/messages.templ`, Line: 257, Col: 230}
+					}
+					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var72))
+					if templ_7745c5c3_Err != nil {
+						return templ_7745c5c3_Err
+					}
+					templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 84, "</span>")
+					if templ_7745c5c3_Err != nil {
+						return templ_7745c5c3_Err
+					}
+				}
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 85, "</div>")
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 78, "</div>")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 86, "</div></div></a> ")
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+			if tab == "pending" {
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 87, "<div class=\"absolute bottom-0 right-2.5 z-10 flex translate-y-1/2 gap-1.5\"><button type=\"button\" data-conversation-ignore-url=\"")
+				if templ_7745c5c3_Err != nil {
+					return templ_7745c5c3_Err
+				}
+				var templ_7745c5c3_Var73 string
+				templ_7745c5c3_Var73, templ_7745c5c3_Err = templ.ResolveAttributeValue(fmt.Sprintf("/messages/%s/ignore", conversation.URL.String()))
+				if templ_7745c5c3_Err != nil {
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/messages.templ`, Line: 266, Col: 121}
+				}
+				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var73)
+				if templ_7745c5c3_Err != nil {
+					return templ_7745c5c3_Err
+				}
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 88, "\" title=\"Encerrar conversa\" aria-label=\"Encerrar conversa\" class=\"grid h-8 w-8 place-items-center rounded-full border border-red-200 bg-white text-red-600 shadow-sm transition hover:border-red-300 hover:bg-red-50 focus:outline-none focus:ring-2 focus:ring-red-200 disabled:cursor-wait disabled:opacity-60\"><i class=\"fas fa-times text-[11px]\"></i></button> <button type=\"button\" hx-post=\"")
+				if templ_7745c5c3_Err != nil {
+					return templ_7745c5c3_Err
+				}
+				var templ_7745c5c3_Var74 string
+				templ_7745c5c3_Var74, templ_7745c5c3_Err = templ.ResolveAttributeValue(fmt.Sprintf("/messages/%s/accept", conversation.URL.String()))
+				if templ_7745c5c3_Err != nil {
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/messages.templ`, Line: 269, Col: 121}
+				}
+				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var74)
+				if templ_7745c5c3_Err != nil {
+					return templ_7745c5c3_Err
+				}
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 89, "\" hx-swap=\"none\" title=\"Aceitar conversa\" aria-label=\"Aceitar conversa\" class=\"grid h-8 w-8 place-items-center rounded-full bg-purple-600 text-white shadow-sm transition hover:bg-purple-700 focus:outline-none focus:ring-2 focus:ring-purple-300\"><i class=\"fas fa-check text-[11px]\"></i></button></div>")
+				if templ_7745c5c3_Err != nil {
+					return templ_7745c5c3_Err
+				}
+			}
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 90, "</div>")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
 		}
 		if len(conversations) == 0 {
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 79, "<div class=\"text-center text-sm text-gray-400 py-10\">Nenhuma conversa nesta área.</div>")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 91, "<div class=\"text-center text-sm text-gray-400 py-10\">Nenhuma conversa nesta área.</div>")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 80, "</div>")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 92, "</div>")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}

@@ -118,7 +118,8 @@ func CreateContactTag(ctx iris.Context) {
 		return
 	}
 	var body struct {
-		Name string `json:"name"`
+		Name  string `json:"name"`
+		Color string `json:"color"`
 	}
 	if err := ctx.ReadJSON(&body); err != nil {
 		writeJSONError(ctx, iris.StatusBadRequest, "JSON inválido")
@@ -129,7 +130,11 @@ func CreateContactTag(ctx iris.Context) {
 		writeJSONError(ctx, iris.StatusBadRequest, "a tag deve ter entre 1 e 80 caracteres")
 		return
 	}
-	tag, err := repo.CreateCompanyTag(agent.CompanyId, body.Name)
+	if body.Color != "" && !repo.ValidContactTagColor(body.Color) {
+		writeJSONError(ctx, iris.StatusBadRequest, "cor da tag inválida")
+		return
+	}
+	tag, err := repo.CreateCompanyTag(agent.CompanyId, body.Name, body.Color)
 	if err != nil {
 		log.Printf("contact tag create failed: company=%d error=%v", agent.CompanyId, err)
 		if isUniqueViolation(err) {
@@ -155,7 +160,8 @@ func RenameContactTag(ctx iris.Context) {
 		return
 	}
 	var body struct {
-		Name string `json:"name"`
+		Name  string `json:"name"`
+		Color string `json:"color"`
 	}
 	if err := ctx.ReadJSON(&body); err != nil {
 		writeJSONError(ctx, iris.StatusBadRequest, "JSON inválido")
@@ -166,7 +172,11 @@ func RenameContactTag(ctx iris.Context) {
 		writeJSONError(ctx, iris.StatusBadRequest, "a tag deve ter entre 1 e 80 caracteres")
 		return
 	}
-	tag, err := repo.RenameCompanyTag(agent.CompanyId, tagID, body.Name)
+	if body.Color != "" && !repo.ValidContactTagColor(body.Color) {
+		writeJSONError(ctx, iris.StatusBadRequest, "cor da tag inválida")
+		return
+	}
+	tag, err := repo.UpdateCompanyTag(agent.CompanyId, tagID, body.Name, body.Color)
 	if err != nil {
 		log.Printf("contact tag rename failed: company=%d tag=%d error=%v", agent.CompanyId, tagID, err)
 		if errors.Is(err, repo.ErrTagInUseByFlow) {
@@ -361,6 +371,15 @@ func ListCompanyContacts(ctx iris.Context) {
 		}
 		connectionID = &value
 	}
+	var tagID *int64
+	if raw := strings.TrimSpace(ctx.URLParam("tagId")); raw != "" {
+		value, err := strconv.ParseInt(raw, 10, 64)
+		if err != nil || value <= 0 {
+			writeJSONError(ctx, iris.StatusBadRequest, "tag inválida")
+			return
+		}
+		tagID = &value
+	}
 	page := 1
 	if raw := strings.TrimSpace(ctx.URLParam("page")); raw != "" {
 		page, err = strconv.Atoi(raw)
@@ -369,7 +388,7 @@ func ListCompanyContacts(ctx iris.Context) {
 			return
 		}
 	}
-	contacts, err := repo.SearchCompanyContacts(agent.CompanyId, connectionID, query, page, 50)
+	contacts, err := repo.SearchCompanyContacts(agent.CompanyId, connectionID, tagID, query, page, 50)
 	if err != nil {
 		writeJSONError(ctx, iris.StatusInternalServerError, "não foi possível pesquisar os contatos")
 		return

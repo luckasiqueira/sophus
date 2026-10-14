@@ -8,16 +8,32 @@ import (
 
 var ErrTagInUseByFlow = errors.New("tag is used by a flow")
 
+const DefaultContactTagColor = "purple"
+
+// ContactTagColors mirrors company_tags_color_check; the web layer maps each
+// key to its chip classes.
+var ContactTagColors = []string{"purple", "blue", "teal", "green", "amber", "orange", "red", "pink", "gray"}
+
+func ValidContactTagColor(color string) bool {
+	for _, candidate := range ContactTagColors {
+		if candidate == color {
+			return true
+		}
+	}
+	return false
+}
+
 type CompanyTag struct {
 	Id           int64  `json:"id"`
 	Name         string `json:"name"`
+	Color        string `json:"color"`
 	ContactCount int    `json:"contactCount"`
 }
 
 func ListCompanyTags(companyID int) ([]CompanyTag, error) {
-	rows, err := db.Query(`SELECT tag.id, tag.name, COUNT(DISTINCT assignment."contactId")
+	rows, err := db.Query(`SELECT tag.id, tag.name, tag.color, COUNT(DISTINCT assignment."contactId")
 		FROM company_tags tag LEFT JOIN contact_tag_assignments assignment ON assignment."tagId" = tag.id
-		WHERE tag."companyId" = $1 GROUP BY tag.id, tag.name ORDER BY lower(tag.name), tag.id`, companyID)
+		WHERE tag."companyId" = $1 GROUP BY tag.id, tag.name, tag.color ORDER BY lower(tag.name), tag.id`, companyID)
 	if err != nil {
 		return nil, err
 	}
@@ -25,7 +41,7 @@ func ListCompanyTags(companyID int) ([]CompanyTag, error) {
 	tags := []CompanyTag{}
 	for rows.Next() {
 		var tag CompanyTag
-		if err := rows.Scan(&tag.Id, &tag.Name, &tag.ContactCount); err != nil {
+		if err := rows.Scan(&tag.Id, &tag.Name, &tag.Color, &tag.ContactCount); err != nil {
 			return nil, err
 		}
 		tags = append(tags, tag)
@@ -33,15 +49,21 @@ func ListCompanyTags(companyID int) ([]CompanyTag, error) {
 	return tags, rows.Err()
 }
 
-func CreateCompanyTag(companyID int, name string) (CompanyTag, error) {
+func CreateCompanyTag(companyID int, name, color string) (CompanyTag, error) {
 	name = strings.TrimSpace(name)
+	if color == "" {
+		color = DefaultContactTagColor
+	}
 	var tag CompanyTag
-	err := db.QueryRow(`INSERT INTO company_tags ("companyId", name) VALUES ($1, $2)
-		RETURNING id, name, 0`, companyID, name).Scan(&tag.Id, &tag.Name, &tag.ContactCount)
+	err := db.QueryRow(`INSERT INTO company_tags ("companyId", name, color) VALUES ($1, $2, $3)
+		RETURNING id, name, color, 0`, companyID, name, color).Scan(&tag.Id, &tag.Name, &tag.Color, &tag.ContactCount)
 	return tag, err
 }
 
-func RenameCompanyTag(companyID int, tagID int64, name string) (CompanyTag, error) {
+// UpdateCompanyTag renames and recolors a tag. Flows reference tags by name,
+// so only an actual rename is blocked for tags used by a flow; an empty color
+// keeps the current one.
+func UpdateCompanyTag(companyID int, tagID int64, name, color string) (CompanyTag, error) {
 	name = strings.TrimSpace(name)
 	tx, err := db.Begin()
 	if err != nil {
@@ -52,23 +74,25 @@ func RenameCompanyTag(companyID int, tagID int64, name string) (CompanyTag, erro
 	if err := tx.QueryRow(`SELECT name FROM company_tags WHERE id = $1 AND "companyId" = $2 FOR UPDATE`, tagID, companyID).Scan(&oldName); err != nil {
 		return CompanyTag{}, err
 	}
-	var used bool
-	if err := tx.QueryRow(`SELECT EXISTS(SELECT 1 FROM chatbot_flows WHERE "companyId" = $1 AND "flowData"::text ILIKE '%' || $2 || '%')`, companyID, oldName).Scan(&used); err != nil {
-		return CompanyTag{}, err
+	if name != oldName {
+		var used bool
+		if err := tx.QueryRow(`SELECT EXISTS(SELECT 1 FROM chatbot_flows WHERE "companyId" = $1 AND "flowData"::text ILIKE '%' || $2 || '%')`, companyID, oldName).Scan(&used); err != nil {
+			return CompanyTag{}, err
+		}
+		if used {
+			return CompanyTag{}, ErrTagInUseByFlow
+		}
+		if _, err := tx.Exec(`UPDATE conversations cv SET tags = ARRAY(SELECT CASE WHEN lower(item) = lower($1) THEN $2 ELSE item END FROM unnest(cv.tags) item)
+			FROM connections co WHERE co.id = cv."connectionId" AND co."companyId" = $3`, oldName, name, companyID); err != nil {
+			return CompanyTag{}, err
+		}
 	}
-	if used {
-		return CompanyTag{}, ErrTagInUseByFlow
-	}
-	if _, err := tx.Exec(`UPDATE company_tags SET name = $1, "updatedAt" = now() WHERE id = $2`, name, tagID); err != nil {
-		return CompanyTag{}, err
-	}
-	if _, err := tx.Exec(`UPDATE conversations cv SET tags = ARRAY(SELECT CASE WHEN lower(item) = lower($1) THEN $2 ELSE item END FROM unnest(cv.tags) item)
-		FROM connections co WHERE co.id = cv."connectionId" AND co."companyId" = $3`, oldName, name, companyID); err != nil {
+	if _, err := tx.Exec(`UPDATE company_tags SET name = $1, color = COALESCE(NULLIF($2, ''), color), "updatedAt" = now() WHERE id = $3`, name, color, tagID); err != nil {
 		return CompanyTag{}, err
 	}
 	var tag CompanyTag
-	if err := tx.QueryRow(`SELECT tag.id, tag.name, COUNT(assignment."contactId") FROM company_tags tag
-		LEFT JOIN contact_tag_assignments assignment ON assignment."tagId" = tag.id WHERE tag.id = $1 GROUP BY tag.id`, tagID).Scan(&tag.Id, &tag.Name, &tag.ContactCount); err != nil {
+	if err := tx.QueryRow(`SELECT tag.id, tag.name, tag.color, COUNT(assignment."contactId") FROM company_tags tag
+		LEFT JOIN contact_tag_assignments assignment ON assignment."tagId" = tag.id WHERE tag.id = $1 GROUP BY tag.id`, tagID).Scan(&tag.Id, &tag.Name, &tag.Color, &tag.ContactCount); err != nil {
 		return CompanyTag{}, err
 	}
 	return tag, tx.Commit()

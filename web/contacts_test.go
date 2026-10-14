@@ -74,3 +74,45 @@ setTimeout(() => {
 }, 0);
 `)
 }
+
+func TestContactTagFilterAndTagContactList(t *testing.T) {
+	runControlDOMTest(t, Contacts(), `
+const assert = require('node:assert/strict');
+const { JSDOM } = require(process.env.ZUBLY_TEST_JSDOM);
+const dom = new JSDOM(require('node:fs').readFileSync(0, 'utf8'), {runScripts: 'outside-only', url: 'https://zubly.test/contacts'});
+const w = dom.window, d = w.document; w.HTMLElement.prototype.scrollIntoView = function () {};
+const vip = {id: 1, name: 'Ana', number: '5511911111111', tags: ['VIP'], tagIds: [7]};
+let requests = [], tags = [{id: 7, name: 'VIP', contactCount: 51}, {id: 8, name: 'Lead', contactCount: 0}];
+const response = (status, payload) => ({ok: status >= 200 && status < 300, status, text: async () => JSON.stringify(payload)});
+w.fetch = async url => {
+ requests.push(url);
+ if (url.endsWith('/contact-tags')) return response(200, {data: tags});
+ if (url.includes('/contacts?')) { const params = new URL(url, 'https://zubly.test').searchParams; const page = Number(params.get('page')); return response(200, {data: params.get('tagId') ? [Object.assign({}, vip, {id: page})] : [], page, pageSize: 50, total: params.get('tagId') ? 51 : 0}); }
+ return response(200, {data: []});
+};
+for (const script of d.querySelectorAll('script')) if (script.textContent.includes('window.contactRequest =') || script.textContent.includes('const contactsState =')) w.eval(script.textContent);
+const tick = () => new Promise(resolve => setTimeout(resolve, 0));
+const lastContacts = () => new URL(requests.filter(url => url.includes('/contacts?')).pop(), 'https://zubly.test').searchParams;
+(async () => {
+ await tick(); await tick();
+ const filter = d.getElementById('contacts-tag');
+ assert.deepEqual(Array.from(filter.options).map(option => option.textContent), ['Todas as tags', 'VIP', 'Lead']);
+ filter.value = '7'; filter.dispatchEvent(new w.Event('change')); await tick();
+ assert.equal(lastContacts().get('tagId'), '7'); assert.equal(lastContacts().get('page'), '1');
+ d.querySelector('[data-contacts-tab="tags"]').click();
+ assert.equal(d.querySelector('[data-tag-contacts-toggle="8"]').disabled, true, 'empty tag cannot be expanded');
+ d.querySelector('[data-tag-contacts-toggle="7"]').click(); await tick(); await tick();
+ assert.equal(d.querySelector('[data-tag-contacts-toggle="7"]').getAttribute('aria-expanded'), 'true');
+ assert.equal(d.querySelectorAll('#contact-tag-contacts-7 li').length, 1);
+ assert.ok(d.getElementById('contact-tag-contacts-7').textContent.includes('Mostrando 1 de 51'));
+ Array.from(d.querySelectorAll('#contact-tag-contacts-7 button')).find(button => button.textContent.includes('Carregar mais')).click(); await tick(); await tick();
+ assert.equal(lastContacts().get('page'), '2'); assert.equal(d.querySelectorAll('#contact-tag-contacts-7 li').length, 2);
+ filter.value = ''; Array.from(d.querySelectorAll('#contact-tag-contacts-7 button')).find(button => button.textContent.includes('Abrir na lista')).click(); await tick();
+ assert.equal(filter.value, '7'); assert.equal(d.getElementById('contacts-panel').classList.contains('hidden'), false); assert.equal(lastContacts().get('tagId'), '7');
+ tags = [{id: 8, name: 'Lead', contactCount: 0}]; await w.loadTags(); await tick();
+ assert.equal(filter.value, '', 'deleted tag must clear the filter'); assert.equal(lastContacts().get('tagId'), null);
+ assert.equal(d.getElementById('contact-tag-contacts-7'), null);
+ dom.window.close();
+})().catch(error => { console.error(error); process.exitCode = 1; dom.window.close(); });
+`)
+}

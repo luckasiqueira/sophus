@@ -23,6 +23,7 @@ type ContactSearchResult struct {
 	AvatarURL             string     `json:"avatarUrl"`
 	Tags                  []string   `json:"tags"`
 	TagIds                []int64    `json:"tagIds"`
+	TagColors             []string   `json:"tagColors"`
 	LatestConversationURL *uuid.UUID `json:"latestConversationURL"`
 	LatestStatus          string     `json:"latestStatus"`
 	IsGroup               bool       `json:"isGroup"`
@@ -67,7 +68,7 @@ func ListCompanyConnectionOptions(companyID int, connectedOnly bool) ([]Connecti
 	return options, rows.Err()
 }
 
-func SearchCompanyContacts(companyID int, connectionID *int, query string, page, pageSize int) (ContactSearchPage, error) {
+func SearchCompanyContacts(companyID int, connectionID *int, tagID *int64, query string, page, pageSize int) (ContactSearchPage, error) {
 	query = strings.TrimSpace(query)
 	if page < 1 {
 		page = 1
@@ -79,9 +80,13 @@ func SearchCompanyContacts(companyID int, connectionID *int, query string, page,
 	if connectionID != nil {
 		selectedConnection = *connectionID
 	}
+	var selectedTag any
+	if tagID != nil {
+		selectedTag = *tagID
+	}
 	result := ContactSearchPage{Data: []ContactSearchResult{}, Page: page, PageSize: pageSize}
 	rows, err := db.Query(`SELECT ct.id, ct.name, ct.number, ct.email, ct.company, COALESCE(latest."connectionId", 0), COALESCE(latest.connection_name, ''), COALESCE(latest.connection_status, ''), COALESCE(ct."avatarUrl", ''),
-		latest.url, COALESCE(latest.status, ''), COALESCE(contact_tags.tags, '{}'), COALESCE(contact_tags.tag_ids, '{}')
+		latest.url, COALESCE(latest.status, ''), COALESCE(contact_tags.tags, '{}'), COALESCE(contact_tags.tag_ids, '{}'), COALESCE(contact_tags.tag_colors, '{}')
 		, COALESCE(ct."isGroup", false), COUNT(*) OVER()
 		FROM contacts ct
 		LEFT JOIN LATERAL (
@@ -90,7 +95,8 @@ func SearchCompanyContacts(companyID int, connectionID *int, query string, page,
 			WHERE cv."contactId" = ct.id AND ($2::integer IS NULL OR cv."connectionId" = $2) ORDER BY cv.id DESC LIMIT 1
 		) latest ON true
 		LEFT JOIN LATERAL (
-			SELECT array_agg(tag.name ORDER BY lower(tag.name)) AS tags, array_agg(tag.id ORDER BY lower(tag.name)) AS tag_ids
+			SELECT array_agg(tag.name ORDER BY lower(tag.name)) AS tags, array_agg(tag.id ORDER BY lower(tag.name)) AS tag_ids,
+				array_agg(tag.color ORDER BY lower(tag.name)) AS tag_colors
 			FROM contact_tag_assignments assignment JOIN company_tags tag ON tag.id = assignment."tagId"
 			WHERE assignment."contactId" = ct.id AND tag."companyId" = ct."companyId"
 		) contact_tags ON true
@@ -100,7 +106,9 @@ func SearchCompanyContacts(companyID int, connectionID *int, query string, page,
 				OR (regexp_replace($3, '[^0-9]', '', 'g') <> '' AND regexp_replace(ct.number, '[^0-9]', '', 'g') LIKE '%' || regexp_replace($3, '[^0-9]', '', 'g') || '%')
 				OR EXISTS (SELECT 1 FROM contact_tag_assignments assignment JOIN company_tags tag ON tag.id = assignment."tagId"
 					WHERE assignment."contactId" = ct.id AND tag."companyId" = ct."companyId" AND tag.name ILIKE '%' || $3 || '%'))
-		ORDER BY COALESCE(ct."isGroup", false), lower(ct.name), ct.id LIMIT $4 OFFSET $5`, companyID, selectedConnection, query, pageSize, (page-1)*pageSize)
+			AND ($6::bigint IS NULL OR EXISTS (SELECT 1 FROM contact_tag_assignments assignment JOIN company_tags tag ON tag.id = assignment."tagId"
+				WHERE assignment."contactId" = ct.id AND tag.id = $6 AND tag."companyId" = ct."companyId"))
+		ORDER BY COALESCE(ct."isGroup", false), lower(ct.name), ct.id LIMIT $4 OFFSET $5`, companyID, selectedConnection, query, pageSize, (page-1)*pageSize, selectedTag)
 	if err != nil {
 		return result, err
 	}
@@ -110,13 +118,15 @@ func SearchCompanyContacts(companyID int, connectionID *int, query string, page,
 		var conversationURL uuid.NullUUID
 		var tags pq.StringArray
 		var tagIDs pq.Int64Array
+		var tagColors pq.StringArray
 		var total int
 		if err := rows.Scan(&contact.Id, &contact.Name, &contact.Number, &contact.Email, &contact.Company, &contact.ConnectionId,
-			&contact.ConnectionName, &contact.ConnectionStatus, &contact.AvatarURL, &conversationURL, &contact.LatestStatus, &tags, &tagIDs, &contact.IsGroup, &total); err != nil {
+			&contact.ConnectionName, &contact.ConnectionStatus, &contact.AvatarURL, &conversationURL, &contact.LatestStatus, &tags, &tagIDs, &tagColors, &contact.IsGroup, &total); err != nil {
 			return result, err
 		}
 		contact.Tags = []string(tags)
 		contact.TagIds = []int64(tagIDs)
+		contact.TagColors = []string(tagColors)
 		if conversationURL.Valid {
 			value := conversationURL.UUID
 			contact.LatestConversationURL = &value
