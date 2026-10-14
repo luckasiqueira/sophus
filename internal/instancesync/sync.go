@@ -87,7 +87,7 @@ func SyncAll() {
 		log.Printf("failed to list connections for status sync: %v", err)
 		return
 	}
-	syncConnections(connections)
+	syncConnections(repo.WithoutStressConnections(connections))
 }
 
 func SyncCompany(companyID int) {
@@ -98,7 +98,7 @@ func SyncCompany(companyID int) {
 		log.Printf("failed to list company connections for status sync: company=%d error=%v", companyID, err)
 		return
 	}
-	syncConnections(connections)
+	syncConnections(repo.WithoutStressConnections(connections))
 }
 
 func syncConnections(connections []repo.ConnectionEVO) {
@@ -132,7 +132,7 @@ func reconnectAll() {
 		log.Printf("failed to list connections for automatic reconnect: %v", err)
 		return
 	}
-	candidates := automaticReconnectCandidates(connections)
+	candidates := automaticReconnectCandidates(repo.WithoutStressConnections(connections))
 	if len(candidates) == 0 {
 		return
 	}

@@ -531,17 +531,26 @@ func AutoAssignConversation(conversationID, companyID int, strategy string) erro
 	if strategy == "random" {
 		orderBy = `random()`
 	}
-	query := `WITH selected AS (
+	query := autoAssignConversationSQL(orderBy)
+	_, err := db.Exec(query, companyID, conversationID)
+	return err
+}
+
+func autoAssignConversationSQL(orderBy string) string {
+	return `WITH selected AS (
 		SELECT agent.id FROM agents agent
 		LEFT JOIN conversations workload ON workload."agentId" = agent.id AND workload.status = 'open'
 		WHERE agent."companyId" = $1 AND agent."isActive" = true
+		-- Stress-test agents (idle, so always least loaded) only receive
+		-- conversations of simulated instances, and real agents never do.
+		AND EXISTS (SELECT 1 FROM stress_test_resources simulated WHERE simulated."resourceType" = 'agent' AND simulated."resourceId" = agent.id)
+			= EXISTS (SELECT 1 FROM conversations target JOIN stress_test_resources simulated
+				ON simulated."resourceType" = 'connection' AND simulated."resourceId" = target."connectionId" WHERE target.id = $2)
 		GROUP BY agent.id ORDER BY ` + orderBy + ` LIMIT 1
 	) UPDATE conversations conversation SET "agentId" = selected.id, status = 'open', "updatedAt" = now()
 	FROM selected, connections connection
 	WHERE conversation.id = $2 AND conversation."agentId" IS NULL
 		AND connection.id = conversation."connectionId" AND connection."companyId" = $1`
-	_, err := db.Exec(query, companyID, conversationID)
-	return err
 }
 
 func AcceptConversation(url uuid.UUID, agent Agent) (bool, error) {

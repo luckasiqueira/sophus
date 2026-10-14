@@ -30,6 +30,7 @@ func NextContactAvatarRefresh() (ContactAvatarRefresh, error) {
 		AND (contact."avatarUpdatedAt" IS NULL OR contact."avatarUpdatedAt" < contact."avatarRefreshRequestedAt")
 		AND COALESCE(contact."isGroup", false) = false
 		AND COALESCE(NULLIF(contact.jid, ''), NULLIF(contact.number, ''), NULLIF(contact.lid, '')) IS NOT NULL
+		AND contact.number NOT LIKE '`+StressNumberPrefix+`%'
 		ORDER BY contact."avatarRefreshRequestedAt", contact.id LIMIT 1`).Scan(
 		&refresh.ContactID, &refresh.Number, &refresh.ConnectionID, &refresh.RequestedAt, &refresh.CompanyID)
 	return refresh, err

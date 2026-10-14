@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"sophus/internal/repo"
+	"sophus/internal/stresstest"
 	"sophus/pkg/http/middlewares"
 	"sophus/utils/env"
 	"sophus/web"
@@ -37,7 +38,7 @@ func Login(ctx iris.Context) {
 
 func Home(ctx iris.Context) {
 	if _, err := middlewares.PlatformAdminIdentifier(ctx); err == nil {
-		ctx.RenderComponent(web.SaaSDashboard())
+		ctx.RenderComponent(web.SaaSDashboard(stresstest.Enabled()))
 		return
 	}
 	ctx.Redirect("/messages", iris.StatusFound)

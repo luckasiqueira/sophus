@@ -10,6 +10,7 @@ import (
 	"sophus/internal/billingworker"
 	"sophus/internal/flowengine"
 	"sophus/internal/instancesync"
+	"sophus/internal/monitor"
 	"sophus/internal/repo"
 	"sophus/internal/storageworker"
 	"sophus/pkg/http/controllers"
@@ -31,6 +32,7 @@ func main() {
 	backgroundCtx, stopBackground := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stopBackground()
 	instancesync.Start(backgroundCtx)
+	monitor.Start(backgroundCtx)
 	avatarworker.Start(backgroundCtx)
 	billingworker.Start(backgroundCtx)
 	if err := controllers.StartWebhookQueue(backgroundCtx); err != nil {

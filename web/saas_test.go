@@ -17,7 +17,7 @@ func TestSaaSPagesRender(t *testing.T) {
 		page    templ.Component
 	}{
 		{name: "setup", content: "Token de configuração", page: SaaSSetup()},
-		{name: "dashboard", content: "Carteira de empresas", page: SaaSDashboard()},
+		{name: "dashboard", content: "Carteira de empresas", page: SaaSDashboard(false)},
 		{name: "platform settings", content: "Cobrança global", page: SaaSSettings()},
 		{name: "company settings", content: "Configurações da empresa", page: CompanySettings()},
 		{name: "company overview", content: "Mensagens por período", page: CompanyOverview()},
@@ -44,7 +44,7 @@ func TestSaaSPagesRender(t *testing.T) {
 
 func TestSaaSSubscriptionControlsRender(t *testing.T) {
 	var dashboard strings.Builder
-	if err := SaaSDashboard().Render(context.Background(), &dashboard); err != nil {
+	if err := SaaSDashboard(false).Render(context.Background(), &dashboard); err != nil {
 		t.Fatalf("render dashboard: %v", err)
 	}
 	for _, expected := range []string{"Reativar assinatura", "Grace redemption", "submitSubscriptionAdjustment", "Despausar"} {
@@ -64,7 +64,7 @@ func TestSaaSSubscriptionControlsRender(t *testing.T) {
 
 func TestSaaSAddonConfigurationRenders(t *testing.T) {
 	var output strings.Builder
-	if err := SaaSDashboard().Render(context.Background(), &output); err != nil {
+	if err := SaaSDashboard(false).Render(context.Background(), &output); err != nil {
 		t.Fatal(err)
 	}
 	for _, expected := range []string{`id="plan-allow-addons"`, "Permite adicionais?", "Preços globais dos adicionais", `id="addon-connection-price"`, `id="addon-agent-price"`, `id="addon-storage-price"`, `id="addon-transcription-price"`, "R$ 14,90", "/management/api/addon-prices", "allowAddons: Boolean(plan.allowAddons)", "renderAddonPrices(data.addonPrices)"} {
@@ -76,7 +76,7 @@ func TestSaaSAddonConfigurationRenders(t *testing.T) {
 
 func TestSaaSInvoiceManagementRenders(t *testing.T) {
 	var dashboard strings.Builder
-	if err := SaaSDashboard().Render(context.Background(), &dashboard); err != nil {
+	if err := SaaSDashboard(false).Render(context.Background(), &dashboard); err != nil {
 		t.Fatalf("render dashboard: %v", err)
 	}
 	for _, expected := range []string{`data-saas-tab="invoices"`, "Faturas da plataforma", "invoice-edit-modal", "invoice-edit-amount", "Salvar alterações", "/management/api/payments", "'/credits'", "Créditos da empresa", "updateInvoice('update')", "Descartar cobrança", "payment.providerPreferenceId === payment.providerPaymentId", "updateInvoice(discardable ? 'discard' : 'cancel')", "Confirmar pagamento manualmente", "updateInvoice('confirm_paid')", "Cancelar fatura"} {
@@ -98,7 +98,7 @@ func TestPlanChangesWaitForPayment(t *testing.T) {
 	}
 
 	var dashboard strings.Builder
-	if err := SaaSDashboard().Render(context.Background(), &dashboard); err != nil {
+	if err := SaaSDashboard(false).Render(context.Background(), &dashboard); err != nil {
 		t.Fatalf("render dashboard: %v", err)
 	}
 	if !strings.Contains(dashboard.String(), "Cobrança criada; o plano atual permanece até o pagamento.") {

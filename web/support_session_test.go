@@ -8,7 +8,7 @@ import (
 
 func TestSupportUIIncludesEntryAndReturnActions(t *testing.T) {
 	var dashboard strings.Builder
-	if err := SaaSDashboard().Render(context.Background(), &dashboard); err != nil {
+	if err := SaaSDashboard(false).Render(context.Background(), &dashboard); err != nil {
 		t.Fatal(err)
 	}
 	for _, value := range []string{"Acessar como suporte", "/support'", "startCompanySupport"} {

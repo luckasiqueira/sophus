@@ -354,27 +354,37 @@ func processMessageWebhook(connection repo.ConnectionEVO, body []byte) error {
 			}
 			return nil
 		}
-		directAgent, directAgentErr := repo.GetDirectAIAgent(connection.Id, connection.CompanyID)
-		if directAgentErr != nil && !errors.Is(directAgentErr, sql.ErrNoRows) {
-			log.Printf("failed to check direct AI agent: company=%d connection=%d error=%v", connection.CompanyID, connection.Id, directAgentErr)
-		}
-		if directAgent.Id > 0 {
-			log.Printf("direct AI agent found: company=%d connection=%d conversation=%d agent=%d", connection.CompanyID, connection.Id, conversation.Id, directAgent.Id)
-		}
-		if shouldAutoAssignConversation(settings.AutoAssignEnabled, directAgent) {
-			if err := repo.AutoAssignConversation(conversation.Id, connection.CompanyID, settings.AutoAssignStrategy); err != nil {
-				log.Printf("failed to auto-assign conversation: company=%d conversation=%d error=%v", connection.CompanyID, conversation.Id, err)
+		if repo.IsStressConnection(connection.Id) {
+			// Simulated instances have no WhatsApp session: flows, AI agents and
+			// automatic replies would only fail against Evolution GO.
+			if settings.AutoAssignEnabled {
+				if err := repo.AutoAssignConversation(conversation.Id, connection.CompanyID, settings.AutoAssignStrategy); err != nil {
+					log.Printf("failed to auto-assign simulated conversation: company=%d conversation=%d error=%v", connection.CompanyID, conversation.Id, err)
+				}
 			}
-		}
-		inbound := repo.NormalizeFlowInboundMessage(msg)
-		flowengine.HandleIncomingMessageWithFlowMatching(conversation, connection, inbound.Text, msg.Data.Info.PushName, inbound.Type, settings.FlowsForAllContacts, "message:"+msg.Data.Info.ID)
-		if count, countErr := repo.ConversationMessageCount(conversation.Id); countErr == nil && count == 1 {
-			autoReply := strings.TrimSpace(settings.WelcomeMessage)
-			if settings.BusinessHoursEnabled && !companyWithinBusinessHours(connection.CompanyID, settings) {
-				autoReply = strings.TrimSpace(settings.OutsideHoursMessage)
+		} else {
+			directAgent, directAgentErr := repo.GetDirectAIAgent(connection.Id, connection.CompanyID)
+			if directAgentErr != nil && !errors.Is(directAgentErr, sql.ErrNoRows) {
+				log.Printf("failed to check direct AI agent: company=%d connection=%d error=%v", connection.CompanyID, connection.Id, directAgentErr)
 			}
-			if autoReply != "" {
-				go sendCompanyPolicyReply(connection, strings.Split(msg.Data.Info.Sender, "@")[0], autoReply)
+			if directAgent.Id > 0 {
+				log.Printf("direct AI agent found: company=%d connection=%d conversation=%d agent=%d", connection.CompanyID, connection.Id, conversation.Id, directAgent.Id)
+			}
+			if shouldAutoAssignConversation(settings.AutoAssignEnabled, directAgent) {
+				if err := repo.AutoAssignConversation(conversation.Id, connection.CompanyID, settings.AutoAssignStrategy); err != nil {
+					log.Printf("failed to auto-assign conversation: company=%d conversation=%d error=%v", connection.CompanyID, conversation.Id, err)
+				}
+			}
+			inbound := repo.NormalizeFlowInboundMessage(msg)
+			flowengine.HandleIncomingMessageWithFlowMatching(conversation, connection, inbound.Text, msg.Data.Info.PushName, inbound.Type, settings.FlowsForAllContacts, "message:"+msg.Data.Info.ID)
+			if count, countErr := repo.ConversationMessageCount(conversation.Id); countErr == nil && count == 1 {
+				autoReply := strings.TrimSpace(settings.WelcomeMessage)
+				if settings.BusinessHoursEnabled && !companyWithinBusinessHours(connection.CompanyID, settings) {
+					autoReply = strings.TrimSpace(settings.OutsideHoursMessage)
+				}
+				if autoReply != "" {
+					go sendCompanyPolicyReply(connection, strings.Split(msg.Data.Info.Sender, "@")[0], autoReply)
+				}
 			}
 		}
 	}

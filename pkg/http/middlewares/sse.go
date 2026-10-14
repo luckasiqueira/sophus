@@ -147,6 +147,33 @@ func streamSSE(ctx iris.Context, hub *sse.Hub, key, event string, agentID int) {
 	}
 }
 
+// OnlineAgentIDs lists agents with at least one open SSE stream in this
+// process. Every page of the agent app keeps one open, so this is the set of
+// agents currently using the platform. Support sessions (negative IDs) are
+// platform administrators and are left out.
+func OnlineAgentIDs() []int {
+	sseConnectionCounts.Lock()
+	defer sseConnectionCounts.Unlock()
+	ids := make([]int, 0, len(sseConnectionCounts.byAgent))
+	for id, count := range sseConnectionCounts.byAgent {
+		if id > 0 && count > 0 {
+			ids = append(ids, id)
+		}
+	}
+	return ids
+}
+
+// OpenSSEConnections counts every open SSE stream, support sessions included.
+func OpenSSEConnections() int {
+	sseConnectionCounts.Lock()
+	defer sseConnectionCounts.Unlock()
+	total := 0
+	for _, count := range sseConnectionCounts.byAgent {
+		total += count
+	}
+	return total
+}
+
 func acquireSSEConnection(agentID int) bool {
 	sseConnectionCounts.Lock()
 	defer sseConnectionCounts.Unlock()

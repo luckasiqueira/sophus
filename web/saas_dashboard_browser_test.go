@@ -18,7 +18,7 @@ func TestSaaSDashboardLoadsCompaniesPlansAndAddonsBrowser(t *testing.T) {
 		t.Fatal(err)
 	}
 	var html strings.Builder
-	if err := SaaSDashboard().Render(context.Background(), &html); err != nil {
+	if err := SaaSDashboard(false).Render(context.Background(), &html); err != nil {
 		t.Fatal(err)
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
@@ -31,7 +31,7 @@ try{const page=await browser.newPage();const errors=[];let overviewCalls=0;
 page.on('pageerror',error=>errors.push(error.stack||error.message));
 await page.route('**/*',async route=>{const url=new URL(route.request().url());
  if(url.hostname!=='ui.test')return route.fulfill({status:204});
- if(url.pathname==='/admin')return route.fulfill({contentType:'text/html',body:html.replace('</head>','<style>.hidden{display:none!important}.flex{display:flex}@media(min-width:1024px){.saas-shell{display:grid}#saas-sidebar-toggle{display:grid!important}}</style></head>')});
+ if(url.pathname==='/admin')return route.fulfill({contentType:'text/html',body:html.replace('</head>','<style>.hidden{display:none!important}.flex{display:flex}@media(min-width:1024px){.saas-shell{display:grid}#saas-sidebar-toggle{display:grid!important}#saas-sidebar-links{display:block}}</style></head>')});
  if(url.pathname==='/management/api/overview'){overviewCalls++;return route.fulfill({json:{data:{companies:[{id:1,name:'Empresa teste',email:'empresa@example.test',isActive:true,timezone:'UTC',currentPlanId:1,currentPlanName:'Plano teste',subscriptionStatus:'active',billingCycle:'monthly',priceCents:9900,currentPeriodEnd:'2026-11-01T00:00:00Z'}],plans:[{id:1,name:'Plano teste',description:'Plano com adicionais',monthlyPriceCents:9900,annualPriceCents:99000,agentLimit:3,connectionLimit:2,storageLimitGB:5,trialDays:7,isActive:true,allowAddons:true}],settings:{},addonPrices:{extraConnectionPriceCents:2000,extraAgentPriceCents:1000,extraStorageGBPriceCents:500,audioTranscriptionPriceCents:1490}}}});}
   if(url.pathname==='/management/api/addon-prices')return route.fulfill({json:{data:route.request().postDataJSON()}});
   if(url.pathname==='/management/api/payments')return route.fulfill({json:{data:[{companyName:'Empresa teste',payment:{id:10,companyId:1,status:'pending',provider:'mercado_pago',amountCents:9900,dueDate:'2026-11-01T00:00:00Z'}},{companyName:'Empresa teste',payment:{id:11,companyId:1,status:'pending',provider:'abacate_pay',amountCents:9900,dueDate:'2026-11-01T00:00:00Z',checkoutURL:'https://checkout.example.test/pix'}}]}});

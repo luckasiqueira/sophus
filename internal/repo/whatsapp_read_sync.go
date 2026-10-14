@@ -26,7 +26,8 @@ func GetPendingWhatsAppReads(conversationID, companyID int) (WhatsAppReadBatch, 
 	var group bool
 	err := db.QueryRow(`SELECT co.id,co."companyId",COALESCE(co."apiToken",''),co."connectionKey",COALESCE(ct.jid,''),COALESCE(ct.lid,''),ct.number,COALESCE(ct."isGroup",false)
 		FROM conversations cv JOIN contacts ct ON ct.id=cv."contactId" AND ct."companyId"=$2 JOIN connections co ON co.id=cv."connectionId" AND co."companyId"=$2
-		WHERE cv.id=$1 AND co.status='connected'`, conversationID, companyID).Scan(&batch.Connection.Id, &batch.Connection.CompanyID, &batch.Connection.APIToken, &batch.Connection.ConnectionKey, &jid, &lid, &number, &group)
+		WHERE cv.id=$1 AND co.status='connected'
+		AND NOT EXISTS(SELECT 1 FROM stress_test_resources simulated WHERE simulated."resourceType"='connection' AND simulated."resourceId"=co.id)`, conversationID, companyID).Scan(&batch.Connection.Id, &batch.Connection.CompanyID, &batch.Connection.APIToken, &batch.Connection.ConnectionKey, &jid, &lid, &number, &group)
 	if err != nil {
 		return batch, err
 	}

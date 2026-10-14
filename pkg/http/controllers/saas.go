@@ -15,6 +15,7 @@ import (
 
 	"sophus/internal/payments"
 	"sophus/internal/repo"
+	"sophus/internal/stresstest"
 	"sophus/pkg/http/middlewares"
 	"sophus/utils/env"
 	"sophus/web"
@@ -91,7 +92,7 @@ func SaaSDashboardPage(ctx iris.Context) {
 	if _, ok := requirePlatformAdmin(ctx); !ok {
 		return
 	}
-	ctx.RenderComponent(web.SaaSDashboard())
+	ctx.RenderComponent(web.SaaSDashboard(stresstest.Enabled()))
 }
 
 func SaaSOverview(ctx iris.Context) {
