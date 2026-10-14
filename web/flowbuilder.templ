@@ -71,6 +71,8 @@ templ FlowBuilder() {
         </div>
 		<div class="flex items-center gap-2">
 <button id="btn-templates" class="px-4 py-2.5 rounded-xl font-medium text-purple-700 bg-purple-50 hover:bg-purple-100 transition-all flex items-center gap-2"><i class="fas fa-layer-group"></i> Modelos de mensagem</button>
+		  <button id="btn-import-flow" type="button" class="px-4 py-2.5 rounded-xl font-medium text-gray-700 bg-white border border-stone-200 hover:bg-stone-50 transition-all flex items-center gap-2"><i class="fas fa-file-import"></i> Importar</button>
+		  <input id="flow-import-file" type="file" accept=".json,application/json" class="hidden" aria-label="Arquivo JSON do fluxo"/>
 		  <button id="btn-new-flow" class="px-5 py-2.5 rounded-xl font-medium text-white shadow-sm hover:shadow-md transition-all flex items-center gap-2" style="background: linear-gradient(to right, #3b82f6, #6123cc);">
 			<i class="fas fa-plus"></i> Nova automação
 		  </button>
@@ -145,12 +147,24 @@ templ FlowBuilder() {
   <div id="flow-starter-catalog" class="hidden" data-templates={flowStarterCatalogJSON()}></div>
   <dialog id="new-flow-modal" aria-labelledby="new-flow-title" class="m-auto w-11/12 max-w-3xl max-h-[90dvh] overflow-hidden rounded-3xl border border-stone-200 bg-white p-0 shadow-2xl backdrop:bg-stone-950/60 backdrop:backdrop-blur-sm">
 	<div class="flex max-h-[90dvh] flex-col"><header class="flex shrink-0 items-center justify-between gap-3 border-b border-stone-100 px-5 py-4"><div><h2 id="new-flow-title" class="text-lg font-black text-gray-900">Como deseja criar seu flow?</h2><p class="mt-1 text-xs text-gray-500">Escolha um ponto de partida e personalize no editor.</p></div><button id="new-flow-close" type="button" aria-label="Fechar criação de flow" class="grid h-9 w-9 shrink-0 place-items-center rounded-xl text-gray-500 hover:bg-stone-100"><i class="fas fa-xmark"></i></button></header>
-	<section id="new-flow-options" class="grid gap-4 p-5 sm:grid-cols-2"><button id="new-flow-blank" type="button" class="rounded-2xl border border-stone-200 p-5 text-left transition hover:border-purple-400 hover:bg-purple-50"><span class="mb-4 grid h-12 w-12 place-items-center rounded-xl bg-stone-100 text-xl text-gray-600"><i class="fas fa-file"></i></span><span class="block font-bold text-gray-900">Começar em branco</span><span class="mt-2 block text-sm leading-relaxed text-gray-500">Abra o editor somente com o bloco Início e monte seu fluxo livremente.</span></button><button id="new-flow-from-model" type="button" class="rounded-2xl border border-purple-200 bg-purple-50 p-5 text-left transition hover:border-purple-400 hover:bg-purple-100"><span class="mb-4 grid h-12 w-12 place-items-center rounded-xl bg-purple-100 text-xl text-purple-700"><i class="fas fa-wand-magic-sparkles"></i></span><span class="block font-bold text-gray-900">Começar a partir de modelo</span><span class="mt-2 block text-sm leading-relaxed text-gray-500">Use um exemplo com blocos conectados, mensagens e gatilho já preenchidos.</span></button></section>
+	<section id="new-flow-options" class="grid gap-4 p-5 sm:grid-cols-3"><button id="new-flow-blank" type="button" class="rounded-2xl border border-stone-200 p-5 text-left transition hover:border-purple-400 hover:bg-purple-50"><span class="mb-4 grid h-12 w-12 place-items-center rounded-xl bg-stone-100 text-xl text-gray-600"><i class="fas fa-file"></i></span><span class="block font-bold text-gray-900">Começar em branco</span><span class="mt-2 block text-sm leading-relaxed text-gray-500">Abra o editor somente com o bloco Início e monte seu fluxo livremente.</span></button><button id="new-flow-from-model" type="button" class="rounded-2xl border border-purple-200 bg-purple-50 p-5 text-left transition hover:border-purple-400 hover:bg-purple-100"><span class="mb-4 grid h-12 w-12 place-items-center rounded-xl bg-purple-100 text-xl text-purple-700"><i class="fas fa-wand-magic-sparkles"></i></span><span class="block font-bold text-gray-900">Começar a partir de modelo</span><span class="mt-2 block text-sm leading-relaxed text-gray-500">Use um exemplo com blocos conectados, mensagens e gatilho já preenchidos.</span></button><button id="new-flow-import" type="button" class="rounded-2xl border border-stone-200 p-5 text-left transition hover:border-purple-400 hover:bg-purple-50"><span class="mb-4 grid h-12 w-12 place-items-center rounded-xl bg-blue-50 text-xl text-blue-700"><i class="fas fa-file-import"></i></span><span class="block font-bold text-gray-900">Importar de arquivo</span><span class="mt-2 block text-sm leading-relaxed text-gray-500">Abra um fluxo exportado em JSON, desta ou de outra empresa, para revisar e salvar.</span></button></section>
 	<section id="new-flow-models" class="hidden min-h-0 flex-1 overflow-y-auto p-5"><p class="mb-4 text-xs leading-relaxed text-gray-500">Todos os modelos são editáveis e começam inativos. Escolha um exemplo para ver as orientações no editor.</p><div class="grid gap-3 sm:grid-cols-2">
 		for _, model:=range flowengine.StarterTemplates() {
 			<label class="cursor-pointer rounded-2xl border border-stone-200 p-4 transition hover:border-purple-300 has-[:checked]:border-purple-500 has-[:checked]:bg-purple-50 has-[:checked]:ring-1 has-[:checked]:ring-purple-300"><div class="flex items-start gap-3"><i class={"fas mt-1 text-purple-600",model.Icon}></i><div class="min-w-0 flex-1"><span class="block text-sm font-bold text-gray-900">{model.Name}</span><span class="mt-1 block text-xs leading-relaxed text-gray-500">{model.Description}</span></div><input type="radio" name="flow-starter-choice" value={model.ID} class="mt-1 accent-purple-600"/></div><p class="mt-3 text-[11px] leading-relaxed text-purple-700">{strings.Join(model.Steps," → ")}</p><p class="mt-2 text-[10px] text-gray-400">{fmt.Sprintf("%d blocos · Gatilho: Sempre responde",len(model.FlowData.Nodes))}</p></label>
 		}
 	</div></section><footer id="new-flow-model-actions" class="hidden shrink-0 items-center justify-between gap-3 border-t border-stone-100 px-5 py-4"><button id="new-flow-back" type="button" class="rounded-xl px-3 py-2 text-xs font-bold text-gray-600 hover:bg-stone-100"><i class="fas fa-arrow-left mr-2"></i>Voltar</button><button id="new-flow-use-model" type="button" disabled class="rounded-xl bg-purple-600 px-4 py-2.5 text-xs font-bold text-white hover:bg-purple-700 disabled:cursor-not-allowed disabled:opacity-40">Usar este modelo</button></footer></div>
+  </dialog>
+<dialog id="flow-export-modal" aria-labelledby="flow-export-title" class="m-auto w-11/12 max-w-lg rounded-3xl border border-stone-200 bg-white p-0 shadow-2xl backdrop:bg-stone-950/60 backdrop:backdrop-blur-sm">
+	<form id="flow-export-form" method="dialog">
+	  <header class="flex items-start justify-between gap-3 border-b border-stone-100 px-5 py-4"><div><p class="text-[10px] font-bold uppercase tracking-[.18em] text-purple-600">Exportar fluxo</p><h2 id="flow-export-title" class="mt-1 text-lg font-black text-gray-900"></h2></div><button id="flow-export-close" type="button" aria-label="Fechar exportação" class="grid h-9 w-9 shrink-0 place-items-center rounded-xl text-gray-500 hover:bg-stone-100"><i class="fas fa-xmark"></i></button></header>
+	  <div class="space-y-3 p-5 text-sm text-gray-600">
+		<p id="flow-export-summary"></p>
+		<p class="text-xs leading-relaxed text-gray-500">O arquivo leva o gatilho, os blocos, as conexões entre eles e as mídias enviadas. Ao importar em outra empresa, subfluxos, modelos, credenciais, agentes e setores são associados pelo nome; o que não existir lá precisará ser escolhido de novo.</p>
+		<label id="flow-export-secrets-field" class="hidden flex cursor-pointer items-start gap-3 rounded-xl border border-amber-200 bg-amber-50 p-3"><input id="flow-export-secrets" type="checkbox" class="mt-0.5"/><span><span class="block text-sm font-semibold text-amber-900">Incluir tokens e cabeçalhos de autenticação</span><span id="flow-export-secrets-list" class="mt-1 block text-xs leading-relaxed text-amber-800"></span></span></label>
+		<p id="flow-export-status" class="hidden rounded-xl bg-stone-50 p-3 text-xs" role="status"></p>
+	  </div>
+	  <footer class="flex justify-end gap-2 border-t border-stone-100 bg-stone-50 px-5 py-4"><button id="flow-export-cancel" type="button" class="rounded-lg border border-stone-200 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-stone-100">Cancelar</button><button id="flow-export-submit" type="submit" class="rounded-lg bg-purple-700 px-4 py-2 text-sm font-semibold text-white hover:bg-purple-800 disabled:cursor-wait disabled:opacity-60"><i class="fas fa-download mr-1"></i>Baixar JSON</button></footer>
+	</form>
   </dialog>
 <script>
 document.title = 'Automações - Sophus';
@@ -412,6 +426,9 @@ function renderFlowsList() {
         <button data-edit="${flow.id}" class="flex-1 p-2 bg-stone-100 hover:bg-stone-200 rounded-lg transition-colors text-xs font-medium text-gray-700">
           <i class="fas fa-edit mr-1"><\/i>Editar
         <\/button>
+        <button data-export="${flow.id}" title="Exportar JSON" aria-label="Exportar ${escapeAttr(flow.name)}" class="p-2 bg-stone-100 hover:bg-stone-200 text-gray-600 rounded-lg transition-colors">
+          <i class="fas fa-file-export text-xs"><\/i>
+        <\/button>
         <button data-del="${flow.id}" class="p-2 bg-red-50 hover:bg-red-100 text-red-500 rounded-lg transition-colors">
           <i class="fas fa-trash text-xs"><\/i>
         <\/button>
@@ -420,6 +437,7 @@ function renderFlowsList() {
   }
   grid.querySelectorAll('[data-edit]').forEach(btn => btn.onclick = () => openEditor(Number(btn.dataset.edit)));
   grid.querySelectorAll('[data-del]').forEach(btn => btn.onclick = () => deleteFlow(Number(btn.dataset.del)));
+  grid.querySelectorAll('[data-export]').forEach(btn => btn.onclick = () => exportSavedFlow(Number(btn.dataset.export)));
 }
 
 async function deleteFlow(id) {
@@ -627,6 +645,9 @@ function renderTopbarExtra() {
 	<button id="btn-flow-settings" class="px-3 py-1.5 rounded-lg text-sm font-medium text-white bg-white bg-opacity-20 hover:bg-opacity-30 transition-colors" title="Configurar tratamento quando o cliente não responder">
 	  <i class="fas fa-user-clock mr-1"><\/i>Sem resposta
 	<\/button>
+	<button id="btn-export-flow" class="px-3 py-1.5 rounded-lg text-sm font-medium text-white bg-white bg-opacity-20 hover:bg-opacity-30 transition-colors" title="Exportar este fluxo em JSON" aria-label="Exportar este fluxo em JSON">
+	  <i class="fas fa-file-export 2xl:mr-1"><\/i><span class="hidden 2xl:inline">Exportar<\/span>
+	<\/button>
 	<a href="/settings#settings-ai-credentials" class="px-3 py-1.5 rounded-lg text-sm font-medium text-white bg-white bg-opacity-20 hover:bg-opacity-30 transition-colors" title="Configurar chaves de IA">
       <i class="fas fa-key mr-1"><\/i>Chaves IA
     <\/a>
@@ -662,6 +683,7 @@ function renderTopbarExtra() {
   document.getElementById('chk-active').onchange = e => { f.isActive = e.target.checked; };
   document.getElementById('btn-test').onclick = testFlow;
   document.getElementById('btn-flow-settings').onclick = openNoResponseSettings;
+  document.getElementById('btn-export-flow').onclick = () => openFlowExport(f, state.flowData);
   document.getElementById('btn-save').onclick = saveFlow;
   document.getElementById('btn-close-editor').onclick = closeEditor;
 }
@@ -2496,6 +2518,302 @@ function closeTemplatesModal() {
 // ---------------------------------------------------------------------
 // Boot
 // ---------------------------------------------------------------------
+// ---------------------------------------------------------------------
+// JSON import/export
+// ---------------------------------------------------------------------
+// The file is self-describing: alongside the graph it carries the names of
+// the company records the blocks point to, so another company can rebind
+// them, and the uploaded media, which live in per-company storage.
+const FLOW_FILE_FORMAT = 'sophus.flow';
+const FLOW_FILE_VERSION = 1;
+const MAX_FLOW_FILE_BYTES = 150 * 1024 * 1024;
+const MEDIA_NODE_TYPES = ['sendImage', 'sendVideo', 'sendAudio', 'sendFile'];
+const SENSITIVE_HEADER = new RegExp('authorization|token|api[-_ ]?key|secret|password|senha|cookie|credential', 'i');
+let pendingFlowExport = null;
+
+function cloneJSON(value) { return JSON.parse(JSON.stringify(value)); }
+function sameName(a, b) { return String(a || '').trim().toLowerCase() === String(b || '').trim().toLowerCase(); }
+function nodeLabel(node) { return (NODE_TYPES[node.type] && NODE_TYPES[node.type].label) || node.type; }
+
+function flowReferenceCatalog(flow, flowData) {
+	const refs = { flows: {}, templates: {}, aiAgents: {}, aiCredentials: {}, agents: {}, departments: {}, connection: null };
+	const remember = (bucket, list, id) => {
+		const item = list.find(entry => entry.id === Number(id));
+		if (item) refs[bucket][item.id] = item.provider ? { name: item.name, provider: item.provider } : { name: item.name };
+	};
+	(flowData.nodes || []).forEach(node => {
+		const d = node.data || {};
+		if (node.type === 'subflow') remember('flows', state.flows, d.flowId);
+		if (node.type === 'sendTemplate') remember('templates', state.templates, d.templateId);
+		if (d.aiAgentId) remember('aiAgents', state.aiAgents, d.aiAgentId);
+		if (d.credentialId) remember('aiCredentials', state.aiCredentials, d.credentialId);
+		if (node.type === 'assign') remember(d.assignType === 'department' ? 'departments' : 'agents', d.assignType === 'department' ? state.departments : state.agents, d.assignId);
+		if (node.type === 'smartAssign' && d.departmentId) remember('departments', state.departments, d.departmentId);
+	});
+	const noResponse = flowData.settings && flowData.settings.noResponse;
+	if (noResponse && noResponse.targetId) remember(noResponse.targetType === 'department' ? 'departments' : 'agents', noResponse.targetType === 'department' ? state.departments : state.agents, noResponse.targetId);
+	const connection = state.connections.find(entry => entry.id === Number(flow.connectionId));
+	if (connection) refs.connection = { id: connection.id, name: connection.name };
+	return refs;
+}
+
+// Secrets live in callback tokens and HTTP headers; they leave the company
+// only when the administrator explicitly opts in.
+function flowSecrets(flowData) {
+	const found = [];
+	(flowData.nodes || []).forEach(node => {
+		const d = node.data || {};
+		if (node.type === 'callback' && d.token) found.push(nodeLabel(node) + ': token Bearer');
+		if (node.type !== 'httpRequest') return;
+		(d.headerFields || []).forEach(header => { if (header.value && SENSITIVE_HEADER.test(header.key || '')) found.push(nodeLabel(node) + ': header ' + header.key); });
+		let raw = d.headers && typeof d.headers === 'object' ? d.headers : null;
+		if (d.headersRaw) { try { raw = JSON.parse(d.headersRaw); } catch (_) { found.push(nodeLabel(node) + ': headers JSON'); raw = null; } }
+		if (raw) Object.keys(raw).forEach(key => { if (raw[key] && SENSITIVE_HEADER.test(key)) found.push(nodeLabel(node) + ': header ' + key); });
+	});
+	return found;
+}
+
+function removeFlowSecrets(flowData) {
+	(flowData.nodes || []).forEach(node => {
+		const d = node.data || {};
+		if (node.type === 'callback') delete d.token;
+		if (node.type !== 'httpRequest') return;
+		(d.headerFields || []).forEach(header => { if (SENSITIVE_HEADER.test(header.key || '')) header.value = ''; });
+		const clean = headers => { Object.keys(headers).forEach(key => { if (SENSITIVE_HEADER.test(key)) headers[key] = ''; }); return headers; };
+		if (d.headers && typeof d.headers === 'object') clean(d.headers);
+		if (d.headersRaw) { try { d.headersRaw = JSON.stringify(clean(JSON.parse(d.headersRaw)), null, 2); } catch (_) { d.headersRaw = ''; } }
+	});
+}
+
+function blobToDataURL(blob) {
+	return new Promise((resolve, reject) => { const reader = new FileReader(); reader.onload = () => resolve(reader.result); reader.onerror = () => reject(reader.error); reader.readAsDataURL(blob); });
+}
+
+function dataURLToBlob(dataURL) {
+	const comma = dataURL.indexOf(',');
+	const header = dataURL.slice(5, comma);
+	if (comma < 0 || !header.endsWith(';base64')) throw new Error('conteúdo inválido');
+	const binary = atob(dataURL.slice(comma + 1));
+	const bytes = new Uint8Array(binary.length);
+	for (let index = 0; index < binary.length; index++) bytes[index] = binary.charCodeAt(index);
+	return new Blob([bytes], { type: header.slice(0, -7) });
+}
+
+async function embedFlowMedia(flowData) {
+	const media = [], warnings = [];
+	for (const node of flowData.nodes || []) {
+		if (!MEDIA_NODE_TYPES.includes(node.type)) continue;
+		const config = mediaNodeConfig(node.type), d = node.data || {};
+		if (!d[config.pathField]) continue;
+		try {
+			if (!d.mediaPreviewUrl) throw new Error('sem endereço de download');
+			const response = await fetch(d.mediaPreviewUrl, { credentials: 'same-origin' });
+			if (!response.ok) throw new Error('HTTP ' + response.status);
+			const blob = await response.blob();
+			media.push({ nodeId: node.id, kind: config.kind, name: d.mediaName || d[config.pathField], mimeType: d[config.mimeField] || blob.type, data: await blobToDataURL(blob) });
+			delete d[config.pathField]; delete d.mediaPreviewUrl;
+		} catch (error) {
+			warnings.push('A mídia do bloco "' + nodeLabel(node) + '" não foi incluída (' + error.message + ').');
+		}
+	}
+	return { media, warnings };
+}
+
+function flowFileName(name) {
+	const slug = String(name || 'fluxo').normalize('NFD').replace(new RegExp('[\\u0300-\\u036f]', 'g'), '').toLowerCase().replace(new RegExp('[^a-z0-9]+', 'g'), '-').replace(new RegExp('^-+|-+$', 'g'), '');
+	return (slug || 'fluxo') + '.sophus-flow.json';
+}
+
+function openFlowExport(flow, flowData) {
+	pendingFlowExport = { flow: cloneJSON(flow), flowData: cloneJSON(flowData) };
+	const secrets = flowSecrets(pendingFlowExport.flowData);
+	const mediaCount = (pendingFlowExport.flowData.nodes || []).filter(node => MEDIA_NODE_TYPES.includes(node.type) && node.data && node.data[mediaNodeConfig(node.type).pathField]).length;
+	document.getElementById('flow-export-title').textContent = flow.name || 'Fluxo sem nome';
+	document.getElementById('flow-export-summary').textContent = (pendingFlowExport.flowData.nodes || []).length + ' blocos, ' + (pendingFlowExport.flowData.edges || []).length + ' conexões' + (mediaCount ? ' e ' + mediaCount + (mediaCount === 1 ? ' mídia enviada' : ' mídias enviadas') : '') + '.';
+	document.getElementById('flow-export-secrets-field').classList.toggle('hidden', secrets.length === 0);
+	document.getElementById('flow-export-secrets').checked = false;
+	document.getElementById('flow-export-secrets-list').textContent = 'Encontrados: ' + secrets.join(', ') + '. Sem esta opção eles ficam vazios no arquivo.';
+	const status = document.getElementById('flow-export-status'); status.classList.add('hidden'); status.textContent = '';
+	document.getElementById('flow-export-submit').disabled = false;
+	document.getElementById('flow-export-modal').showModal();
+}
+
+async function exportSavedFlow(id) {
+	try {
+		const flow = await api('GET', '/flows/api/' + id);
+		openFlowExport(flow, flow.flowData && flow.flowData.nodes ? flow.flowData : blankFlowData());
+	} catch (error) { alert('Não foi possível carregar o fluxo: ' + error.message); }
+}
+
+async function downloadFlowExport() {
+	if (!pendingFlowExport) return;
+	const submit = document.getElementById('flow-export-submit'), status = document.getElementById('flow-export-status');
+	submit.disabled = true; status.className = 'rounded-xl bg-stone-50 p-3 text-xs text-gray-600'; status.textContent = 'Preparando arquivo...';
+	try {
+		const flow = pendingFlowExport.flow, flowData = cloneJSON(pendingFlowExport.flowData);
+		const includeSecrets = document.getElementById('flow-export-secrets').checked;
+		if (!includeSecrets) removeFlowSecrets(flowData);
+		const references = flowReferenceCatalog(flow, flowData);
+		const embedded = await embedFlowMedia(flowData);
+		const file = {
+			format: FLOW_FILE_FORMAT, version: FLOW_FILE_VERSION, exportedAt: new Date().toISOString(),
+			flow: { name: flow.name || '', description: flow.description || '', triggerType: flow.triggerType || 'keyword', triggerValue: flow.triggerValue || '', priority: Number(flow.priority || 0), flowData },
+			references, media: embedded.media, secretsIncluded: includeSecrets,
+		};
+		const link = document.createElement('a');
+		link.href = URL.createObjectURL(new Blob([JSON.stringify(file, null, 2)], { type: 'application/json' }));
+		link.download = flowFileName(flow.name);
+		document.body.appendChild(link); link.click(); link.remove();
+		setTimeout(() => URL.revokeObjectURL(link.href), 1000);
+		if (embedded.warnings.length) { status.className = 'rounded-xl bg-amber-50 p-3 text-xs text-amber-800'; status.textContent = 'Arquivo baixado com avisos: ' + embedded.warnings.join(' '); submit.disabled = false; return; }
+		document.getElementById('flow-export-modal').close();
+	} catch (error) {
+		status.className = 'rounded-xl bg-red-50 p-3 text-xs text-red-700'; status.textContent = 'Não foi possível exportar: ' + error.message; submit.disabled = false;
+	}
+}
+
+// parseFlowFile accepts the export format and, for convenience, a bare
+// flowData object ({nodes, edges}). The server validates again on save.
+function parseFlowFile(text) {
+	let parsed;
+	try { parsed = JSON.parse(text); } catch (_) { throw new Error('o arquivo não é um JSON válido.'); }
+	if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) throw new Error('o arquivo não contém um fluxo.');
+	let flow, references = {}, media = [];
+	if (parsed.format === FLOW_FILE_FORMAT) {
+		if (Number(parsed.version) > FLOW_FILE_VERSION) throw new Error('o arquivo foi gerado por uma versão mais nova do Sophus (versão ' + parsed.version + ').');
+		flow = parsed.flow || {}; references = parsed.references || {}; media = Array.isArray(parsed.media) ? parsed.media : [];
+	} else if (Array.isArray(parsed.nodes)) {
+		flow = { flowData: parsed };
+	} else if (parsed.flowData && Array.isArray(parsed.flowData.nodes)) {
+		flow = parsed;
+	} else {
+		throw new Error('formato não reconhecido; use um arquivo exportado pelo Sophus.');
+	}
+	const flowData = flow.flowData;
+	if (!flowData || !Array.isArray(flowData.nodes) || (flowData.edges !== undefined && !Array.isArray(flowData.edges))) throw new Error('o fluxo não possui blocos.');
+	flowData.edges = flowData.edges || [];
+	flowData.settings = flowData.settings && typeof flowData.settings === 'object' ? flowData.settings : {};
+	const ids = new Set();
+	for (const node of flowData.nodes) {
+		if (!node || typeof node.id !== 'string' || !node.id || ids.has(node.id)) throw new Error('há blocos sem identificador ou com identificador repetido.');
+		if (!NODE_TYPES[node.type]) throw new Error('tipo de bloco desconhecido: ' + node.type + '.');
+		ids.add(node.id);
+		node.data = node.data && typeof node.data === 'object' ? node.data : {};
+		node.position = { x: Number(node.position && node.position.x) || 0, y: Number(node.position && node.position.y) || 0 };
+	}
+	if (flowData.nodes.filter(node => node.type === 'start').length !== 1) throw new Error('o fluxo precisa ter exatamente um bloco de Início.');
+	for (const edge of flowData.edges) {
+		if (!edge || !ids.has(edge.source) || !ids.has(edge.target)) throw new Error('há conexões apontando para blocos inexistentes.');
+	}
+	const triggerType = ['keyword', 'exact', 'always'].includes(flow.triggerType) ? flow.triggerType : 'keyword';
+	return {
+		flow: { name: String(flow.name || 'Fluxo importado').slice(0, 200), description: String(flow.description || ''), triggerType, triggerValue: String(flow.triggerValue || ''), priority: Math.max(-1000, Math.min(1000, Number(flow.priority) || 0)) },
+		flowData, references, media,
+	};
+}
+
+// Rebinds ids to this company: kept when the record exists here, matched by
+// name otherwise, cleared with a warning when nothing matches.
+function rebindFlowReferences(flowData, references) {
+	const warnings = [];
+	const resolve = (list, bucket, id) => {
+		if (id === undefined || id === null || id === '') return { id: undefined, missing: false };
+		if (list.some(item => item.id === Number(id))) return { id: Number(id), missing: false };
+		const ref = references[bucket] && references[bucket][id];
+		const match = ref && list.find(item => sameName(item.name, ref.name) && (!ref.provider || !item.provider || item.provider === ref.provider));
+		return match ? { id: match.id, missing: false } : { id: undefined, missing: true, name: ref ? ref.name : '#' + id };
+	};
+	const bind = (node, field, list, bucket, what) => {
+		const result = resolve(list, bucket, node.data[field]);
+		if (result.id === undefined) delete node.data[field]; else node.data[field] = result.id;
+		if (result.missing) warnings.push('Bloco "' + nodeLabel(node) + '": ' + what + ' "' + result.name + '" não existe nesta empresa; selecione outro.');
+	};
+	flowData.nodes.forEach(node => {
+		if (node.type === 'subflow') bind(node, 'flowId', state.flows, 'flows', 'subfluxo');
+		if (node.type === 'sendTemplate') bind(node, 'templateId', state.templates, 'templates', 'modelo de mensagem');
+		if (node.data.aiAgentId !== undefined) bind(node, 'aiAgentId', state.aiAgents, 'aiAgents', 'agente de IA');
+		if (node.data.credentialId !== undefined && node.data.credentialId !== '') bind(node, 'credentialId', state.aiCredentials, 'aiCredentials', 'credencial de IA');
+		if (node.type === 'assign') {
+			const department = node.data.assignType === 'department';
+			bind(node, 'assignId', department ? state.departments : state.agents, department ? 'departments' : 'agents', department ? 'setor' : 'agente');
+		}
+		if (node.type === 'smartAssign') bind(node, 'departmentId', state.departments, 'departments', 'setor');
+	});
+	const noResponse = flowData.settings.noResponse;
+	if (noResponse && noResponse.targetId) {
+		const department = noResponse.targetType === 'department';
+		const result = resolve(department ? state.departments : state.agents, department ? 'departments' : 'agents', noResponse.targetId);
+		noResponse.targetId = result.id || 0;
+		if (result.missing && noResponse.enabled) {
+			noResponse.enabled = false;
+			warnings.push('Tratamento sem resposta desativado: ' + (department ? 'setor' : 'agente') + ' "' + result.name + '" não existe nesta empresa.');
+		}
+	}
+	return warnings;
+}
+
+async function uploadImportedMedia(flowData, media) {
+	const warnings = [];
+	for (const item of media) {
+		const node = flowData.nodes.find(candidate => candidate.id === (item && item.nodeId));
+		if (!node || !MEDIA_NODE_TYPES.includes(node.type)) continue;
+		const config = mediaNodeConfig(node.type);
+		try {
+			if (typeof item.data !== 'string' || !item.data.startsWith('data:')) throw new Error('conteúdo inválido');
+			const blob = dataURLToBlob(item.data);
+			const form = new FormData();
+			form.append('kind', config.kind);
+			form.append('file', new File([blob], item.name || 'midia', { type: item.mimeType || blob.type }));
+			const response = await fetch('/flows/api/media', { method: 'POST', body: form });
+			const payload = await response.json().catch(() => ({}));
+			if (!response.ok) throw new Error(payload.error || ('Erro ' + response.status));
+			const stored = payload.data;
+			delete node.data[config.urlField];
+			node.data[config.pathField] = stored.path; node.data[config.mimeField] = stored.mimeType;
+			node.data.mediaPreviewUrl = stored.url; node.data.mediaName = stored.name;
+		} catch (error) {
+			delete node.data[config.pathField]; delete node.data.mediaPreviewUrl;
+			warnings.push('Mídia do bloco "' + nodeLabel(node) + '" não foi enviada (' + error.message + '); envie-a novamente.');
+		}
+	}
+	// A path without embedded media points to the exporting company's storage.
+	flowData.nodes.forEach(node => {
+		if (!MEDIA_NODE_TYPES.includes(node.type) || media.some(item => item && item.nodeId === node.id)) return;
+		const config = mediaNodeConfig(node.type);
+		if (node.data[config.pathField]) warnings.push('Bloco "' + nodeLabel(node) + '": confira a mídia, ela não veio no arquivo.');
+	});
+	return warnings;
+}
+
+async function importFlowFile(file) {
+	if (!file) return;
+	if (flowIsDirty() && !confirm('Existem alterações não salvas. Deseja descartá-las e importar o arquivo?')) return;
+	try {
+		if (file.size > MAX_FLOW_FILE_BYTES) throw new Error('o arquivo excede 150 MB.');
+		const imported = parseFlowFile(await file.text());
+		const warnings = rebindFlowReferences(imported.flowData, imported.references);
+		warnings.push(...await uploadImportedMedia(imported.flowData, imported.media));
+		let name = imported.flow.name;
+		if (state.flows.some(flow => sameName(flow.name, name))) name += ' (importado)';
+		const exportedConnection = imported.references.connection;
+		const connection = exportedConnection && (state.connections.find(entry => entry.id === Number(exportedConnection.id)) || state.connections.find(entry => sameName(entry.name, exportedConnection.name)));
+		if (exportedConnection && !connection) warnings.push('Conexão "' + exportedConnection.name + '" não existe nesta empresa; o fluxo vale para todas as conexões até você escolher uma.');
+		document.querySelectorAll('[data-dd-name]').forEach(hideFlowDropdown);
+		state.currentFlow = { id: null, name, description: imported.flow.description, connectionId: connection ? connection.id : null, triggerType: imported.flow.triggerType,
+			triggerValue: imported.flow.triggerValue, isActive: false, priority: imported.flow.priority, revision: 0 };
+		state.flowData = migrateLegacyAICredentialSelections(imported.flowData);
+		state.selectedNodeId = null; state.armedHandle = null; state.connectionDrag = null;
+		showView('editor'); renderTopbarExtra(); renderPalette(); renderCanvas(); renderInspector();
+		const wrap = document.getElementById('canvas-wrap'); wrap.scrollLeft = 0; wrap.scrollTop = 0;
+		const guide = document.getElementById('flow-starter-guide');
+		guide.textContent = 'Importado de "' + file.name + '" como rascunho inativo. ' + (warnings.length ? 'Revise antes de salvar: ' + warnings.join(' ') : 'Revise, salve e ative quando estiver pronto.');
+		guide.classList.remove('hidden');
+		state.savedFingerprint = '';
+	} catch (error) {
+		alert('Não foi possível importar o fluxo: ' + error.message);
+	}
+}
+
 async function boot() {
 	initCanvasNavigation();
 	document.getElementById('btn-new-flow').onclick = openNewFlowModal;
@@ -2508,6 +2826,15 @@ async function boot() {
 	document.getElementById('new-flow-use-model').onclick=()=>{if(!selectedStarterId)return;newFlowModal.close();openEditor(null,selectedStarterId);};
 	newFlowModal.addEventListener('click',event=>{if(event.target!==newFlowModal)return;const bounds=newFlowModal.getBoundingClientRect();if(event.clientX<bounds.left||event.clientX>bounds.right||event.clientY<bounds.top||event.clientY>bounds.bottom)newFlowModal.close();});
 	document.getElementById('btn-templates').onclick = openTemplatesModal;
+	const importInput = document.getElementById('flow-import-file');
+	document.getElementById('btn-import-flow').onclick = () => importInput.click();
+	document.getElementById('new-flow-import').onclick = () => { newFlowModal.close(); importInput.click(); };
+	importInput.onchange = () => { const file = importInput.files[0]; importInput.value = ''; importFlowFile(file); };
+	const exportModal = document.getElementById('flow-export-modal');
+	document.getElementById('flow-export-form').onsubmit = event => { event.preventDefault(); downloadFlowExport(); };
+	document.getElementById('flow-export-close').onclick = () => exportModal.close();
+	document.getElementById('flow-export-cancel').onclick = () => exportModal.close();
+	exportModal.addEventListener('close', () => { pendingFlowExport = null; });
 	document.getElementById('btn-close-no-response').onclick = closeNoResponseSettings;
 	document.getElementById('btn-cancel-no-response').onclick = closeNoResponseSettings;
 	document.getElementById('no-response-enabled').onchange = event => {
