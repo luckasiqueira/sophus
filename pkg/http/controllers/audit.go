@@ -4,6 +4,7 @@ import (
 	"log"
 	"strconv"
 	"strings"
+	"time"
 
 	"sophus/internal/repo"
 	"sophus/pkg/http/middlewares"
@@ -19,18 +20,26 @@ func AuditCompanyAction(action, target string, handler iris.Handler) iris.Handle
 			ctx.StopWithStatus(iris.StatusUnauthorized)
 			return
 		}
+		id := ctx.Params().Get("id")
+		// Resolve the label first: a delete removes the row that names it.
+		name := repo.AuditTargetName(agent.CompanyId, target, id)
 		handler(ctx)
 		status := ctx.ResponseWriter().StatusCode()
 		if status < 200 || status >= 300 {
 			return
 		}
-		id := ctx.Params().Get("id")
-		recordCompanyAction(ctx, agent, action, target, id)
+		recordNamedCompanyAction(ctx, agent, action, target, id, name)
 	}
 }
 
 func recordCompanyAction(ctx iris.Context, agent repo.Agent, action, target, id string) {
-	if err := repo.RecordAuditEvent(companyActionAuditEvent(ctx, agent, action, target, id)); err != nil {
+	recordNamedCompanyAction(ctx, agent, action, target, id, repo.AuditTargetName(agent.CompanyId, target, id))
+}
+
+func recordNamedCompanyAction(ctx iris.Context, agent repo.Agent, action, target, id, name string) {
+	event := companyActionAuditEvent(ctx, agent, action, target, id)
+	event.TargetName = name
+	if err := repo.RecordAuditEvent(event); err != nil {
 		log.Printf("audit event failed: action=%s company=%d: %v", action, agent.CompanyId, err)
 	}
 }
@@ -82,5 +91,54 @@ func ListAuditEvents(ctx iris.Context) {
 		writeJSONError(ctx, iris.StatusInternalServerError, "não foi possível listar os logs")
 		return
 	}
+	ctx.JSON(result)
+}
+
+// ListCompanyAuditEvents shows a company admin the audit trail of their own company only.
+func ListCompanyAuditEvents(ctx iris.Context) {
+	agent, ok := requireAdmin(ctx)
+	if !ok {
+		return
+	}
+	filter := repo.CompanyAuditFilter{Category: strings.TrimSpace(ctx.URLParam("category")), Actor: ctx.URLParam("actor")}
+	if !repo.ValidCompanyAuditCategory(filter.Category) || len([]rune(filter.Actor)) > 120 {
+		writeJSONError(ctx, iris.StatusBadRequest, "filtro inválido")
+		return
+	}
+	for _, bound := range []struct {
+		key  string
+		dest **time.Time
+	}{{"from", &filter.From}, {"to", &filter.To}} {
+		value := strings.TrimSpace(ctx.URLParam(bound.key))
+		if value == "" {
+			continue
+		}
+		parsed, err := time.Parse(time.RFC3339, value)
+		if err != nil {
+			writeJSONError(ctx, iris.StatusBadRequest, "período inválido")
+			return
+		}
+		*bound.dest = &parsed
+	}
+	if filter.From != nil && filter.To != nil && !filter.From.Before(*filter.To) {
+		writeJSONError(ctx, iris.StatusBadRequest, "período inválido")
+		return
+	}
+	page := 1
+	if value := ctx.URLParam("page"); value != "" {
+		parsed, err := strconv.Atoi(value)
+		if err != nil || parsed < 1 || parsed > 100000 {
+			writeJSONError(ctx, iris.StatusBadRequest, "página inválida")
+			return
+		}
+		page = parsed
+	}
+	result, err := repo.ListCompanyAuditEvents(agent.CompanyId, filter, page)
+	if err != nil {
+		log.Printf("company audit list failed: company=%d error=%v", agent.CompanyId, err)
+		writeJSONError(ctx, iris.StatusInternalServerError, "não foi possível listar os logs")
+		return
+	}
+	ctx.Header("Cache-Control", "private, no-store")
 	ctx.JSON(result)
 }

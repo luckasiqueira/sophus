@@ -3,6 +3,8 @@ package controllers
 import (
 	"crypto/sha256"
 	"database/sql"
+	"encoding/base64"
+	"encoding/json"
 	"errors"
 	"log"
 	"net/http"
@@ -94,6 +96,7 @@ func DoLogin(ctx iris.Context) {
 		return
 	}
 	ctx.RemoveCookie(platformCookieName, iris.CookiePath("/"))
+	setLoginFailureNotice(ctx, agent)
 	recordLoginAttempt(ctx, email, &agent.CompanyId, &agent.Id, "agent", true)
 	ctx.Header("HX-Redirect", "/")
 	ctx.StatusCode(iris.StatusNoContent)
@@ -109,6 +112,33 @@ func recordLoginAttempt(ctx iris.Context, email string, companyID, actorID *int,
 	}); err != nil {
 		log.Printf("login audit failed: %v", err)
 	}
+}
+
+const loginFailureNoticeCookie = "login_failure_notice"
+
+// setLoginFailureNotice hands the next page a one-shot summary of wrong-password
+// attempts since the previous login. It must run before this login is recorded.
+func setLoginFailureNotice(ctx iris.Context, agent repo.Agent) {
+	summary, err := repo.LoginFailuresSinceLastLogin(agent.Id, ctx.RemoteAddr())
+	if err != nil {
+		log.Printf("login failure notice unavailable: agent=%d error=%v", agent.Id, err)
+		return
+	}
+	if summary.Count == 0 {
+		return
+	}
+	payload, err := json.Marshal(summary)
+	if err != nil {
+		return
+	}
+	ctx.SetCookie(&http.Cookie{
+		Name:     loginFailureNoticeCookie,
+		Value:    base64.RawURLEncoding.EncodeToString(payload),
+		Path:     "/",
+		MaxAge:   int((10 * time.Minute).Seconds()),
+		Secure:   securePlatformCookie(ctx),
+		SameSite: http.SameSiteStrictMode,
+	})
 }
 
 func setAgentSession(ctx iris.Context, agent repo.Agent) error {

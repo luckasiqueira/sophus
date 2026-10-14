@@ -217,7 +217,7 @@ templ CompanySettings() {
 				<div id="company-settings-loading" class="mt-6 rounded-3xl border border-stone-200 bg-white p-16 text-center text-sm text-gray-500 shadow-sm"><i class="fas fa-circle-notch fa-spin mr-2 text-purple-600"></i> Carregando configurações...</div>
 				<div id="company-settings-content" class="mt-6 hidden">
 					<nav class="overflow-x-auto rounded-2xl border border-stone-200 bg-white p-2 shadow-sm" aria-label="Áreas das configurações">
-						<div class="grid min-w-[1040px] grid-cols-8 gap-2" role="tablist" aria-label="Configurações da empresa">
+						<div class="grid min-w-[1170px] grid-cols-9 gap-2" role="tablist" aria-label="Configurações da empresa">
 							<button id="company-tab-company" type="button" role="tab" aria-selected="true" aria-controls="company-panel-company" data-company-settings-tab="company" class="company-settings-tab flex items-center gap-2 rounded-xl border border-transparent px-3 py-2.5 text-left text-xs font-bold text-gray-600 transition hover:bg-stone-50"><span class="company-settings-tab-icon grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-stone-100 text-gray-500 transition"><i class="fas fa-building"></i></span> Empresa</button>
 							<button id="company-tab-messages" type="button" role="tab" aria-selected="false" aria-controls="company-panel-messages" data-company-settings-tab="messages" class="company-settings-tab flex items-center gap-2 rounded-xl border border-transparent px-3 py-2.5 text-left text-xs font-bold text-gray-600 transition hover:bg-stone-50"><span class="company-settings-tab-icon grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-stone-100 text-gray-500 transition"><i class="fas fa-comments"></i></span> Mensagens</button>
 							<button id="company-tab-automation" type="button" role="tab" aria-selected="false" aria-controls="company-panel-automation" data-company-settings-tab="automation" class="company-settings-tab flex items-center gap-2 rounded-xl border border-transparent px-3 py-2.5 text-left text-xs font-bold text-gray-600 transition hover:bg-stone-50"><span class="company-settings-tab-icon grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-stone-100 text-gray-500 transition"><i class="fas fa-wand-magic-sparkles"></i></span> Automação</button>
@@ -226,6 +226,7 @@ templ CompanySettings() {
 							<button id="company-tab-ai-credentials" type="button" role="tab" aria-selected="false" aria-controls="company-panel-ai-credentials" data-company-settings-tab="ai-credentials" class="company-settings-tab flex items-center gap-2 rounded-xl border border-transparent px-3 py-2.5 text-left text-xs font-bold text-gray-600 transition hover:bg-stone-50"><span class="company-settings-tab-icon grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-stone-100 text-gray-500 transition"><i class="fas fa-key"></i></span> Chaves IA</button>
 							<button id="company-tab-integrations" type="button" role="tab" aria-selected="false" aria-controls="company-panel-integrations" data-company-settings-tab="integrations" class="company-settings-tab flex items-center gap-2 rounded-xl border border-transparent px-3 py-2.5 text-left text-xs font-bold text-gray-600 transition hover:bg-stone-50"><span class="company-settings-tab-icon grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-stone-100 text-gray-500 transition"><i class="fas fa-puzzle-piece"></i></span> Integrações</button>
 							<button id="company-tab-billing" type="button" role="tab" aria-selected="false" aria-controls="company-panel-billing" data-company-settings-tab="billing" class="company-settings-tab flex items-center gap-2 rounded-xl border border-transparent px-3 py-2.5 text-left text-xs font-bold text-gray-600 transition hover:bg-stone-50"><span class="company-settings-tab-icon grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-stone-100 text-gray-500 transition"><i class="fas fa-credit-card"></i></span> Cobrança</button>
+							<button id="company-tab-logs" type="button" role="tab" aria-selected="false" aria-controls="company-panel-logs" data-company-settings-tab="logs" class="company-settings-tab flex items-center gap-2 rounded-xl border border-transparent px-3 py-2.5 text-left text-xs font-bold text-gray-600 transition hover:bg-stone-50"><span class="company-settings-tab-icon grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-stone-100 text-gray-500 transition"><i class="fas fa-clock-rotate-left"></i></span> Logs</button>
 						</div>
 					</nav>
 					<form id="company-settings-form" novalidate class="mt-4 overflow-visible rounded-3xl border border-stone-200 bg-white shadow-sm">
@@ -319,6 +320,7 @@ templ CompanySettings() {
 				</section>
 				@aiCredentialsSettings()
 				@companyBillingPanel()
+				@companyAuditPanel()
 				</div>
 			</div>
 		</main>
@@ -327,6 +329,7 @@ templ CompanySettings() {
 		@AdminControls()
 		@billingRuntime()
 		@aiCredentialsRuntime()
+		@companyAuditRuntime()
 		<script>
 let companySettingsState = null;
 let whatsAppWidgets = [];
@@ -388,7 +391,7 @@ function showCompanySettingsError(error) {
     box.classList.remove('hidden');
 }
 
-const companySettingsTabs = ['company', 'messages', 'automation', 'hours', 'data', 'ai-credentials', 'integrations', 'billing'];
+const companySettingsTabs = ['company', 'messages', 'automation', 'hours', 'data', 'ai-credentials', 'integrations', 'billing', 'logs'];
 
 function setCompanySettingsTab(tab, updateURL) {
 	const selected = companySettingsTabs.includes(tab) ? tab : 'company';
@@ -398,7 +401,8 @@ function setCompanySettingsTab(tab, updateURL) {
 		button.tabIndex = active ? 0 : -1;
 	});
 	document.querySelectorAll('[data-company-settings-panel]').forEach(panel => panel.classList.toggle('hidden', panel.dataset.companySettingsPanel !== selected));
-	document.getElementById('company-settings-form').classList.toggle('hidden', selected === 'ai-credentials' || selected === 'integrations' || selected === 'billing');
+	document.getElementById('company-settings-form').classList.toggle('hidden', selected === 'ai-credentials' || selected === 'integrations' || selected === 'billing' || selected === 'logs');
+	if (selected === 'logs' && window.loadCompanyAuditLog) window.loadCompanyAuditLog(false);
 	if (updateURL) history.replaceState(null, '', window.location.pathname + window.location.search + '#settings-' + selected);
 }
 

@@ -15,6 +15,7 @@ type AuditEvent struct {
 	Action     string    `json:"action"`
 	TargetType string    `json:"targetType"`
 	TargetID   string    `json:"targetId"`
+	TargetName string    `json:"targetName"`
 	IPAddress  string    `json:"ipAddress"`
 	CreatedAt  time.Time `json:"createdAt"`
 }
@@ -26,9 +27,9 @@ type AuditPage struct {
 }
 
 func RecordAuditEvent(event AuditEvent) error {
-	_, err := db.Exec(`INSERT INTO audit_events ("companyId", "actorId", "actorEmail", "actorType", action, "targetType", "targetId", "ipAddress")
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`, event.CompanyID, event.ActorID, event.ActorEmail,
-		event.ActorType, event.Action, event.TargetType, event.TargetID, event.IPAddress)
+	_, err := db.Exec(`INSERT INTO audit_events ("companyId", "actorId", "actorEmail", "actorType", action, "targetType", "targetId", "targetName", "ipAddress")
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`, event.CompanyID, event.ActorID, event.ActorEmail,
+		event.ActorType, event.Action, event.TargetType, event.TargetID, event.TargetName, event.IPAddress)
 	return err
 }
 

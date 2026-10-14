@@ -9,9 +9,11 @@ func TestIsValidPaymentProvider(t *testing.T) {
 	}{
 		{provider: PaymentProviderMercadoPago, want: true},
 		{provider: PaymentProviderAbacatePay, want: true},
+		{provider: PaymentProviderAsaas, want: true},
 		{provider: ""},
 		{provider: "stripe"},
 		{provider: "MERCADO_PAGO"},
+		{provider: "ASAAS"},
 	}
 
 	for _, test := range tests {
