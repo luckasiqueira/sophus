@@ -68,6 +68,10 @@ func (err *providerError) Error() string {
 		return "o limite de uso do provedor foi atingido"
 	case "unavailable":
 		return "o provedor de IA está indisponível no momento"
+	case "refusal":
+		return "o modelo se recusou a responder a esta mensagem"
+	case "max_tokens":
+		return "o limite de tokens de saída acabou antes da resposta"
 	default:
 		return "não foi possível conectar ao provedor de IA"
 	}
@@ -102,6 +106,10 @@ func SafeErrorMessage(err error) string {
 		return "a conta do provedor não possui saldo disponível"
 	case "rate_limit":
 		return "o limite de uso do provedor foi atingido"
+	case "refusal":
+		return "o modelo se recusou a responder a esta mensagem"
+	case "max_tokens":
+		return "o limite de tokens de saída acabou antes da resposta; aumente o limite configurado"
 	default:
 		return "o provedor de IA está indisponível no momento"
 	}
@@ -111,12 +119,15 @@ func SafeErrorMessage(err error) string {
 // transcription or a concise textual description.
 func AnalyzeMedia(ctx context.Context, provider, model, apiKey, kind, mimeType string, data []byte, prompt string, safeMode bool) (Response, error) {
 	if !SupportsMediaAnalysis(provider, kind) {
-		if provider == "groq" {
-			return Response{}, errors.New("Groq suporta somente transcrição de áudio")
-		}
-		return Response{}, errors.New("provedor incompatível com transcrição de mídia")
+		return Response{}, &mediaError{UnsupportedMediaReason(provider, kind)}
 	}
 	client := &http.Client{Timeout: 120 * time.Second}
+	if provider == "gemini" {
+		return analyzeMediaGemini(ctx, client, model, apiKey, kind, mimeType, data, prompt, safeMode)
+	}
+	if provider == "claude" {
+		return analyzeMediaClaude(ctx, client, model, apiKey, kind, mimeType, data, prompt, safeMode)
+	}
 	if kind == "audio" {
 		endpoint, transcriptionModel := audioTranscriptionConfig(provider, model)
 		if safeMode {
@@ -124,10 +135,10 @@ func AnalyzeMedia(ctx context.Context, provider, model, apiKey, kind, mimeType s
 		}
 		return transcribeAudio(ctx, client, provider, endpoint, transcriptionModel, apiKey, mimeType, data, prompt)
 	}
-	instruction := strings.TrimSpace(prompt)
-	if instruction == "" {
-		instruction = "Transcreva ou resuma este arquivo. Retorne somente o texto útil, sem comentários sobre o processo."
+	if provider == "groq" {
+		return analyzeImageGroq(ctx, client, apiKey, mimeType, data, prompt, safeMode)
 	}
+	instruction := mediaInstruction(kind, prompt)
 	encoded := "data:" + mimeType + ";base64," + base64.StdEncoding.EncodeToString(data)
 	var input map[string]interface{}
 	if kind == "image" {
@@ -162,10 +173,6 @@ func AnalyzeMedia(ctx context.Context, provider, model, apiKey, kind, mimeType s
 		}
 	}
 	return Response{}, errors.New("OpenAI retornou uma resposta vazia")
-}
-
-func SupportsMediaAnalysis(provider, kind string) bool {
-	return provider == "openai" || (provider == "groq" && kind == "audio")
 }
 
 func audioTranscriptionConfig(provider, configuredModel string) (endpoint, model string) {
@@ -340,18 +347,19 @@ func completeOpenAICompatible(ctx context.Context, client *http.Client, endpoint
 }
 
 func completeClaude(ctx context.Context, client *http.Client, request Request) (Response, error) {
-	payload := map[string]interface{}{"model": request.Model, "system": request.System, "messages": request.Messages, "max_tokens": request.MaxOutputTokens, "temperature": request.Temperature}
+	payload := claudePayload(request.Model, request.MaxOutputTokens, request.Temperature, request.System, request.Messages)
 	var result struct {
 		Content []struct {
 			Type string `json:"type"`
 			Text string `json:"text"`
 		} `json:"content"`
-		Usage struct {
+		StopReason string `json:"stop_reason"`
+		Usage      struct {
 			InputTokens  int `json:"input_tokens"`
 			OutputTokens int `json:"output_tokens"`
 		} `json:"usage"`
 	}
-	if err := doJSON(ctx, client, "claude", "https://api.anthropic.com/v1/messages", request.APIKey, "2023-06-01", payload, &result); err != nil {
+	if err := doJSON(ctx, client, "claude", claudeURL, request.APIKey, "2023-06-01", payload, &result); err != nil {
 		return Response{}, err
 	}
 	var parts []string
@@ -361,6 +369,9 @@ func completeClaude(ctx context.Context, client *http.Client, request Request) (
 		}
 	}
 	if len(parts) == 0 {
+		if err := claudeEmptyResponseError(result.StopReason); err != nil {
+			return Response{}, err
+		}
 		return Response{}, errors.New("Claude retornou uma resposta vazia")
 	}
 	return Response{Text: strings.Join(parts, "\n"), PromptTokens: result.Usage.InputTokens, CompletionTokens: result.Usage.OutputTokens}, nil
@@ -393,8 +404,8 @@ func completeGemini(ctx context.Context, client *http.Client, request Request) (
 			CandidateTokens int `json:"candidatesTokenCount"`
 		} `json:"usageMetadata"`
 	}
-	endpoint := "https://generativelanguage.googleapis.com/v1beta/models/" + url.PathEscape(request.Model) + ":generateContent?key=" + url.QueryEscape(request.APIKey)
-	if err := doJSON(ctx, client, "gemini", endpoint, "", "", payload, &result); err != nil {
+	endpoint := geminiAPIBase + "/models/" + url.PathEscape(request.Model) + ":generateContent"
+	if err := doJSON(ctx, client, "gemini", endpoint, request.APIKey, "", payload, &result); err != nil {
 		return Response{}, err
 	}
 	var parts []string
@@ -422,7 +433,11 @@ func doJSON(ctx context.Context, client *http.Client, provider, endpoint, bearer
 	}
 	req.Header.Set("Content-Type", "application/json")
 	if bearer != "" {
-		if anthropicVersion != "" {
+		// Gemini keys go in x-goog-api-key: newer AI Studio keys are rejected
+		// in the ?key= query parameter, and headers keep keys out of URLs.
+		if provider == "gemini" {
+			req.Header.Set("x-goog-api-key", bearer)
+		} else if anthropicVersion != "" {
 			req.Header.Set("x-api-key", bearer)
 			req.Header.Set("anthropic-version", anthropicVersion)
 		} else {

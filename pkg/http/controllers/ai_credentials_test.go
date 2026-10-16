@@ -1,6 +1,7 @@
 package controllers
 
 import (
+	"strings"
 	"testing"
 	"time"
 
@@ -40,5 +41,28 @@ func TestNormalizeAICredentialEncryptsCreateAndPreservesBlankUpdate(t *testing.T
 	input, message = normalizeAICredentialRequest(&update, false)
 	if message != "" || input.APIKeyCiphertext != "" || input.Revision != 2 {
 		t.Fatalf("blank update key was not preserved: message=%q input=%#v", message, input)
+	}
+}
+
+func TestModelUnavailableMessageExplainsGemini25Restriction(t *testing.T) {
+	gemini := llm.ProviderFailure{Provider: "gemini", Category: "model_not_found", StatusCode: 404}
+	if got := modelUnavailableMessage(gemini, "gemini-2.5-flash"); !strings.Contains(got, "Gemini 3.8 Flash") {
+		t.Fatalf("Gemini 2.5 404 lacks the replacement: %q", got)
+	}
+	if got := modelUnavailableMessage(gemini, "gemini-3.8-flash"); got != failureErrorMessage(gemini) {
+		t.Fatalf("current Gemini model got the 2.5 explanation: %q", got)
+	}
+	openai := llm.ProviderFailure{Provider: "openai", Category: "model_not_found", StatusCode: 404}
+	if got := modelUnavailableMessage(openai, "gpt-4o"); got != failureErrorMessage(openai) {
+		t.Fatalf("OpenAI 404 changed: %q", got)
+	}
+}
+
+func TestFailureErrorMessageExplainsClaudeRefusalAndTokenLimit(t *testing.T) {
+	unavailable := failureErrorMessage(llm.ProviderFailure{Category: "unavailable"})
+	for _, category := range []string{"refusal", "max_tokens"} {
+		if got := failureErrorMessage(llm.ProviderFailure{Provider: "claude", Category: category}); got == unavailable || !strings.Contains(got, "a chave funciona") {
+			t.Fatalf("%s message = %q", category, got)
+		}
 	}
 }

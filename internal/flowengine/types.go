@@ -565,7 +565,7 @@ func validSourceHandle(node FlowNode, handle string) bool {
 		return handle == "text" || handle == "image" || handle == "video" || handle == "audio" || handle == "document" || handle == "other"
 	case NodeSmartAssign:
 		return handle == "assigned" || handle == "unavailable"
-	case NodeCallback, NodeConversationSummary:
+	case NodeCallback, NodeConversationSummary, NodeMediaTranscription:
 		return handle == "success" || handle == "failure"
 	case NodeHTTPRequest:
 		return handle == "" || handle == "success" || handle == "failure"

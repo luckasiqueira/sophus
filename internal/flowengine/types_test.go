@@ -131,6 +131,19 @@ func TestValidateFlowDataLimitsMediaTranscriptionPrompt(t *testing.T) {
 	}
 }
 
+// The editor offers Sucesso/Falha on the transcription block and the engine
+// routes by them, so saving those connections must be accepted.
+func TestValidateFlowDataAcceptsMediaTranscriptionBranches(t *testing.T) {
+	raw := json.RawMessage(`{"nodes":[{"id":"media","type":"mediaTranscription","data":{"credentialId":7,"saveResponseTo":"media"}},{"id":"ok","type":"end","data":{}},{"id":"fail","type":"end","data":{}}],"edges":[{"id":"e1","source":"media","target":"ok","sourceHandle":"success"},{"id":"e2","source":"media","target":"fail","sourceHandle":"failure"}]}`)
+	if err := ValidateFlowData(raw); err != nil {
+		t.Fatalf("expected media-transcription branches to be accepted: %v", err)
+	}
+	unknown := json.RawMessage(`{"nodes":[{"id":"media","type":"mediaTranscription","data":{"credentialId":7,"saveResponseTo":"media"}},{"id":"ok","type":"end","data":{}}],"edges":[{"id":"e1","source":"media","target":"ok","sourceHandle":"maybe"}]}`)
+	if err := ValidateFlowData(unknown); err == nil {
+		t.Fatal("expected an unknown media-transcription output to be rejected")
+	}
+}
+
 func TestValidateFlowDataLimitsAIKnowledgeBase(t *testing.T) {
 	knowledge := strings.Repeat("a", 500001)
 	raw := json.RawMessage(`{"nodes":[{"id":"ai","type":"ai","data":{"credentialId":7,"prompt":"Olá","knowledgeBase":"` + knowledge + `"}}],"edges":[]}`)

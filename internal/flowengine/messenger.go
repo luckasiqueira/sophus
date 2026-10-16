@@ -61,13 +61,47 @@ type replyButton struct {
 	ID          string `json:"id"`
 }
 
+// Evolution GO's /send/button rejects (400) a message without title, description
+// or footer, so the block's optional title and footer fall back to defaults.
+const (
+	defaultButtonsTitle  = "Escolha uma opção"
+	defaultButtonsFooter = "Toque em um botão para responder"
+)
+
 type buttonsPayload struct {
 	Number      string        `json:"number"`
-	Title       string        `json:"title,omitempty"`
+	Title       string        `json:"title"`
 	Description string        `json:"description"`
-	Footer      string        `json:"footer,omitempty"`
+	Footer      string        `json:"footer"`
 	Buttons     []replyButton `json:"buttons"`
 	Delay       int           `json:"delay"`
+}
+
+// evolutionRequestError keeps Evolution GO's own explanation of a rejected
+// request (e.g. "footer is required"), which requests.Do drops from its error.
+func evolutionRequestError(action string, r requests.Request, err error) error {
+	if r.Response.StatusCode == 0 {
+		return fmt.Errorf("%s: %w", action, err)
+	}
+	reason := strings.TrimSpace(string(r.Response.Body))
+	var body struct {
+		Error   string `json:"error"`
+		Message string `json:"message"`
+	}
+	if json.Unmarshal(r.Response.Body, &body) == nil {
+		if body.Error != "" {
+			reason = body.Error
+		} else if body.Message != "" {
+			reason = body.Message
+		}
+	}
+	if len(reason) > 300 {
+		reason = reason[:300] + "…"
+	}
+	if reason == "" {
+		return fmt.Errorf("%s recusado pelo Evolution GO (status %d)", action, r.Response.StatusCode)
+	}
+	return fmt.Errorf("%s recusado pelo Evolution GO (status %d): %s", action, r.Response.StatusCode, reason)
 }
 
 func NewMessenger(connection repo.ConnectionEVO) *Messenger {
@@ -184,12 +218,8 @@ func (m *Messenger) sendMedia(conversation repo.Conversation, mediaType, mediaUR
 		},
 		Response: requests.Response{},
 	}
-	err = r.Do()
-	if err != nil {
-		return "", err
-	}
-	if r.StatusCode < 200 || r.StatusCode >= 300 {
-		return "", fmt.Errorf("send media failed with status %d: %s", r.StatusCode, string(r.Response.Body))
+	if err = r.Do(); err != nil {
+		return "", evolutionRequestError("envio de mídia", r, err)
 	}
 	text := caption
 	if strings.TrimSpace(text) == "" && mediaPath == "" {
@@ -336,6 +366,12 @@ func buildButtonsPayload(number string, data map[string]interface{}, ctx Executi
 	if strings.TrimSpace(payload.Description) == "" {
 		return buttonsPayload{}, fmt.Errorf("mensagem dos botões é obrigatória")
 	}
+	if strings.TrimSpace(payload.Title) == "" {
+		payload.Title = defaultButtonsTitle
+	}
+	if payload.Footer == "" {
+		payload.Footer = defaultButtonsFooter
+	}
 	for _, item := range flowButtons(data) {
 		button := replyButton{Type: "reply", DisplayText: strings.TrimSpace(ReplaceVariables(stringVal(item, "text"), ctx)), ID: strings.TrimSpace(ReplaceVariables(stringVal(item, "id"), ctx))}
 		if button.DisplayText == "" || len(button.DisplayText) > 25 || button.ID == "" || len(button.ID) > 100 {
@@ -380,10 +416,7 @@ func (m *Messenger) SendButtons(conversation repo.Conversation, data map[string]
 		Headers: map[string]string{"Content-Type": "application/json", "apikey": m.Connection.EvolutionAPIKey()},
 	}
 	if err := r.Do(); err != nil {
-		return err
-	}
-	if r.StatusCode < 200 || r.StatusCode >= 300 {
-		return fmt.Errorf("send buttons failed with status %d: %s", r.StatusCode, string(r.Response.Body))
+		return evolutionRequestError("envio de botões", r, err)
 	}
 	return repo.SaveFlowMessage(conversation.Id, evolutionMessageID(r.Response.Body), payload.Description, m.Connection.CompanyID)
 }

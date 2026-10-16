@@ -111,8 +111,18 @@ func TestMediaAnalysisCompatibility(t *testing.T) {
 		{provider: "openai", kind: "image", want: true},
 		{provider: "openai", kind: "document", want: true},
 		{provider: "groq", kind: "audio", want: true},
-		{provider: "groq", kind: "image", want: false},
-		{provider: "gemini", kind: "audio", want: false},
+		{provider: "groq", kind: "image", want: true},
+		{provider: "groq", kind: "video", want: false},
+		{provider: "groq", kind: "document", want: false},
+		{provider: "gemini", kind: "audio", want: true},
+		{provider: "gemini", kind: "image", want: true},
+		{provider: "gemini", kind: "video", want: true},
+		{provider: "gemini", kind: "document", want: true},
+		{provider: "deepseek", kind: "image", want: false},
+		{provider: "claude", kind: "image", want: true},
+		{provider: "claude", kind: "document", want: true},
+		{provider: "claude", kind: "audio", want: false},
+		{provider: "claude", kind: "video", want: false},
 	}
 	for _, test := range tests {
 		if got := SupportsMediaAnalysis(test.provider, test.kind); got != test.want {

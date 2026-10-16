@@ -18,7 +18,7 @@ func TestFlowBuilderIncludesRoadmapNodes(t *testing.T) {
 		"Gerar com IA",
 		"data-variable-toggle", "Mensagem após transferir", "input[type=\"checkbox\"]:not(.hidden)",
 		"Voltar ao menu anterior", "Voltar ao menu principal",
-		"Ctrl e arraste o fundo", "canvas-panning", "resizeCanvasToContent",
+		"Arraste o fundo para navegar", "Ctrl + roda do mouse para zoom", "canvas-panning", "resizeCanvasToContent", "zoom-controls", "fitView",
 		"Testar e mapear resposta", "responseMappings", "/flows/api/test-http",
 		"variable-accordion", "Variáveis definidas", "Respostas capturadas", "Inteligência artificial",
 		"mediaTranscription')", "Conteúdo da mídia transcrita", "transcriptionError",

@@ -258,6 +258,9 @@ func (e *Engine) ExecuteFlow(flowID, conversationID, companyID int, initialConte
 			return e.failExecution(execution.Id, err.Error())
 		}
 
+		if result.OutputHandle == "failure" {
+			log.Printf("flow node failed: execution=%d node=%s type=%s reason=%q", execution.Id, currentNodeID, currentNode.Type, nodeFailureReason(result.Context))
+		}
 		if len(result.Context) > 0 {
 			context = mergeContext(context, result.Context)
 		}
@@ -287,6 +290,9 @@ func (e *Engine) ExecuteFlow(flowID, conversationID, companyID int, initialConte
 		nextNodeID, _ := e.getNextNode(currentNodeID, string(currentNode.Type), flowData.Edges,
 			result.ConditionResult, result.SwitchCaseIndex, result.OutputHandle, result.ScheduleAppointmentHandle)
 		if nextNodeID == "" {
+			if result.OutputHandle == "failure" {
+				return e.stopAtUnroutedFailure(execution.Id, conversation.Id, companyID, *currentNode, nodeFailureReason(result.Context))
+			}
 			if result.OutputHandle != "" {
 				log.Printf("flow route missing: execution=%d node=%s type=%s output=%s", execution.Id, currentNodeID, currentNode.Type, result.OutputHandle)
 			}
@@ -465,7 +471,10 @@ func (e *Engine) processNode(executionID int, node FlowNode, ctx ExecutionContex
 			routing = "continue"
 		}
 		log.Printf("flow HTTP request finished: execution=%d node=%s status=%d outcome=%s routing=%s duration=%s", executionID, node.ID, intVal(resp, "status"), outcome, routing, time.Since(requestStartedAt).Round(time.Millisecond))
-		resultContext := ExecutionContext{}
+		resultContext := ExecutionContext{"httpError": nil}
+		if outcome == "failure" {
+			resultContext["httpError"] = httpFailureReason(resp)
+		}
 		if saveTo := strings.TrimSpace(stringVal(node.Data, "saveResponseTo")); saveTo != "" {
 			resultContext[saveTo] = resp
 		}
@@ -492,15 +501,14 @@ func (e *Engine) processNode(executionID int, node FlowNode, ctx ExecutionContex
 	case NodeConversationSummary:
 		summary, err := executeConversationSummary(node, companyID, conversation.Id)
 		if err != nil {
-			log.Printf("conversation summary failed: execution=%d node=%s error=%v", executionID, node.ID, err)
-			return ProcessResult{OutputHandle: "failure"}, nil
+			return ProcessResult{OutputHandle: "failure", Context: ExecutionContext{"summaryError": err.Error()}}, nil
 		}
 		if boolVal(node.Data, "persist") {
 			if err := repo.AddFlowConversationEvent(conversation.Id, executionID, companyID, node.ID, "history", "Resumo da conversa: "+summary); err != nil {
 				return ProcessResult{}, err
 			}
 		}
-		return ProcessResult{OutputHandle: "success", Context: ExecutionContext{strings.TrimSpace(stringVal(node.Data, "saveResponseTo")): summary}}, nil
+		return ProcessResult{OutputHandle: "success", Context: ExecutionContext{strings.TrimSpace(stringVal(node.Data, "saveResponseTo")): summary, "summaryError": nil}}, nil
 	case NodeNPSEvaluation:
 		waitingID, _ := ctx["_waitingForNPSNodeId"].(string)
 		if waitingID != node.ID {
@@ -695,10 +703,12 @@ func (e *Engine) processNode(executionID int, node FlowNode, ctx ExecutionContex
 		response := e.messenger.ExecuteHTTPRequest(callbackData, ctx)
 		status := intVal(response, "status")
 		handle := "success"
+		var callbackError interface{}
 		if boolVal(response, "error") || status < 200 || status >= 300 {
 			handle = "failure"
+			callbackError = httpFailureReason(response)
 		}
-		return ProcessResult{OutputHandle: handle, Context: ExecutionContext{"callbackResponse": response}}, nil
+		return ProcessResult{OutputHandle: handle, Context: ExecutionContext{"callbackResponse": response, "callbackError": callbackError}}, nil
 	case NodeSubflow:
 		subflowData, err := embeddedSubflowData(node.Data)
 		if err != nil {
@@ -746,18 +756,21 @@ func (e *Engine) processNode(executionID int, node FlowNode, ctx ExecutionContex
 		}}, nil
 	case NodeMediaTranscription:
 		credential, err := resolveFlowAICredential(node, companyID)
-		if err != nil || (credential.Provider != "openai" && credential.Provider != "groq") {
-			return ProcessResult{OutputHandle: "failure", Context: ExecutionContext{"transcriptionError": "credencial incompatível com transcrição de mídia"}}, nil
+		if err != nil {
+			return ProcessResult{OutputHandle: "failure", Context: ExecutionContext{"transcriptionError": "a credencial de IA do bloco não existe mais ou está sem chave"}}, nil
 		}
-		messageID, _ := ctx["messageId"].(string)
-		var attachment repo.MessageData
-		if strings.TrimSpace(messageID) != "" {
-			attachment, err = repo.GetIncomingMediaByMessage(messageID, companyID)
-		} else {
-			attachment, err = repo.GetLatestIncomingMedia(conversation.Id, companyID)
+		if !llm.MediaAnalysisProvider(credential.Provider) {
+			return ProcessResult{OutputHandle: "failure", Context: ExecutionContext{"transcriptionError": llm.UnsupportedMediaReason(credential.Provider, "")}}, nil
 		}
-		if err != nil || strings.TrimSpace(attachment.MediaPath) == "" {
-			return ProcessResult{OutputHandle: "failure", Context: ExecutionContext{"transcriptionError": "nenhuma mídia recebida foi encontrada"}}, nil
+		messageID := incomingMessageID(ctx)
+		attachment, reason := awaitIncomingMedia(func() (repo.MessageData, error) {
+			if messageID != "" {
+				return repo.GetIncomingMediaByMessage(messageID, companyID)
+			}
+			return repo.GetLatestIncomingMedia(conversation.Id, companyID)
+		}, incomingMediaWait, incomingMediaPoll)
+		if reason != "" {
+			return ProcessResult{OutputHandle: "failure", Context: ExecutionContext{"transcriptionError": reason}}, nil
 		}
 		filePath, err := media.FilePath(companyID, attachment.MediaPath)
 		if err != nil {
@@ -775,12 +788,9 @@ func (e *Engine) processNode(executionID int, node FlowNode, ctx ExecutionContex
 			}
 		}
 		if !llm.SupportsMediaAnalysis(credential.Provider, kind) {
-			return ProcessResult{OutputHandle: "failure", Context: ExecutionContext{"transcriptionError": "a credencial Groq suporta somente transcrição de áudio"}}, nil
+			return ProcessResult{OutputHandle: "failure", Context: ExecutionContext{"transcriptionError": llm.UnsupportedMediaReason(credential.Provider, kind)}}, nil
 		}
-		contentType := mime.TypeByExtension(strings.ToLower(filepath.Ext(filePath)))
-		if contentType == "" {
-			contentType = "application/octet-stream"
-		}
+		contentType := storedMediaContentType(filePath)
 		prompt := strings.TrimSpace(ReplaceVariables(stringVal(node.Data, "prompt"), ctx))
 		if len(prompt) > 10000 {
 			return ProcessResult{OutputHandle: "failure", Context: ExecutionContext{"transcriptionError": "prompt expandido excede o limite de 10000 caracteres"}}, nil
@@ -788,7 +798,7 @@ func (e *Engine) processNode(executionID int, node FlowNode, ctx ExecutionContex
 		response, err := llm.AnalyzeMedia(context.Background(), credential.Provider, credential.Model, credential.APIKey, kind, contentType, data, prompt, safeModeEnabled(node.Data))
 		if err != nil {
 			logLLMFailure("flow_media_transcription", companyID, credential.ID, credential.Provider, credential.Model, err)
-			return ProcessResult{OutputHandle: "failure", Context: ExecutionContext{"transcriptionError": llm.SafeErrorMessage(err)}}, nil
+			return ProcessResult{OutputHandle: "failure", Context: ExecutionContext{"transcriptionError": llm.MediaErrorMessage(err)}}, nil
 		}
 		variableName := strings.TrimSpace(stringVal(node.Data, "saveResponseTo"))
 		return ProcessResult{OutputHandle: "success", Context: ExecutionContext{variableName: response.Text, "transcriptionError": nil}}, nil
@@ -1512,6 +1522,9 @@ func (e *Engine) executeInlineFlow(executionID int, flowData FlowData, ctx Execu
 			return nil, err
 		}
 		if nextNodeID == "" {
+			if result.OutputHandle == "failure" {
+				return nil, fmt.Errorf("o bloco %s do subfluxo falhou e a saída Falha não está conectada: %s", failureNodeLabel(node.Type), nodeFailureReason(result.Context))
+			}
 			return context, nil
 		}
 		currentNodeID = nextNodeID
@@ -1601,6 +1614,117 @@ func executionContextJSON(ctx ExecutionContext) (json.RawMessage, error) {
 		return nil, fmt.Errorf("contexto da execução excede o limite de %d bytes", maxExecutionContextBytes)
 	}
 	return encoded, nil
+}
+
+// storedMediaContentType maps the extensions given to received attachments to
+// their MIME type without relying on the host's mime.types: minimal images do
+// not know .ogg or .mp4, and providers such as Gemini reject octet-stream.
+var storedMediaTypes = map[string]string{
+	".jpg": "image/jpeg", ".jpeg": "image/jpeg", ".png": "image/png", ".gif": "image/gif", ".webp": "image/webp",
+	".mp4": "video/mp4", ".webm": "video/webm", ".mov": "video/quicktime", ".3gp": "video/3gpp",
+	".ogg": "audio/ogg", ".oga": "audio/ogg", ".opus": "audio/ogg", ".weba": "audio/webm", ".mp3": "audio/mpeg",
+	".m4a": "audio/mp4", ".aac": "audio/aac", ".wav": "audio/wav", ".flac": "audio/flac",
+	".pdf": "application/pdf", ".txt": "text/plain", ".csv": "text/csv",
+}
+
+func storedMediaContentType(path string) string {
+	extension := strings.ToLower(filepath.Ext(path))
+	if known := storedMediaTypes[extension]; known != "" {
+		return known
+	}
+	if detected := mime.TypeByExtension(extension); detected != "" {
+		return detected
+	}
+	return "application/octet-stream"
+}
+
+// The webhook stores an incoming message before downloading its attachment
+// and resumes the flow in parallel, so a transcription may start while the file
+// is still on its way. It waits for the download within these bounds.
+var (
+	incomingMediaWait = 45 * time.Second
+	incomingMediaPoll = 750 * time.Millisecond
+)
+
+// incomingMessageID returns the WhatsApp ID of the message that triggered the
+// run. The dispatcher prefixes it with its origin ("message:", "button:").
+func incomingMessageID(ctx ExecutionContext) string {
+	key, _ := ctx["messageId"].(string)
+	key = strings.TrimSpace(key)
+	switch {
+	case strings.HasPrefix(key, "message:"):
+		return strings.TrimPrefix(key, "message:")
+	case strings.HasPrefix(key, "button:"):
+		return ""
+	}
+	return key
+}
+
+func awaitIncomingMedia(lookup func() (repo.MessageData, error), wait, poll time.Duration) (repo.MessageData, string) {
+	deadline := time.Now().Add(wait)
+	for {
+		attachment, err := lookup()
+		switch {
+		case errors.Is(err, sql.ErrNoRows):
+			return attachment, "a mensagem do cliente não contém mídia (áudio, imagem, vídeo ou documento)"
+		case err != nil:
+			return attachment, "não foi possível consultar a mídia recebida"
+		case attachment.IsDeleted:
+			return attachment, "a mídia foi apagada pelo cliente"
+		case strings.TrimSpace(attachment.MediaPath) != "":
+			return attachment, ""
+		case !time.Now().Before(deadline):
+			return attachment, fmt.Sprintf("o download da mídia recebida não terminou em %d segundos", int(wait.Seconds()))
+		}
+		time.Sleep(poll)
+	}
+}
+
+// Context keys where blocks with a "failure" exit explain why they failed.
+var nodeFailureReasonKeys = []string{"transcriptionError", "aiError", "summaryError", "httpError", "callbackError", "scheduleError", "subflowError"}
+
+func nodeFailureReason(result ExecutionContext) string {
+	for _, key := range nodeFailureReasonKeys {
+		if reason, ok := result[key].(string); ok && strings.TrimSpace(reason) != "" {
+			return strings.TrimSpace(reason)
+		}
+	}
+	return "motivo não informado pelo bloco"
+}
+
+func httpFailureReason(response map[string]interface{}) string {
+	if boolVal(response, "error") {
+		if message := strings.TrimSpace(stringVal(response, "message")); message != "" {
+			return message
+		}
+		return "a requisição não pôde ser concluída"
+	}
+	return fmt.Sprintf("o servidor respondeu com status %d", intVal(response, "status"))
+}
+
+var failureNodeLabels = map[FlowNodeType]string{
+	NodeMediaTranscription: "Transcrever Mídia", NodeAI: "Gerar com IA", NodeConversationSummary: "Resumir Conversa",
+	NodeHTTPRequest: "HTTP Request", NodeCallback: "Callback", NodeSubflow: "Executar Subfluxo", NodeScheduleMessage: "Agendar Mensagem",
+}
+
+// stopAtUnroutedFailure ends a run whose block failed with nothing connected
+// to its "Falha" exit. The reason goes to the execution record, the server log
+// and the conversation history, so attendants can see why the flow stopped.
+func failureNodeLabel(nodeType FlowNodeType) string {
+	if label := failureNodeLabels[nodeType]; label != "" {
+		return label
+	}
+	return string(nodeType)
+}
+
+func (e *Engine) stopAtUnroutedFailure(executionID, conversationID, companyID int, node FlowNode, reason string) error {
+	label := failureNodeLabel(node.Type)
+	message := fmt.Sprintf("o bloco %s falhou e a saída Falha não está conectada: %s", label, reason)
+	note := fmt.Sprintf("Automação interrompida no bloco %s: %s. Conecte a saída Falha desse bloco para tratar esse caso.", label, reason)
+	if err := repo.AddFlowConversationEvent(conversationID, executionID, companyID, node.ID, "history", note); err != nil {
+		log.Printf("flow failure note not recorded: execution=%d node=%s error=%v", executionID, node.ID, err)
+	}
+	return e.failExecution(executionID, message)
 }
 
 func (e *Engine) failExecution(executionID int, message string) error {

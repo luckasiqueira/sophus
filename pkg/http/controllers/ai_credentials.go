@@ -171,7 +171,9 @@ func writeLLMTestError(ctx iris.Context, operation string, companyID, credential
 	}
 	log.Printf("llm request failed operation=%s company=%d credential=%d provider=%s model=%s category=%s upstream_status=%d retryable=%t", operation, companyID, credentialID, failure.Provider, model, failure.Category, failure.StatusCode, failure.Retryable)
 	switch failure.Category {
-	case "authentication", "invalid_request", "model_not_found":
+	case "model_not_found":
+		writeJSONError(ctx, iris.StatusUnprocessableEntity, modelUnavailableMessage(failure, model))
+	case "authentication", "invalid_request", "refusal", "max_tokens":
 		writeJSONError(ctx, iris.StatusUnprocessableEntity, failureErrorMessage(failure))
 	case "credit_required":
 		writeJSONError(ctx, iris.StatusPaymentRequired, failureErrorMessage(failure))
@@ -180,6 +182,15 @@ func writeLLMTestError(ctx iris.Context, operation string, companyID, credential
 	default:
 		writeJSONError(ctx, iris.StatusServiceUnavailable, failureErrorMessage(failure))
 	}
+}
+
+// modelUnavailableMessage explains a 404 for the model. Google restricts the
+// Gemini 2.5 family to projects that already used it, so new keys get 404.
+func modelUnavailableMessage(failure llm.ProviderFailure, model string) string {
+	if failure.Provider == "gemini" && strings.HasPrefix(model, "gemini-2.5") {
+		return "o Google liberou os modelos Gemini 2.5 apenas para projetos que já os usavam; edite a credencial e selecione Gemini 3.8 Flash ou 3.5 Flash-Lite"
+	}
+	return failureErrorMessage(failure)
 }
 
 func failureErrorMessage(failure llm.ProviderFailure) string {
@@ -194,6 +205,10 @@ func failureErrorMessage(failure llm.ProviderFailure) string {
 		return "a conta do provedor não possui saldo disponível; adicione créditos e tente novamente"
 	case "rate_limit":
 		return "o limite de uso do provedor foi atingido; tente novamente mais tarde"
+	case "refusal":
+		return "a chave funciona, mas o modelo se recusou a responder ao teste"
+	case "max_tokens":
+		return "a chave funciona, mas o modelo usou todo o limite de tokens de saída antes de responder; aumente o limite configurado"
 	default:
 		return "o provedor de IA está indisponível no momento; tente novamente mais tarde"
 	}

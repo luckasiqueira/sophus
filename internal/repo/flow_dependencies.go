@@ -3,6 +3,8 @@ package repo
 import (
 	"encoding/json"
 	"fmt"
+
+	"sophus/internal/llm"
 )
 
 type flowDependencyData struct {
@@ -85,13 +87,13 @@ func validateFlowDependencies(raw json.RawMessage, companyID int, ancestors map[
 		case "ai", "conversationSummary", "mediaTranscription":
 			if node.Data.CredentialID <= 0 {
 				agent, err := GetAIAgent(node.Data.AIAgentID, companyID)
-				if err != nil || !agent.IsActive || (node.Type == "mediaTranscription" && agent.Provider != "openai" && agent.Provider != "groq") {
+				if err != nil || !agent.IsActive || (node.Type == "mediaTranscription" && !llm.MediaAnalysisProvider(agent.Provider)) {
 					return fmt.Errorf("agente de IA legado %d não existe ou está inativo nesta empresa", node.Data.AIAgentID)
 				}
 				continue
 			}
 			credential, err := GetAICredential(node.Data.CredentialID, companyID)
-			if err != nil || !credential.HasAPIKey || (node.Type == "mediaTranscription" && credential.Provider != "openai" && credential.Provider != "groq") {
+			if err != nil || !credential.HasAPIKey || (node.Type == "mediaTranscription" && !llm.MediaAnalysisProvider(credential.Provider)) {
 				return fmt.Errorf("credencial de IA %d não existe, não pertence a esta empresa ou não possui chave ativa", node.Data.CredentialID)
 			}
 		}

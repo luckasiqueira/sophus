@@ -17,13 +17,18 @@ templ FlowBuilder() {
   #canvas-wrap { min-width: 0; background-image: radial-gradient(#e7e5e4 1.5px, transparent 1.5px); background-size: 22px 22px; }
 	#canvas-wrap.canvas-panning { cursor: grabbing; user-select: none; }
 	#canvas-wrap.canvas-panning * { cursor: grabbing !important; }
-  .node-card { position: absolute; width: 220px; cursor: grab; user-select: none; }
+  .node-card { position: absolute; width: 220px; cursor: grab; user-select: none; touch-action: none; }
   .node-card.dragging { cursor: grabbing; z-index: 30; }
   .node-card.selected { box-shadow: 0 0 0 2px #6123cc, 0 8px 20px rgba(0,0,0,.12); }
   .node-card.connection-target { box-shadow: 0 0 0 3px #22c55e, 0 8px 20px rgba(34,197,94,.2); }
   .handle { width: 14px; height: 14px; border-radius: 9999px; border: 2px solid white; box-shadow: 0 0 0 1px #a8a29e; cursor: crosshair; position: absolute; background: #78716c; touch-action: none; }
   .handle:hover { background: #6123cc; box-shadow: 0 0 0 1px #6123cc; }
   .handle.armed { background: #f59e0b; box-shadow: 0 0 0 3px rgba(245,158,11,.4); animation: pulse 1s infinite; }
+  .edge-group { cursor: pointer; }
+  .edge-hit { pointer-events: stroke; }
+  .edge-line { pointer-events: none; }
+  .edge-remove { opacity: 0; pointer-events: none; transition: opacity .12s ease; }
+  .edge-group.active .edge-remove { opacity: 1; pointer-events: all; }
   .handle-label { position: absolute; right: 18px; top: 50%; transform: translateY(-50%); white-space: nowrap; pointer-events: none; font-size: 10px; line-height: 1; color: #78716c; }
 	input[type="checkbox"]:not(.hidden) { appearance: none; -webkit-appearance: none; width: 1.1rem; height: 1.1rem; flex: 0 0 auto; display: inline-grid; place-content: center; border: 1.5px solid #c4b5fd; border-radius: .32rem; background: #fff; cursor: pointer; transition: border-color .15s ease, background-color .15s ease, box-shadow .15s ease; }
 	input[type="checkbox"]:not(.hidden)::before { content: ''; width: .58rem; height: .32rem; border-left: 2px solid white; border-bottom: 2px solid white; transform: rotate(-45deg) scale(0); transform-origin: center; transition: transform .12s ease; margin-top: -.08rem; }
@@ -32,7 +37,16 @@ templ FlowBuilder() {
 	input[type="checkbox"]:not(.hidden):focus-visible { outline: none; box-shadow: 0 0 0 3px rgba(124,58,237,.22); }
 	input[type="checkbox"]:not(.hidden):disabled { cursor: not-allowed; opacity: .5; }
   @keyframes pulse { 0%,100% { transform: scale(1); } 50% { transform: scale(1.25); } }
-  .palette-item { cursor: grab; aspect-ratio: 1; min-width: 0; }
+  .palette-item { cursor: pointer; aspect-ratio: 1; min-width: 0; }
+	#canvas-wrap { cursor: grab; }
+	@media (min-width: 768px) {
+		#palette-panel.palette-collapsed { width: 4rem; }
+		#palette-panel.palette-collapsed .palette-toggle-label, #palette-panel.palette-collapsed .palette-category-title, #palette-panel.palette-collapsed .palette-item-label { display: none; }
+		#palette-panel.palette-collapsed .palette-grid { grid-template-columns: minmax(0, 1fr); gap: .375rem; }
+		#palette-panel.palette-collapsed .palette-item { padding: .25rem; }
+		#palette-panel.palette-collapsed #palette > div { margin-bottom: .5rem; }
+		#palette-panel.palette-collapsed #palette-toggle { justify-content: center; }
+	}
   .palette-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .5rem; }
   .flow-dropdown-panel { position: fixed; inset: auto; margin: 0; padding: .375rem 0; display: none; flex-direction: column; overflow-y: auto; border: 1px solid #e7e5e4; border-radius: .75rem; background: white; color: #374151; box-shadow: 0 12px 32px #1c191733; z-index: 160; }
   .flow-dropdown-panel:popover-open { display: flex; }
@@ -46,7 +60,8 @@ templ FlowBuilder() {
 		#palette { display: flex; width: max-content; gap: 1rem; }
 		#palette > div { margin-bottom: 0; width: 13rem; flex-shrink: 0; }
 		.node-card { touch-action: none; }
-		#inspector:not(.hidden) { position: absolute; inset: auto 0 0; z-index: 30; height: min(55%, 25rem); width: 100%; border-left: 0; border-top: 1px solid #e7e5e4; box-shadow: 0 -8px 24px #1c191722; }
+		#inspector:not(.hidden) { inset: auto 0 0; height: min(60%, 25rem); width: 100%; max-width: none; border-radius: 1rem 1rem 0 0; }
+		#zoom-controls { bottom: auto; top: .5rem; left: .5rem; }
 	}
 	}
 </style>
@@ -89,26 +104,43 @@ templ FlowBuilder() {
   <!-- EDITOR VIEW -->
   <div id="view-editor" class="relative hidden min-h-0 flex-1 flex overflow-hidden">
     <!-- Palette -->
-    <div class="max-h-[22dvh] w-full shrink-0 overflow-auto border-b border-stone-200 bg-white p-2 md:max-h-none md:w-60 md:overflow-y-auto md:border-b-0 md:border-r md:p-3">
+    <div id="palette-panel" class="max-h-[22dvh] w-full shrink-0 overflow-auto border-b border-stone-200 bg-white p-2 md:max-h-none md:w-52 md:overflow-y-auto md:border-b-0 md:border-r md:p-2">
+      <button id="palette-toggle" type="button" class="mb-2 hidden w-full items-center justify-between gap-2 rounded-lg px-2 py-1.5 text-xs font-semibold text-gray-500 hover:bg-stone-100 md:flex" aria-expanded="true" aria-controls="palette" title="Recolher blocos"><span class="palette-toggle-label">Blocos</span><i class="fas fa-angles-left"></i></button>
       <div id="palette"></div>
     </div>
 
     <!-- Canvas -->
-    <div id="canvas-wrap" class="flex-1 min-w-0 relative overflow-auto" title="Segure Ctrl e arraste o fundo para navegar pelo canvas">
-	  <div id="canvas" style="width:1800px;height:1200px;position:relative;">
-		<svg id="edges-svg" width="1800" height="1200" style="position:absolute;top:0;left:0;pointer-events:none;">
-          <defs>
-            <marker id="arrow" markerWidth="8" markerHeight="8" refX="6" refY="4" orient="auto">
-              <path d="M0,0 L8,4 L0,8 Z" fill="#a8a29e"></path>
-            </marker>
-          </defs>
-        </svg>
-        <div id="nodes-layer"></div>
+    <div id="canvas-area" class="relative min-h-0 min-w-0 flex-1">
+      <div id="canvas-wrap" class="absolute inset-0 overflow-auto" title="Arraste o fundo para navegar · Ctrl + roda do mouse para zoom">
+        <div id="canvas-sizer" style="position:relative;width:4000px;height:3000px;">
+          <div id="canvas" style="width:4000px;height:3000px;position:absolute;left:0;top:0;transform-origin:0 0;">
+           <div id="canvas-origin" style="position:absolute;left:1600px;top:1200px;">
+            <svg id="edges-svg" width="2400" height="1800" style="position:absolute;top:0;left:0;pointer-events:none;overflow:visible;">
+              <defs>
+                <marker id="arrow" markerWidth="8" markerHeight="8" refX="6" refY="4" orient="auto">
+                  <path d="M0,0 L8,4 L0,8 Z" fill="#a8a29e"></path>
+                </marker>
+                <marker id="arrow-active" markerWidth="8" markerHeight="8" refX="6" refY="4" orient="auto">
+                  <path d="M0,0 L8,4 L0,8 Z" fill="#6123cc"></path>
+                </marker>
+              </defs>
+            </svg>
+            <div id="nodes-layer"></div>
+           </div>
+          </div>
+        </div>
       </div>
-    </div>
+      <div id="zoom-controls" class="absolute bottom-3 left-3 z-20 flex items-center gap-1 rounded-xl border border-stone-200 bg-white p-1 shadow-md" role="group" aria-label="Zoom do fluxo">
+        <button type="button" data-zoom="out" class="grid h-8 w-8 place-items-center rounded-lg text-gray-600 hover:bg-stone-100" title="Diminuir zoom (Ctrl -)" aria-label="Diminuir zoom"><i class="fas fa-minus text-xs"></i></button>
+        <button type="button" data-zoom="reset" id="zoom-level" class="h-8 min-w-[3.5rem] rounded-lg px-2 text-xs font-semibold text-gray-700 hover:bg-stone-100" title="Voltar para 100% (Ctrl 0)">100%</button>
+        <button type="button" data-zoom="in" class="grid h-8 w-8 place-items-center rounded-lg text-gray-600 hover:bg-stone-100" title="Aumentar zoom (Ctrl +)" aria-label="Aumentar zoom"><i class="fas fa-plus text-xs"></i></button>
+        <span class="mx-0.5 h-5 w-px bg-stone-200"></span>
+        <button type="button" data-zoom="fit" class="grid h-8 w-8 place-items-center rounded-lg text-gray-600 hover:bg-stone-100" title="Ajustar o fluxo à tela" aria-label="Ajustar o fluxo à tela"><i class="fas fa-expand text-xs"></i></button>
+      </div>
 
-    <!-- Inspector -->
-    <div id="inspector" class="hidden w-96 shrink-0 overflow-y-auto border-l border-stone-200 bg-white p-4"></div>
+      <!-- Inspector: floats over the canvas instead of shrinking it -->
+      <div id="inspector" class="hidden absolute bottom-3 right-3 top-3 z-30 w-[22rem] max-w-[calc(100%-1.5rem)] overflow-y-auto rounded-2xl border border-stone-200 bg-white p-4 shadow-2xl"></div>
+    </div>
   </div>
 
   <div id="templates-modal" class="hidden fixed inset-0 z-50 bg-black bg-opacity-40 p-4 items-center justify-center">
@@ -212,6 +244,8 @@ const NODE_TYPES = {
 };
 const CATEGORIES = ['Fluxo', 'Mensagens', 'Lógica', 'Sistema', 'Interação'];
 const NODE_W = 220;
+// Providers the Transcrever Mídia block accepts; mirrors llm.MediaAnalysisProvider.
+const MEDIA_PROVIDERS = ['openai', 'gemini', 'claude', 'groq'];
 const CONDITION_SOURCES = [
   { value: 'contactName', label: 'NOME DO CONTATO' },
   { value: 'contactNumber', label: 'NÚMERO DO CONTATO' },
@@ -351,6 +385,9 @@ const state = {
   armedHandle: null,      // {nodeId, handle} - connection source selected by click or drag
 	connectionDrag: null,   // {pointerId, startClientX, startClientY, x, y, moved}
 	canvasPan: null,
+	hoveredEdgeId: null,
+	zoom: 1,
+	suppressClick: false, // swallows the click a drag or pan ends with
 	httpTestResponses: {},
 	httpTestContexts: {},
 	savedFingerprint: '',
@@ -450,7 +487,7 @@ async function deleteFlow(id) {
 // Editor view - open/new/save
 // ---------------------------------------------------------------------
 function blankFlowData() {
-  return { nodes: [{ id: uid('n'), type: 'start', position: { x: 80, y: 160 }, data: {} }], edges: [], settings: {} };
+  return { nodes: [{ id: uid('n'), type: 'start', position: { x: 240, y: 200 }, data: {} }], edges: [], settings: {} };
 }
 
 const FLOW_STARTERS = JSON.parse(document.getElementById('flow-starter-catalog').dataset.templates);
@@ -507,7 +544,7 @@ async function openEditor(id, starterId) {
   renderCanvas();
 	renderInspector();
 	const guide=document.getElementById('flow-starter-guide');guide.textContent=starter?'Modelo: '+starter.name+' — '+starter.instructions+' Salve, revise a conexão e ative quando estiver pronto.':'';guide.classList.toggle('hidden',!starter);
-	const wrap=document.getElementById('canvas-wrap');wrap.scrollLeft=0;wrap.scrollTop=0;
+	requestAnimationFrame(fitView);
 	state.savedFingerprint = starter ? '' : flowFingerprint();
 }
 
@@ -763,7 +800,7 @@ function renderPalette() {
     const items = Object.entries(NODE_TYPES).filter(([,m]) => m.category === cat);
     return `
       <div class="mb-4">
-        <div class="text-xs font-bold text-gray-400 uppercase tracking-wide mb-2 px-1">${cat}<\/div>
+        <div class="palette-category-title text-xs font-bold text-gray-400 uppercase tracking-wide mb-2 px-1">${cat}<\/div>
         <div class="palette-grid grid grid-cols-2 gap-2">
           ${items.map(([type, meta]) => `
             <button type="button" data-add="${type}" title="${meta.label}" aria-label="Adicionar ${meta.label}" class="palette-item flex flex-col items-center justify-center gap-2 rounded-xl border border-stone-200 p-2 text-center transition-all hover:-translate-y-0.5 hover:border-purple-300 hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-purple-400"
@@ -771,31 +808,12 @@ function renderPalette() {
               <span class="grid h-9 w-9 shrink-0 place-items-center rounded-xl text-lg" style="background:${meta.color}22;">
                 <i class="fas ${meta.icon}" aria-hidden="true" style="color:${meta.color};"><\/i>
               <\/span>
-              <span class="max-w-full break-words text-[11px] font-semibold leading-tight text-gray-700">${meta.label}<\/span>
+              <span class="palette-item-label max-w-full break-words text-[11px] font-semibold leading-tight text-gray-700">${meta.label}<\/span>
             <\/button>`).join('')}
         <\/div>
       <\/div>`;
   }).join('');
   el.querySelectorAll('[data-add]').forEach(btn => btn.onclick = () => addNode(btn.dataset.add));
-}
-
-function addNode(type) {
-  const meta = NODE_TYPES[type];
-  if (meta.singleton && state.flowData.nodes.some(n => n.type === type)) {
-    alert('Só pode existir um node de ' + meta.label + ' no fluxo.');
-    return;
-  }
-  const wrap = document.getElementById('canvas-wrap');
-  const node = {
-    id: uid('n'),
-    type,
-    position: { x: wrap.scrollLeft + 260, y: wrap.scrollTop + 120 + state.flowData.nodes.length * 12 },
-    data: defaultDataFor(type),
-  };
-  state.flowData.nodes.push(node);
-  state.selectedNodeId = node.id;
-  renderCanvas();
-  renderInspector();
 }
 
 function defaultDataFor(type) {
@@ -1004,10 +1022,22 @@ function nodeBodyHTML(node, outs) {
   if (node.type === 'condition') {
     return '<div class="px-3 py-2 text-xs text-gray-500 leading-snug line-clamp-3" style="height:89px;padding-right:108px">' + escapeHtml(nodeSummary(node)) + '<\/div>';
   }
-	const outputListHeight = (node.type === 'switch' || node.type === 'messageType') ? outs.length * 14 + 8 : 0;
-	const bodyHeight = Math.max(36, nodeHeight(node) - 43 - outputListHeight);
-	return '<div class="px-3 py-2 text-xs text-gray-500 leading-snug overflow-hidden break-words" style="height:' + bodyHeight + 'px;overflow-wrap:anywhere;display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:3">' + escapeHtml(nodeSummary(node)) + '<\/div>' +
-	    ((node.type === 'switch' || node.type === 'messageType') ? '<div class="px-3 text-[10px] text-gray-400 flex flex-col gap-0.5">' + outs.map(o=>'<div class="truncate">↳ ' + escapeHtml(o.label) + '<\/div>').join('') + '<\/div>' : '');
+	const bodyHeight = Math.max(36, nodeHeight(node) - 43);
+	const gutter = handleLabelGutter(node, outs);
+	return '<div class="px-3 py-2 text-xs text-gray-500 leading-snug overflow-hidden break-words" style="height:' + bodyHeight + 'px;' + (gutter ? 'padding-right:' + gutter + 'px;' : '') + 'overflow-wrap:anywhere;display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:' + Math.max(2, Math.floor((bodyHeight - 16) * 0.055)) + '">' + escapeHtml(nodeSummary(node)) + '<\/div>';
+}
+
+// Every block with more than one exit names them next to the handle, except
+// menus and buttons, whose rows already sit beside their handles.
+function showsHandleLabels(node, outs) {
+	return outs.length > 1 && node.type !== 'sendMenu' && node.type !== 'sendButtons' && outs.some(output => output.label);
+}
+
+// Room kept on the right of the block body so the summary text does not run
+// under the exit labels.
+function handleLabelGutter(node, outs) {
+	if (!showsHandleLabels(node, outs)) return 0;
+	return Math.min(110, 26 + Math.max(...outs.map(output => String(output.label || '').length)) * 6);
 }
 
 function outputY(node, index, count) {
@@ -1064,7 +1094,7 @@ function renderCanvas() {
       out.style.right = '-7px';
       out.style.top = (y - (node.type === 'sendMenu' || node.type === 'sendButtons' ? 8 : 7)) + 'px';
       out.title = o.label;
-	  if (node.type === 'condition' || node.type === 'checkResponse' || node.type === 'waitForResponse' || node.type === 'input' || node.type === 'businessHours' || node.type === 'randomSplit' || node.type === 'messageType' || node.type === 'smartAssign' || node.type === 'callback' || node.type === 'subflow' || node.type === 'ai' || node.type === 'scheduleMessage') out.innerHTML = '<span class="handle-label">' + escapeHtml(o.label) + '<\/span>';
+	  if (showsHandleLabels(node, outs)) out.innerHTML = '<span class="handle-label">' + escapeHtml(o.label) + '<\/span>';
       out.onpointerdown = (e) => startConnectionDrag(e, node.id, o.handle);
       card.appendChild(out);
     });
@@ -1075,6 +1105,7 @@ function renderCanvas() {
     card.onclick = (e) => {
 	  if (e.target.closest('button')) return;
       if (state.armedHandle) return;
+      if (state.suppressClick) { state.suppressClick = false; return; }
       selectNode(node.id);
     };
     layer.appendChild(card);
@@ -1088,32 +1119,145 @@ function selectNode(id) {
   renderInspector();
 }
 
+// Canvas geometry. Node positions are logical (unscaled) pixels; #canvas is
+// scaled by state.zoom and #canvas-sizer gives the scroll area its scaled size.
+const ZOOM_MIN = 0.1, ZOOM_MAX = 2;
+// Blocks sit inside #canvas-origin, offset from the canvas corner, so there is
+// room to scroll, zoom and centre in every direction around the flow.
+const CANVAS_ORIGIN_X = 1600, CANVAS_ORIGIN_Y = 1200;
+const DRAG_THRESHOLD = 4;
+
+function canvasZoom() { return state.zoom || 1; }
+
+function resizeCanvasToContent() {
+	const canvas = document.getElementById('canvas');
+	const sizer = document.getElementById('canvas-sizer');
+	const wrap = document.getElementById('canvas-wrap');
+	const svg = document.getElementById('edges-svg');
+	if (!canvas || !sizer || !wrap || !svg) return;
+	const zoom = canvasZoom();
+	const viewW = wrap.clientWidth * (1 / zoom), viewH = wrap.clientHeight * (1 / zoom);
+	let maxX = 0, maxY = 0;
+	state.flowData.nodes.forEach(node => {
+	  maxX = Math.max(maxX, Number(node.position?.x || 0) + NODE_W);
+	  maxY = Math.max(maxY, Number(node.position?.y || 0) + nodeHeight(node));
+	});
+	// Always leave at least a screen of free space past the last block.
+	const right = Math.ceil(Math.max(2400, viewW + 600, maxX + Math.max(1200, viewW)));
+	const bottom = Math.ceil(Math.max(1800, viewH + 400, maxY + Math.max(900, viewH)));
+	const width = CANVAS_ORIGIN_X + right, height = CANVAS_ORIGIN_Y + bottom;
+	canvas.style.width = width + 'px';
+	canvas.style.height = height + 'px';
+	canvas.style.transform = 'scale(' + zoom + ')';
+	sizer.style.width = Math.ceil(width * zoom) + 'px';
+	sizer.style.height = Math.ceil(height * zoom) + 'px';
+	svg.setAttribute('width', right);
+	svg.setAttribute('height', bottom);
+	wrap.style.backgroundSize = (22 * zoom) + 'px ' + (22 * zoom) + 'px';
+	const label = document.getElementById('zoom-level');
+	if (label) label.textContent = Math.round(zoom * 100) + '%';
+}
+
+// setZoom keeps the canvas point under (clientX, clientY) fixed on screen.
+function setZoom(value, clientX, clientY) {
+	const wrap = document.getElementById('canvas-wrap');
+	const zoom = Math.min(ZOOM_MAX, Math.max(ZOOM_MIN, Math.round(value * 100) * 0.01));
+	if (!wrap || zoom === canvasZoom()) return;
+	const rect = wrap.getBoundingClientRect();
+	if (clientX === undefined) { clientX = rect.left + rect.width * 0.5; clientY = rect.top + rect.height * 0.5; }
+	const anchor = canvasPoint(clientX, clientY);
+	state.zoom = zoom;
+	resizeCanvasToContent();
+	renderEdges();
+	wrap.scrollLeft = (CANVAS_ORIGIN_X + anchor.x) * zoom - (clientX - rect.left);
+	wrap.scrollTop = (CANVAS_ORIGIN_Y + anchor.y) * zoom - (clientY - rect.top);
+}
+
+function zoomStep(direction) {
+	const steps = [0.1, 0.15, 0.25, 0.33, 0.5, 0.67, 0.75, 0.9, 1, 1.1, 1.25, 1.5, 1.75, 2];
+	const current = canvasZoom();
+	const next = direction > 0 ? steps.find(step => step > current + 0.001) : steps.slice().reverse().find(step => step < current - 0.001);
+	if (next) setZoom(next);
+}
+
+// fitView frames every block, never enlarging past 100%.
+function fitView() {
+	const wrap = document.getElementById('canvas-wrap');
+	if (!wrap || !state.flowData.nodes.length) return;
+	let minX = Infinity, minY = Infinity, maxX = 0, maxY = 0;
+	state.flowData.nodes.forEach(node => {
+	  minX = Math.min(minX, node.position.x); minY = Math.min(minY, node.position.y);
+	  maxX = Math.max(maxX, node.position.x + NODE_W); maxY = Math.max(maxY, node.position.y + nodeHeight(node));
+	});
+	const margin = 80;
+	const zoom = Math.min(1, Math.max(ZOOM_MIN, Math.min((wrap.clientWidth - margin * 2) * (1 / (maxX - minX)), (wrap.clientHeight - margin * 2) * (1 / (maxY - minY)))));
+	state.zoom = Math.floor(zoom * 100) * 0.01;
+	resizeCanvasToContent();
+	renderEdges();
+	wrap.scrollLeft = (CANVAS_ORIGIN_X + (minX + maxX) * 0.5) * state.zoom - wrap.clientWidth * 0.5;
+	wrap.scrollTop = (CANVAS_ORIGIN_Y + (minY + maxY) * 0.5) * state.zoom - wrap.clientHeight * 0.5;
+}
+
+function canvasPoint(clientX, clientY) {
+  const rect = document.getElementById('canvas-origin').getBoundingClientRect();
+  const zoom = canvasZoom();
+  return { x: (clientX - rect.left) * (1 / zoom), y: (clientY - rect.top) * (1 / zoom) };
+}
+
+// Scrolls the canvas while a pointer rests near its edge during a drag.
+function edgeScroll(wrap, clientX, clientY) {
+	const rect = wrap.getBoundingClientRect(), zone = 48, speed = 14;
+	const dx = clientX > rect.right - zone ? speed : clientX < rect.left + zone ? -speed : 0;
+	const dy = clientY > rect.bottom - zone ? speed : clientY < rect.top + zone ? -speed : 0;
+	if (dx) wrap.scrollLeft += dx;
+	if (dy) wrap.scrollTop += dy;
+	return dx !== 0 || dy !== 0;
+}
+
 function startDrag(e, node) {
 	if (e.ctrlKey || e.button !== 0 || e.target.closest('.handle, button, input, textarea, select, a')) return;
+  state.suppressClick = false;
   const wrap = document.getElementById('canvas-wrap');
-  const startX = e.clientX + wrap.scrollLeft;
-  const startY = e.clientY + wrap.scrollTop;
+  const start = canvasPoint(e.clientX, e.clientY);
   const origX = node.position.x, origY = node.position.y;
   const card = e.currentTarget;
-  card.classList.add('dragging');
+  let last = { x: e.clientX, y: e.clientY }, moved = false, frame = 0;
 
-  function onMove(ev) {
-	if (ev.pointerId !== e.pointerId) return;
-    const dx = (ev.clientX + wrap.scrollLeft) - startX;
-    const dy = (ev.clientY + wrap.scrollTop) - startY;
-    node.position.x = Math.max(0, origX + dx);
-    node.position.y = Math.max(0, origY + dy);
+  function place() {
+    const point = canvasPoint(last.x, last.y);
+    node.position.x = Math.max(40 - CANVAS_ORIGIN_X, Math.round(origX + point.x - start.x));
+    node.position.y = Math.max(40 - CANVAS_ORIGIN_Y, Math.round(origY + point.y - start.y));
     card.style.left = node.position.x + 'px';
     card.style.top = node.position.y + 'px';
     renderEdges();
   }
+  function tick() {
+    frame = 0;
+    if (!moved) return;
+    if (edgeScroll(wrap, last.x, last.y)) {
+      place();
+      resizeCanvasToContent();
+      frame = requestAnimationFrame(tick);
+    }
+  }
+  function onMove(ev) {
+	if (ev.pointerId !== e.pointerId) return;
+    last = { x: ev.clientX, y: ev.clientY };
+    if (!moved && Math.hypot(ev.clientX - e.clientX, ev.clientY - e.clientY) < DRAG_THRESHOLD) return;
+    if (!moved) { moved = true; card.classList.add('dragging'); }
+    place();
+    if (!frame) frame = requestAnimationFrame(tick);
+  }
   function onUp(ev) {
 	if (ev.pointerId !== e.pointerId) return;
     card.classList.remove('dragging');
+	if (frame) cancelAnimationFrame(frame);
 	card.releasePointerCapture?.(e.pointerId);
 	card.removeEventListener('pointermove', onMove);
 	card.removeEventListener('pointerup', onUp);
 	card.removeEventListener('pointercancel', onUp);
+	// A drag is not a click: the properties panel opens only on a click.
+	if (moved) { state.suppressClick = true; resizeCanvasToContent(); }
   }
 	card.setPointerCapture?.(e.pointerId);
 	card.addEventListener('pointermove', onMove);
@@ -1121,50 +1265,116 @@ function startDrag(e, node) {
 	card.addEventListener('pointercancel', onUp);
 }
 
-function resizeCanvasToContent() {
-	const canvas = document.getElementById('canvas');
-	const wrap = document.getElementById('canvas-wrap');
-	const svg = document.getElementById('edges-svg');
-	if (!canvas || !wrap || !svg) return;
-	let maxX = 0, maxY = 0;
-	state.flowData.nodes.forEach(node => {
-	  maxX = Math.max(maxX, Number(node.position?.x || 0) + NODE_W);
-	  maxY = Math.max(maxY, Number(node.position?.y || 0) + nodeHeight(node));
-	});
-	const width = Math.ceil(Math.max(1800, wrap.clientWidth + 180, maxX + 260));
-	const height = Math.ceil(Math.max(1200, wrap.clientHeight + 180, maxY + 220));
-	canvas.style.width = width + 'px';
-	canvas.style.height = height + 'px';
-	svg.setAttribute('width', width);
-	svg.setAttribute('height', height);
+function isCanvasBackground(target) {
+	return target && (target.id === 'canvas-wrap' || target.id === 'canvas-sizer' || target.id === 'canvas' || target.id === 'canvas-origin' || target.id === 'nodes-layer' || target.id === 'edges-svg');
 }
 
 function initCanvasNavigation() {
 	const wrap = document.getElementById('canvas-wrap');
 	if (!wrap) return;
+	// Dragging the empty background pans (mouse and pen; touch scrolls natively).
 	wrap.addEventListener('pointerdown', event => {
-	  if (!event.ctrlKey || event.button !== 0) return;
+	  if (event.button !== 0 || event.pointerType === 'touch') return;
+	  if (!event.ctrlKey && !isCanvasBackground(event.target)) return;
+	  state.suppressClick = false;
 	  event.preventDefault();
-	  state.armedHandle = null;
 	  state.connectionDrag = null;
-	  state.canvasPan = { pointerId: event.pointerId, clientX: event.clientX, clientY: event.clientY, left: wrap.scrollLeft, top: wrap.scrollTop };
-	  wrap.classList.add('canvas-panning');
+	  state.canvasPan = { pointerId: event.pointerId, clientX: event.clientX, clientY: event.clientY, left: wrap.scrollLeft, top: wrap.scrollTop, moved: false };
 	  wrap.setPointerCapture?.(event.pointerId);
 	});
 	wrap.addEventListener('pointermove', event => {
 	  const pan = state.canvasPan;
 	  if (!pan || pan.pointerId !== event.pointerId) return;
+	  if (!pan.moved && Math.hypot(event.clientX - pan.clientX, event.clientY - pan.clientY) < DRAG_THRESHOLD) return;
+	  if (!pan.moved) { pan.moved = true; wrap.classList.add('canvas-panning'); }
 	  wrap.scrollLeft = pan.left - (event.clientX - pan.clientX);
 	  wrap.scrollTop = pan.top - (event.clientY - pan.clientY);
 	});
 	function finishPan(event) {
-	  if (!state.canvasPan || state.canvasPan.pointerId !== event.pointerId) return;
+	  const pan = state.canvasPan;
+	  if (!pan || pan.pointerId !== event.pointerId) return;
+	  if (pan.moved) state.suppressClick = true;
 	  state.canvasPan = null;
 	  wrap.classList.remove('canvas-panning');
 	}
 	wrap.addEventListener('pointerup', finishPan);
 	wrap.addEventListener('pointercancel', finishPan);
+	// Ctrl/Cmd + wheel (and trackpad pinch, which browsers report the same
+	// way) zooms the flow instead of the whole page.
+	wrap.addEventListener('wheel', event => {
+	  if (!event.ctrlKey && !event.metaKey) return;
+	  event.preventDefault();
+	  setZoom(canvasZoom() * Math.exp(-event.deltaY * 0.0015), event.clientX, event.clientY);
+	}, { passive: false });
+	document.querySelectorAll('[data-zoom]').forEach(button => button.addEventListener('click', () => {
+	  const action = button.dataset.zoom;
+	  if (action === 'in') zoomStep(1); else if (action === 'out') zoomStep(-1); else if (action === 'reset') setZoom(1); else fitView();
+	}));
+	document.addEventListener('keydown', event => {
+	  if (!state.currentFlow || document.getElementById('view-editor').classList.contains('hidden')) return;
+	  if (document.querySelector('dialog[open]') || document.querySelector('.flow-dropdown-panel:popover-open')) return;
+	  const typing = event.target.closest && event.target.closest('input, textarea, select, [contenteditable="true"]');
+	  if ((event.ctrlKey || event.metaKey) && !event.altKey) {
+	    if (event.key === '+' || event.key === '=') { event.preventDefault(); zoomStep(1); }
+	    else if (event.key === '-' || event.key === '_') { event.preventDefault(); zoomStep(-1); }
+	    else if (event.key === '0') { event.preventDefault(); setZoom(1); }
+	    return;
+	  }
+	  if (event.key === 'Escape' && !typing && state.selectedNodeId) { state.selectedNodeId = null; state.armedHandle = null; renderCanvas(); renderInspector(); }
+	});
 	window.addEventListener('resize', resizeCanvasToContent);
+	const panel = document.getElementById('palette-panel'), toggle = document.getElementById('palette-toggle');
+	const applyPalette = collapsed => {
+	  panel.classList.toggle('palette-collapsed', collapsed);
+	  toggle.setAttribute('aria-expanded', String(!collapsed));
+	  toggle.title = collapsed ? 'Expandir blocos' : 'Recolher blocos';
+	  toggle.querySelector('i').className = collapsed ? 'fas fa-angles-right' : 'fas fa-angles-left';
+	  resizeCanvasToContent();
+	};
+	let collapsed = false;
+	try { collapsed = localStorage.getItem('sophus-flow-palette-collapsed') === 'true'; } catch (_) {}
+	applyPalette(collapsed);
+	toggle.addEventListener('click', () => {
+	  collapsed = !panel.classList.contains('palette-collapsed');
+	  try { localStorage.setItem('sophus-flow-palette-collapsed', String(collapsed)); } catch (_) {}
+	  applyPalette(collapsed);
+	});
+}
+
+// New blocks appear in the middle of the visible area (left of the open
+// properties panel), shifted until they do not cover another block.
+function freeNodePosition(type) {
+	const wrap = document.getElementById('canvas-wrap');
+	const rect = wrap.getBoundingClientRect();
+	const inspector = document.getElementById('inspector');
+	const panelWidth = window.matchMedia('(min-width: 768px)').matches ? (inspector.offsetWidth || 352) + 24 : 0;
+	const center = canvasPoint(rect.left + Math.max(rect.width - panelWidth, NODE_W) * 0.5, rect.top + rect.height * 0.45);
+	const height = nodeHeight({ type, data: defaultDataFor(type) });
+	let x = Math.max(40 - CANVAS_ORIGIN_X, Math.round(center.x - NODE_W * 0.5)), y = Math.max(40 - CANVAS_ORIGIN_Y, Math.round(center.y - height * 0.5));
+	const gap = 32;
+	const overlaps = (px, py) => state.flowData.nodes.some(node => px < node.position.x + NODE_W + gap && px + NODE_W + gap > node.position.x
+		&& py < node.position.y + nodeHeight(node) + gap && py + height + gap > node.position.y);
+	// Search outward from the centre: below, above, then neighbouring columns.
+	const rowStep = height + gap, colStep = NODE_W + gap;
+	for (let ring = 0; ring < 12 && overlaps(x, y); ring++) {
+		const candidates = [[0, ring], [0, -ring], [ring, 0], [-ring, 0], [ring, ring], [-ring, ring], [ring, -ring], [-ring, -ring]];
+		const free = candidates.map(([col, row]) => ({ x: x + col * colStep, y: y + row * rowStep })).find(point => !overlaps(point.x, point.y));
+		if (free) { x = free.x; y = free.y; break; }
+	}
+	return { x, y };
+}
+
+function addNode(type) {
+  const meta = NODE_TYPES[type];
+  if (meta.singleton && state.flowData.nodes.some(n => n.type === type)) {
+    alert('Só pode existir um node de ' + meta.label + ' no fluxo.');
+    return;
+  }
+  const node = { id: uid('n'), type, position: freeNodePosition(type), data: defaultDataFor(type) };
+  state.flowData.nodes.push(node);
+  state.selectedNodeId = node.id;
+  renderCanvas();
+  renderInspector();
 }
 
 function startConnectionDrag(e, nodeId, handle) {
@@ -1229,11 +1439,6 @@ function startConnectionDrag(e, nodeId, handle) {
   renderEdges();
 }
 
-function canvasPoint(clientX, clientY) {
-  const rect = document.getElementById('canvas').getBoundingClientRect();
-  return { x: clientX - rect.left, y: clientY - rect.top };
-}
-
 function highlightConnectionTarget(clientX, clientY, sourceNodeId) {
   clearConnectionTarget();
   const card = document.elementFromPoint(clientX, clientY)?.closest('.node-card');
@@ -1261,7 +1466,8 @@ function completeConnection(targetNodeId) {
 }
 
 document.addEventListener('click', (e) => {
-  if (e.target.id === 'canvas' || e.target.id === 'nodes-layer' || e.target.id === 'canvas-wrap') {
+  if (isCanvasBackground(e.target) && state.suppressClick) { state.suppressClick = false; return; }
+  if (isCanvasBackground(e.target)) {
     state.armedHandle = null;
     state.selectedNodeId = null;
     renderCanvas();
@@ -1291,29 +1497,60 @@ function handlePos(node, handle, isOutput) {
   return { x: node.position.x + NODE_W, y: node.position.y + y };
 }
 
+const SVG_NS = 'http://www.w3.org/2000/svg';
+
+async function removeEdge(edgeId) {
+  const flow = state.flowData;
+  if (!await window.confirmRemoval('Remover conexão?', 'A ligação entre estes blocos será removida. Salve a automação para aplicar a alteração.') || state.flowData !== flow) return;
+  state.flowData.edges = state.flowData.edges.filter(edge => edge.id !== edgeId);
+  if (state.hoveredEdgeId === edgeId) state.hoveredEdgeId = null;
+  renderEdges();
+}
+
+function setEdgeActive(group, active) {
+  group.classList.toggle('active', active);
+  const line = group.querySelector('.edge-line');
+  line.setAttribute('stroke', active ? '#6123cc' : '#a8a29e');
+  line.setAttribute('stroke-width', active ? 3 : 2);
+  line.setAttribute('marker-end', active ? 'url(#arrow-active)' : 'url(#arrow)');
+}
+
+function svgElement(tag, attributes) {
+  const element = document.createElementNS(SVG_NS, tag);
+  for (const name in attributes) element.setAttribute(name, attributes[name]);
+  return element;
+}
+
 function renderEdges() {
   const svg = document.getElementById('edges-svg');
-  svg.querySelectorAll('path.edge').forEach(p => p.remove());
+  svg.querySelectorAll('.edge, .edge-group').forEach(p => p.remove());
   const byId = Object.fromEntries(state.flowData.nodes.map(n => [n.id, n]));
+  // Hit areas keep about 18 screen pixels whatever the zoom.
+  const hitWidth = Math.max(18, 18 * (1 / canvasZoom()));
   for (const edge of state.flowData.edges) {
     const s = byId[edge.source], t = byId[edge.target];
     if (!s || !t) continue;
     const p1 = handlePos(s, edge.sourceHandle, true);
     const p2 = handlePos(t, edge.targetHandle, false);
-    const dx = Math.max(60, Math.abs(p2.x - p1.x) / 2);
-    const d = 'M ' + p1.x + ' ' + p1.y + ' C ' + (p1.x + dx) + ' ' + p1.y + ', ' + (p2.x - dx) + ' ' + p2.y + ', ' + p2.x + ' ' + p2.y;
-    const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
-    path.setAttribute('d', d);
-    path.setAttribute('class', 'edge');
-    path.setAttribute('stroke', '#a8a29e');
-    path.setAttribute('stroke-width', '2');
-    path.setAttribute('fill', 'none');
-    path.setAttribute('marker-end', 'url(#arrow)');
-    path.style.pointerEvents = 'stroke';
-    path.style.cursor = 'pointer';
-    path.setAttribute('title', edge.sourceHandle || '');
-    path.onclick = async (e) => { e.stopPropagation(); const flow = state.flowData; if (await window.confirmRemoval('Remover conexão?', 'A ligação entre estes blocos será removida. Salve a automação para aplicar a alteração.') && state.flowData === flow) { state.flowData.edges = state.flowData.edges.filter(x => x.id !== edge.id); renderEdges(); } };
-    svg.appendChild(path);
+    const dx = Math.max(60, Math.abs(p2.x - p1.x) * 0.5);
+    const c1 = { x: p1.x + dx, y: p1.y }, c2 = { x: p2.x - dx, y: p2.y };
+    const d = 'M ' + p1.x + ' ' + p1.y + ' C ' + c1.x + ' ' + c1.y + ', ' + c2.x + ' ' + c2.y + ', ' + p2.x + ' ' + p2.y;
+    const active = state.hoveredEdgeId === edge.id;
+    const group = svgElement('g', { class: 'edge-group' + (active ? ' active' : ''), 'data-edge-id': edge.id });
+    // Wide transparent stroke: the target the pointer actually has to hit.
+    const hit = svgElement('path', { d, class: 'edge-hit', stroke: 'transparent', 'stroke-width': hitWidth, fill: 'none' });
+    const line = svgElement('path', { d, class: 'edge-line', stroke: active ? '#6123cc' : '#a8a29e', 'stroke-width': active ? 3 : 2, fill: 'none', 'marker-end': active ? 'url(#arrow-active)' : 'url(#arrow)' });
+    // Removal button on the curve's midpoint, shown while the connection is hovered.
+    const mid = { x: (p1.x + 3 * c1.x + 3 * c2.x + p2.x) * 0.125, y: (p1.y + 3 * c1.y + 3 * c2.y + p2.y) * 0.125 };
+    const remove = svgElement('g', { class: 'edge-remove', transform: 'translate(' + mid.x + ' ' + mid.y + ')', role: 'button', 'aria-label': 'Remover conexão' });
+    const title = svgElement('title', {}); title.textContent = 'Remover conexão';
+    remove.append(title, svgElement('circle', { r: 11, fill: 'white', stroke: '#6123cc', 'stroke-width': 2 }),
+      svgElement('path', { d: 'M -4 -4 L 4 4 M 4 -4 L -4 4', stroke: '#6123cc', 'stroke-width': 2, 'stroke-linecap': 'round' }));
+    group.append(hit, line, remove);
+    group.addEventListener('pointerenter', () => { if (state.connectionDrag) return; state.hoveredEdgeId = edge.id; setEdgeActive(group, true); });
+    group.addEventListener('pointerleave', () => { if (state.hoveredEdgeId === edge.id) state.hoveredEdgeId = null; setEdgeActive(group, false); });
+    group.addEventListener('click', event => { event.stopPropagation(); removeEdge(edge.id); });
+    svg.appendChild(group);
   }
 
   if (state.connectionDrag && state.armedHandle) {
@@ -1349,7 +1586,7 @@ function renderInspector() {
         <i class="fas ${meta.icon}" style="color:${meta.color};"><\/i>
       <\/span>
       <h3 class="min-w-0 flex-1 font-bold text-gray-800">${meta.label}<\/h3>
-      <button type="button" id="inspector-close" class="rounded-lg p-2 text-gray-500 hover:bg-stone-100 md:hidden" aria-label="Fechar propriedades"><i class="fas fa-xmark"><\/i><\/button>
+      <button type="button" id="inspector-close" class="rounded-lg p-2 text-gray-500 hover:bg-stone-100" title="Fechar (Esc)" aria-label="Fechar propriedades"><i class="fas fa-xmark"><\/i><\/button>
     <\/div>
     <div id="inspector-fields" class="flex flex-col gap-3"><\/div>
   `;
@@ -1406,6 +1643,7 @@ function availableFlowVariables() {
 	  if (node.type === 'httpRequest') {
 		add('http', 'HTTP Request', 'fa-globe', data.saveResponseTo, 'Resposta HTTP completa');
 		(data.responseMappings || []).forEach(mapping => add('http', 'HTTP Request', 'fa-globe', mapping.variableName, mapping.path || 'Campo mapeado'));
+		add('http', 'HTTP Request', 'fa-globe', 'httpError', 'Motivo da falha da requisição');
 	  }
 	  if (node.type === 'ai') {
 		add('ai', 'Inteligência artificial', 'fa-wand-magic-sparkles', data.saveResponseTo, 'Resposta gerada pela IA');
@@ -1415,13 +1653,19 @@ function availableFlowVariables() {
 		add('ai', 'Inteligência artificial', 'fa-file-waveform', data.saveResponseTo, 'Conteúdo da mídia transcrita');
 		add('ai', 'Inteligência artificial', 'fa-file-waveform', 'transcriptionError', 'Erro da transcrição');
 	  }
-	  if (node.type === 'conversationSummary') add('ai', 'Inteligência artificial', 'fa-file-lines', data.saveResponseTo, 'Resumo da conversa');
+	  if (node.type === 'conversationSummary') {
+		add('ai', 'Inteligência artificial', 'fa-file-lines', data.saveResponseTo, 'Resumo da conversa');
+		add('ai', 'Inteligência artificial', 'fa-file-lines', 'summaryError', 'Erro do resumo');
+	  }
 	  if (node.type === 'npsEvaluation') add('nps', 'Avaliação NPS', 'fa-star-half-stroke', data.saveScoreTo, 'Nota NPS recebida');
 	  if (node.type === 'smartAssign') {
 		add('assignment', 'Distribuição', 'fa-users-gear', 'assignedAgentId', 'ID do agente distribuído');
 		add('assignment', 'Distribuição', 'fa-users-gear', 'assignedAgentName', 'Nome do agente distribuído');
 	  }
-	  if (node.type === 'callback') add('callback', 'Callback', 'fa-satellite-dish', 'callbackResponse', 'Resposta do callback');
+	  if (node.type === 'callback') {
+		add('callback', 'Callback', 'fa-satellite-dish', 'callbackResponse', 'Resposta do callback');
+		add('callback', 'Callback', 'fa-satellite-dish', 'callbackError', 'Motivo da falha do callback');
+	  }
 	  if (node.type === 'scheduleMessage') {
 		add('schedule', 'Agendamento', 'fa-calendar-plus', 'scheduledMessageAt', 'Data do agendamento');
 		add('schedule', 'Agendamento', 'fa-calendar-plus', 'scheduleError', 'Erro do agendamento');
@@ -1604,9 +1848,9 @@ function renderFieldsFor(node) {
       break;
     case 'sendButtons':
       d.buttons = d.buttons || [];
-      html += field('Título (opcional)', textInput(d.title, 'title'));
+      html += field('Título (opcional)', textInput(d.title, 'title'), 'Se ficar vazio, será enviado "Escolha uma opção": o WhatsApp exige um título nos botões.');
       html += field('Mensagem', formattedTextArea(d.description, 'description', 4));
-      html += field('Rodapé (opcional)', textInput(d.footer, 'footer'));
+      html += field('Rodapé (opcional)', textInput(d.footer, 'footer'), 'Se ficar vazio, será enviado "Toque em um botão para responder".');
       html += field('Caminho padrão', '<label class="flex items-center gap-2 text-sm text-gray-700"><input type="checkbox" data-field="useFallback" ' + (d.useFallback?'checked':'') + '> Adicionar saída para respostas inválidas<\/label>');
       html += '<div class="text-xs font-medium text-gray-600 mt-1">Botões de resposta (máximo 3)<\/div>';
       html += '<div id="reply-buttons" class="flex flex-col gap-2"><\/div>';
@@ -1826,9 +2070,11 @@ function renderFieldsFor(node) {
 	  html += field('Histórico interno', '<label class="flex items-center gap-2 text-sm text-gray-700"><input type="checkbox" data-field="persist" ' + (d.persist?'checked':'') + '> Registrar o resumo na conversa<\/label>');
 	  break;
 	case 'mediaTranscription': {
-	  const mediaCredentials = state.aiCredentials.filter(credential => credential.provider === 'openai' || credential.provider === 'groq');
-	  html += field('Credencial compatível', inspectorSelect('credentialId', [{ value: '', label: 'Selecione uma credencial' }].concat(mediaCredentials.map(credential => ({ value: String(credential.id), label: credential.name + ' · ' + credential.provider + ' · ' + credential.model }))), d.credentialId || '', 'Selecione uma credencial'), mediaCredentials.length ? 'Selecione uma credencial OpenAI ou Groq.' : 'Nenhuma credencial compatível disponível. Cadastre uma em Configurações > Chaves IA.');
-	  html += '<div class="rounded-xl border border-violet-200 bg-violet-50 p-3 text-xs leading-relaxed text-violet-900"><p class="font-semibold"><i class="fas fa-circle-info mr-1"><\/i> IAs compatíveis<\/p><p class="mt-1"><strong>OpenAI:<\/strong> áudio, imagem, vídeo e documento.<\/p><p><strong>Groq:<\/strong> somente áudio, usando Whisper Large V3 Turbo.<\/p><\/div>';
+	  const mediaCredentials = state.aiCredentials.filter(credential => MEDIA_PROVIDERS.includes(credential.provider));
+	  const selectedMediaCredential = mediaCredentials.find(credential => credential.id === Number(d.credentialId));
+	  html += field('Credencial compatível', inspectorSelect('credentialId', [{ value: '', label: 'Selecione uma credencial' }].concat(mediaCredentials.map(credential => ({ value: String(credential.id), label: credential.name + ' · ' + credential.provider + ' · ' + credential.model }))), d.credentialId || '', 'Selecione uma credencial'), mediaCredentials.length ? 'Selecione uma credencial OpenAI, Gemini, Claude ou Groq.' : 'Nenhuma credencial compatível disponível. Cadastre uma OpenAI, Gemini, Claude ou Groq em Configurações > Chaves IA.');
+	  html += '<div class="rounded-xl border border-violet-200 bg-violet-50 p-3 text-xs leading-relaxed text-violet-900"><p class="font-semibold"><i class="fas fa-circle-info mr-1"><\/i> IAs compatíveis<\/p><p class="mt-1"><strong>OpenAI:<\/strong> áudio, imagem, vídeo e documento.<\/p><p><strong>Gemini:<\/strong> áudio, imagem, vídeo e documento PDF ou texto, até 14 MB por arquivo.<\/p><p><strong>Claude:<\/strong> imagem até 5 MB e documento PDF ou texto; não lê áudio nem vídeo.<\/p><p><strong>Groq:<\/strong> áudio (Whisper Large V3 Turbo) e imagem até 3 MB (Llama 4 Scout).<\/p><\/div>';
+	  if (selectedMediaCredential && selectedMediaCredential.provider === 'gemini') html += '<div data-gemini-privacy class="rounded-xl border border-amber-200 bg-amber-50 p-3 text-xs leading-relaxed text-amber-900"><i class="fas fa-shield-halved mr-1"><\/i> No plano gratuito do Gemini o Google pode usar as mídias enviadas para melhorar seus produtos. Para mídias de clientes, prefira uma chave de projeto com faturamento ativo.<\/div>';
 	  html += safeModeField(d, 'Trata a mídia somente como conteúdo, não executa instruções presentes no arquivo e não acrescenta respostas ou orientações ilegais e perigosas.');
 	  html += field('Prompt (opcional)', textArea(d.prompt, 'prompt', 4), 'Oriente idioma, termos, formato ou informações que devem ser extraídas. Aceita variáveis. Limite de 2000 caracteres.');
 	  html += field('Salvar resultado em', textInput(d.saveResponseTo, 'saveResponseTo'), 'Usa a última mídia recebida: áudio, imagem, vídeo ou documento.');
@@ -2804,7 +3050,7 @@ async function importFlowFile(file) {
 		state.flowData = migrateLegacyAICredentialSelections(imported.flowData);
 		state.selectedNodeId = null; state.armedHandle = null; state.connectionDrag = null;
 		showView('editor'); renderTopbarExtra(); renderPalette(); renderCanvas(); renderInspector();
-		const wrap = document.getElementById('canvas-wrap'); wrap.scrollLeft = 0; wrap.scrollTop = 0;
+		requestAnimationFrame(fitView);
 		const guide = document.getElementById('flow-starter-guide');
 		guide.textContent = 'Importado de "' + file.name + '" como rascunho inativo. ' + (warnings.length ? 'Revise antes de salvar: ' + warnings.join(' ') : 'Revise, salve e ative quando estiver pronto.');
 		guide.classList.remove('hidden');
