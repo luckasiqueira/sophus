@@ -156,6 +156,7 @@ func RegisterCompanyTrial(ctx iris.Context) {
 		return
 	}
 	ctx.RemoveCookie(platformCookieName, iris.CookiePath("/"))
+	sendWelcomeEmail(company.Id)
 	ctx.StatusCode(iris.StatusCreated)
 	ctx.JSON(iris.Map{"data": iris.Map{"company": company}})
 }

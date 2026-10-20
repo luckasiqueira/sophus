@@ -1,0 +1,12 @@
+<p class="text">Olá, <strong>{{.Name}}</strong>. O acesso da empresa <strong>{{.CompanyName}}</strong> ao Sophus está liberado{{if .AccessUntil}} até <strong>{{.AccessUntil}}</strong>{{end}}. Já pode entrar e usar tudo que o seu plano inclui:</p>
+<table class="steps" role="presentation" width="100%" cellpadding="0" cellspacing="0">
+  <tr><td class="step-num"><span class="step-dot">&#10003;</span></td><td>Painel de atendimento e conversas em tempo real</td></tr>
+  <tr><td class="step-num"><span class="step-dot">&#10003;</span></td><td>Contatos, etiquetas e respostas rápidas</td></tr>
+  <tr><td class="step-num"><span class="step-dot">&#10003;</span></td><td>Fluxos automáticos e agentes de IA do seu plano</td></tr>
+</table>
+<table class="box" role="presentation" width="100%" cellpadding="0" cellspacing="0">
+  <tr><td class="k">Plano</td><td class="v">{{.PlanName}}</td></tr>
+  {{if .AccessUntil}}<tr><td class="k">Acesso válido até</td><td class="v">{{.AccessUntil}}</td></tr>{{end}}
+</table>
+<p class="cta"><a class="btn" href="{{.LoginURL}}">Entrar no painel</a></p>
+<p class="small">Qualquer dúvida, fale com {{.SupportEmail}}.</p>

@@ -1,0 +1,12 @@
+Olá, {{.Name}}!
+
+Sua conta para a empresa {{.CompanyName}} foi criada no Sophus.
+
+Plano: {{.PlanName}}
+{{- if .AccessUntil}}
+Período de teste até: {{.AccessUntil}}
+{{- end}}
+
+Acesse: {{.LoginURL}}
+
+Se você não criou esta conta, fale com {{.SupportEmail}}.

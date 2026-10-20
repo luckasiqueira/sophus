@@ -1,0 +1,12 @@
+<p class="text">Olá, <strong>{{.Name}}</strong>. Sua conta para a empresa <strong>{{.CompanyName}}</strong> já está pronta. Veja como começar:</p>
+<table class="steps" role="presentation" width="100%" cellpadding="0" cellspacing="0">
+  <tr><td class="step-num"><span class="step-dot">1</span></td><td>Entre no painel com o email e a senha que você cadastrou.</td></tr>
+  <tr><td class="step-num"><span class="step-dot">2</span></td><td>Cadastre seus agentes e defina quem atende cada conversa.</td></tr>
+  <tr><td class="step-num"><span class="step-dot">3</span></td><td>Monte seu primeiro fluxo de atendimento e conecte seu WhatsApp.</td></tr>
+</table>
+<table class="box" role="presentation" width="100%" cellpadding="0" cellspacing="0">
+  <tr><td class="k">Plano</td><td class="v">{{.PlanName}}</td></tr>
+  {{if .AccessUntil}}<tr><td class="k">Período de teste até</td><td class="v">{{.AccessUntil}}</td></tr>{{end}}
+</table>
+<p class="cta"><a class="btn" href="{{.LoginURL}}">Acessar o Sophus</a></p>
+<p class="small">Se você não criou esta conta, responda este email ou fale com {{.SupportEmail}}.</p>

@@ -1,0 +1,56 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="dark">
+<title>{{.Title}}</title>
+<style>
+  body { margin: 0; padding: 0; background: #0a0812; color: #f1eff5; font-family: Arial, Helvetica, sans-serif; }
+  .card { width: 100%; max-width: 600px; margin: 0 auto; background: #15121d; border: 1px solid #2a2437; border-radius: 16px; overflow: hidden; }
+  .top { padding: 26px 34px 0; }
+  .brand { font-size: 13px; font-weight: 700; letter-spacing: 3px; color: #b8a0ff; margin: 0 0 22px; }
+  .status { display: inline-block; font-size: 12px; font-weight: 700; color: #0a0812; background: #b8a0ff; border-radius: 999px; padding: 5px 12px; margin: 0 0 16px; }
+  .title { font-size: 28px; line-height: 1.2; margin: 0 0 22px; color: #ffffff; font-weight: 700; }
+  .body { padding: 0 34px 34px; }
+  .text { font-size: 15px; line-height: 1.65; margin: 0 0 22px; color: #c9c4d6; }
+  .box { background: #0f0c16; border: 1px solid #2a2437; border-radius: 12px; margin: 0 0 22px; }
+  .box td { padding: 12px 18px; font-size: 14px; border-bottom: 1px solid #221d2e; }
+  .box tr:last-child td { border-bottom: 0; }
+  .k { color: #8c86a0; width: 45%; }
+  .v { color: #ffffff; font-weight: 700; text-align: right; }
+  .ticket { background: #0f0c16; border: 1px dashed #3a3150; border-radius: 12px; margin: 0 0 22px; }
+  .ticket td { padding: 10px 18px; font-size: 14px; }
+  .ticket .total td { padding-top: 14px; border-top: 1px dashed #3a3150; font-size: 18px; font-weight: 700; color: #b8a0ff; }
+  .steps { margin: 0 0 22px; }
+  .steps td { padding: 0 0 12px; font-size: 14px; color: #c9c4d6; vertical-align: top; line-height: 1.5; }
+  .step-num { width: 40px; }
+  .step-dot { display: inline-block; width: 26px; height: 26px; line-height: 26px; text-align: center; border-radius: 7px; background: #2a2140; color: #b8a0ff; font-weight: 700; font-size: 13px; }
+  .total td { font-size: 17px; color: #b8a0ff; border-bottom: 0; }
+  .cta { margin: 0 0 26px; }
+  .btn { display: inline-block; background: #6123cc; color: #ffffff !important; text-decoration: none; font-weight: 700; font-size: 15px; padding: 14px 28px; border-radius: 10px; }
+  .btn-ghost { display: inline-block; color: #b8a0ff !important; text-decoration: none; font-weight: 700; font-size: 15px; padding: 13px 26px; border: 2px solid #6123cc; border-radius: 10px; }
+  .small { font-size: 12px; line-height: 1.6; color: #8c86a0; margin: 0; }
+  .footer { text-align: center; font-size: 12px; color: #6f6a80; padding: 18px 0 0; }
+  @media (max-width: 600px) { .top { padding: 22px 22px 0; } .body { padding: 0 22px 28px; } .title { font-size: 24px; } }
+</style>
+</head>
+<body>
+<div style="display:none;max-height:0;overflow:hidden;">{{.Title}}</div>
+<table role="presentation" cellpadding="0" cellspacing="0" width="100%">
+  <tr><td align="center" style="padding: 32px 14px;">
+    <table class="card" role="presentation" cellpadding="0" cellspacing="0">
+      <tr><td class="top">
+        <p class="brand">SOPHUS</p>
+        <span class="status">{{.Status}}</span>
+        <p class="title">{{.HeroTitle}}</p>
+      </td></tr>
+      <tr><td class="body">
+        {{.Content}}
+      </td></tr>
+    </table>
+    <p class="footer">Sophus · Este é um email automático.</p>
+  </td></tr>
+</table>
+</body>
+</html>

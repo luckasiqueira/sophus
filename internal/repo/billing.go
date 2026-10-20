@@ -443,7 +443,23 @@ func ConfirmPendingPaymentManually(paymentID, companyID, adminID int, reason str
 	if err != nil {
 		return Payment{}, err
 	}
-	return payment, tx.Commit()
+	if err := tx.Commit(); err != nil {
+		return Payment{}, err
+	}
+	notifyFirstPaid(payment, true)
+	return payment, nil
+}
+
+// PaymentPaidHook runs once when a payment first becomes paid, after its
+// transaction commits. It must return quickly; the receiver does its own work
+// in the background. Nil disables it.
+var PaymentPaidHook func(payment Payment)
+
+func notifyFirstPaid(payment Payment, firstPaidTransition bool) {
+	if !firstPaidTransition || payment.Status != PaymentStatusPaid || PaymentPaidHook == nil {
+		return
+	}
+	PaymentPaidHook(payment)
 }
 
 // RecordSurplusCheckoutEvent acknowledges a provider event once and makes
@@ -780,6 +796,7 @@ func ApplyProviderPayment(paymentID int, provider, providerPaymentID, mappedInte
 	if err := tx.Commit(); err != nil {
 		return Payment{}, false, err
 	}
+	notifyFirstPaid(payment, firstPaidTransition)
 	return payment, firstPaidTransition, nil
 }
 
@@ -827,6 +844,7 @@ func ApplyProviderPaymentEvent(eventID string, paymentID int, provider, provider
 	if err := tx.Commit(); err != nil {
 		return Payment{}, false, err
 	}
+	notifyFirstPaid(payment, firstPaidTransition)
 	return payment, firstPaidTransition, nil
 }
 

@@ -1,0 +1,16 @@
+Pagamento confirmado
+
+Olá, {{.Name}}. Recebemos o pagamento da empresa {{.CompanyName}}. Obrigado!
+
+Plano: {{.PlanName}}
+Valor: {{.Amount}}
+Data do pagamento: {{.PaidAt}}
+{{- if .NextDueDate}}
+Próximo vencimento: {{.NextDueDate}}
+{{- end}}
+{{- if .ReceiptURL}}
+
+Comprovante: {{.ReceiptURL}}
+{{- end}}
+
+Dúvidas sobre a cobrança? Fale com {{.SupportEmail}}.

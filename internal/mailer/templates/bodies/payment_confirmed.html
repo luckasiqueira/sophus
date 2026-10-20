@@ -1,0 +1,9 @@
+<p class="text">Olá, <strong>{{.Name}}</strong>. Recebemos o pagamento da empresa <strong>{{.CompanyName}}</strong>. Obrigado!</p>
+<table class="box" role="presentation" width="100%" cellpadding="0" cellspacing="0">
+  <tr><td class="k">Plano</td><td class="v">{{.PlanName}}</td></tr>
+  <tr><td class="k">Data do pagamento</td><td class="v">{{.PaidAt}}</td></tr>
+  {{if .NextDueDate}}<tr><td class="k">Próximo vencimento</td><td class="v">{{.NextDueDate}}</td></tr>{{end}}
+  <tr class="total"><td class="k">Total pago</td><td class="v">{{.Amount}}</td></tr>
+</table>
+{{if .ReceiptURL}}<p class="cta"><a class="btn-ghost" href="{{.ReceiptURL}}">Ver comprovante</a></p>{{end}}
+<p class="small">Dúvidas sobre a cobrança? Fale com {{.SupportEmail}}.</p>

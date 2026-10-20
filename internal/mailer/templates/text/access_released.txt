@@ -1,0 +1,9 @@
+Seu acesso foi liberado
+
+Olá, {{.Name}}. O acesso da empresa {{.CompanyName}} ao Sophus está liberado{{if .AccessUntil}} até {{.AccessUntil}}{{end}}.
+
+Plano: {{.PlanName}}
+
+Entrar no painel: {{.LoginURL}}
+
+Qualquer dúvida, fale com {{.SupportEmail}}.

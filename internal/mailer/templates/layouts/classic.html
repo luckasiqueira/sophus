@@ -1,0 +1,53 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{{.Title}}</title>
+<style>
+  body { margin: 0; padding: 0; background: #efeaf6; color: #17141f; font-family: Arial, Helvetica, sans-serif; }
+  .card { width: 100%; max-width: 600px; margin: 0 auto; background: #ffffff; border-radius: 18px; overflow: hidden; }
+  .hero { background: #6123cc; background-image: linear-gradient(135deg, #6123cc 0%, #7e3ff2 100%); padding: 34px 36px 40px; color: #ffffff; }
+  .brand { font-size: 15px; font-weight: 700; letter-spacing: 0.4px; margin: 0 0 28px; opacity: 0.9; }
+  .badge { display: inline-block; width: 46px; height: 46px; line-height: 46px; text-align: center; border-radius: 50%; background: rgba(255,255,255,0.18); font-size: 22px; font-weight: 700; margin: 0 0 16px; }
+  .hero-title { font-size: 30px; line-height: 1.2; margin: 0; font-weight: 700; color: #ffffff; }
+  .body { padding: 30px 36px 36px; }
+  .title { font-size: 22px; line-height: 1.3; margin: 0 0 14px; color: #17141f; }
+  .text { font-size: 15px; line-height: 1.65; margin: 0 0 22px; color: #4b4657; }
+  .box { background: #f6f3fb; border-radius: 12px; margin: 0 0 24px; }
+  .box td { padding: 11px 18px; font-size: 14px; border-bottom: 1px solid #e7e1f2; }
+  .box tr:last-child td { border-bottom: 0; }
+  .total td { font-size: 17px; color: #6123cc; }
+  .k { color: #7a7490; width: 45%; }
+  .v { color: #17141f; font-weight: 700; text-align: right; }
+  .steps { margin: 0 0 24px; }
+  .steps td { padding: 0 0 14px; vertical-align: top; font-size: 14px; color: #4b4657; line-height: 1.5; }
+  .step-num { width: 34px; }
+  .step-dot { display: inline-block; width: 26px; height: 26px; line-height: 26px; text-align: center; border-radius: 50%; background: #ece6fb; color: #6123cc; font-weight: 700; font-size: 13px; }
+  .cta { margin: 0 0 26px; }
+  .btn { display: inline-block; background: #6123cc; color: #ffffff !important; text-decoration: none; font-weight: 700; font-size: 15px; padding: 14px 28px; border-radius: 10px; }
+  .btn-ghost { display: inline-block; color: #6123cc !important; text-decoration: none; font-weight: 700; font-size: 15px; padding: 13px 26px; border: 2px solid #6123cc; border-radius: 10px; }
+  .small { font-size: 12px; line-height: 1.6; color: #8a8497; margin: 0; }
+  .footer { text-align: center; font-size: 12px; color: #8a8497; padding: 18px 0 0; }
+  @media (max-width: 600px) { .hero, .body { padding-left: 22px; padding-right: 22px; } .hero-title { font-size: 26px; } }
+</style>
+</head>
+<body>
+<div style="display:none;max-height:0;overflow:hidden;">{{.Title}}</div>
+<table role="presentation" cellpadding="0" cellspacing="0" width="100%">
+  <tr><td align="center" style="padding: 32px 14px;">
+    <table class="card" role="presentation" cellpadding="0" cellspacing="0">
+      <tr><td class="hero">
+        <p class="brand">SOPHUS</p>
+        <span class="badge">&#10003;</span>
+        <p class="hero-title">{{.HeroTitle}}</p>
+      </td></tr>
+      <tr><td class="body">
+        {{.Content}}
+      </td></tr>
+    </table>
+    <p class="footer">Sophus · Este é um email automático.</p>
+  </td></tr>
+</table>
+</body>
+</html>
