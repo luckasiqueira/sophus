@@ -189,6 +189,12 @@ templ ConversationPanel(activeConversation repo.Conversation, agent repo.Agent, 
 			  if agent.IsAdmin() {
 				@ConversationExportControls(activeConversation.URL.String(), activeConversation.Contact.Id)
 			  }
+			  if !activeConversation.Contact.IsGroup {
+				<a id="conversation-schedule-link" href={ templ.SafeURL(fmt.Sprintf("/schedules?contactId=%d&connectionId=%d", activeConversation.Contact.Id, activeConversation.ConnectionID)) } class="flex items-center gap-2 rounded-xl p-2 transition-colors hover:bg-stone-200 focus:outline-none focus:ring-2 focus:ring-purple-300" title="Agendar mensagem para este contato" aria-label="Agendar mensagem para este contato">
+				  <i class="fas fa-calendar-plus text-gray-600"></i>
+				  <span class="text-sm font-semibold text-gray-700 lg:hidden">Agendar mensagem</span>
+				</a>
+			  }
 			  <button id="conversation-message-search-button" type="button" class="p-2 hover:bg-stone-200 rounded-xl transition-colors focus:outline-none focus:ring-2 focus:ring-purple-300" title="Buscar mensagens nesta conversa" aria-label="Buscar mensagens nesta conversa" aria-expanded="false" aria-controls="conversation-message-search">
               <i class="fas fa-search text-gray-600"></i>
               <span class="text-sm font-semibold text-gray-700 lg:hidden">Buscar mensagens</span>

@@ -13,7 +13,10 @@ import (
 	"sophus/internal/monitor"
 	"sophus/internal/repo"
 	"sophus/internal/storageworker"
+	"sophus/internal/waha"
+	"sophus/internal/waprovider"
 	"sophus/pkg/http/controllers"
+	"sophus/pkg/http/requests"
 	"sophus/pkg/http/routers"
 	"sophus/utils/env"
 	"syscall"
@@ -26,6 +29,12 @@ func main() {
 	if err != nil {
 		fmt.Println(err)
 		os.Exit(1)
+	}
+	if waprovider.IsWAHA() {
+		requests.SetInterceptor(waha.Intercept)
+		log.Printf("WhatsApp provider: WAHA (GOWS) via %s", waha.APIURL())
+	} else {
+		log.Printf("WhatsApp provider: Evolution GO")
 	}
 	srv := iris.Default()
 	routers.Router(srv)

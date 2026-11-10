@@ -290,3 +290,33 @@ func GetConnectionList() ([]ConnectionEVO, error) {
 	}
 	return connections, rows.Err()
 }
+
+// GetConnectionByEvolutionKey resolves the key sent as Evolution GO "apikey"
+// (see EvolutionAPIKey) back to its connection. Ambiguous keys are rejected.
+func GetConnectionByEvolutionKey(key string) (ConnectionEVO, error) {
+	rows, err := db.Query(`SELECT id, name, COALESCE(number,''), status, "companyId", "instanceId", webhook,
+		COALESCE("apiToken",''), "connectionKey"
+		FROM connections
+		WHERE "apiToken" = $1 OR (COALESCE("apiToken",'') = '' AND "connectionKey"::text = $1)
+		ORDER BY id LIMIT 2`, key)
+	if err != nil {
+		return ConnectionEVO{}, err
+	}
+	defer rows.Close()
+	var found []ConnectionEVO
+	for rows.Next() {
+		var c ConnectionEVO
+		if err := rows.Scan(&c.Id, &c.Name, &c.Number, &c.Status, &c.CompanyID, &c.InstanceID, &c.Webhook,
+			&c.APIToken, &c.ConnectionKey); err != nil {
+			return ConnectionEVO{}, err
+		}
+		found = append(found, c)
+	}
+	if err := rows.Err(); err != nil {
+		return ConnectionEVO{}, err
+	}
+	if len(found) != 1 {
+		return ConnectionEVO{}, sql.ErrNoRows
+	}
+	return found[0], nil
+}

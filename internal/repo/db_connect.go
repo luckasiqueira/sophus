@@ -32,3 +32,11 @@ func connect(maxOpen, maxIdle int) *sql.DB {
 	sdb.SetConnMaxIdleTime(5 * time.Minute)
 	return sdb
 }
+
+// ReplaceDatabaseForTesting points the repository at a disposable database
+// and returns a function restoring the configured one. Only tests call it.
+func ReplaceDatabaseForTesting(replacement *sql.DB) (restore func()) {
+	previous, previousWebhook := db, webhookDB
+	db, webhookDB, DB = replacement, replacement, replacement
+	return func() { db, webhookDB, DB = previous, previousWebhook, previous }
+}

@@ -114,6 +114,10 @@ func deleteExpiredMedia(companyID, retentionDays int, now time.Time) {
 		return
 	}
 	for _, path := range paths {
+		// A pending (possibly recurring) schedule still needs the file.
+		if scheduled, err := repo.CountScheduledMessageMediaReferences(companyID, path); err != nil || scheduled > 0 {
+			continue
+		}
 		_, err := media.Delete(companyID, media.ScopeMessages, path)
 		if err != nil && !errors.Is(err, os.ErrNotExist) {
 			log.Printf("storage retention: delete company %d media %s: %v", companyID, path, err)

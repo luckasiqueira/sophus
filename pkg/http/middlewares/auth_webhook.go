@@ -7,6 +7,8 @@ import (
 	"log"
 	"net/http"
 	repo2 "sophus/internal/repo"
+	"sophus/internal/waha"
+	"sophus/internal/waprovider"
 	"sync"
 	"time"
 
@@ -26,6 +28,8 @@ type webhookConnectionCacheEntry struct {
 	Connection repo2.ConnectionEVO
 	ExpiresAt  time.Time
 }
+
+var errWebhookIgnored = errors.New("webhook event ignored")
 
 var webhookConnectionCache = struct {
 	sync.Mutex
@@ -75,6 +79,24 @@ func validateWebhook(ctx iris.Context) (repo2.ConnectionEVO, repo2.EventEVO, []b
 			ctx.StopWithStatus(iris.StatusBadRequest)
 		}
 		return repo2.ConnectionEVO{}, repo2.EventEVO{}, nil, err
+	}
+	if waprovider.IsWAHA() {
+		translated, ignored, translateErr := waha.TranslateWebhook(connection, ctx.Request().Header, body)
+		switch {
+		case errors.Is(translateErr, waha.ErrWebhookUnauthorized):
+			log.Printf("WAHA webhook rejected: invalid signature or session for connection %d", connection.Id)
+			ctx.StopWithStatus(iris.StatusUnauthorized)
+			return repo2.ConnectionEVO{}, repo2.EventEVO{}, nil, translateErr
+		case translateErr != nil:
+			log.Printf("WAHA webhook rejected: invalid payload for connection %d: %v", connection.Id, translateErr)
+			ctx.StopWithStatus(iris.StatusBadRequest)
+			return repo2.ConnectionEVO{}, repo2.EventEVO{}, nil, translateErr
+		case ignored:
+			// No Evolution GO equivalent: acknowledge so WAHA does not retry.
+			ctx.StopWithStatus(iris.StatusOK)
+			return repo2.ConnectionEVO{}, repo2.EventEVO{}, nil, errWebhookIgnored
+		}
+		body = translated
 	}
 	var event repo2.EventEVO
 	err = json.Unmarshal(body, &event)

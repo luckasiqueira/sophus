@@ -46,6 +46,7 @@ func StartScheduler(ctx context.Context) {
 			case <-ctx.Done():
 				return
 			case <-ticker.C:
+				dispatchAgentScheduledMessages()
 				if err := repo.RecoverExpiredFlowExecutionClaims(); err != nil {
 					log.Printf("erro ao recuperar claims expirados de flows: %v", err)
 					continue

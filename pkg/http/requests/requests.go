@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"net/netip"
 	"net/url"
+	"sync/atomic"
 	"time"
 )
 
@@ -35,7 +36,51 @@ type Response struct {
 	Body       []byte `json:"body"`
 }
 
+// Interceptor serves a request in-process. It returns handled=false for
+// requests it does not own. A non-nil error means the request never produced
+// an HTTP response (like a network failure); HTTP errors use the status code.
+type Interceptor func(r *Request) (handled bool, status int, body []byte, err error)
+
+var interceptor atomic.Pointer[Interceptor]
+
+// SetInterceptor registers the in-process handler (the WAHA bridge). Pass nil
+// to remove it.
+func SetInterceptor(fn Interceptor) {
+	if fn == nil {
+		interceptor.Store(nil)
+		return
+	}
+	interceptor.Store(&fn)
+}
+
+func (r *Request) intercept() (bool, error) {
+	fn := interceptor.Load()
+	if fn == nil {
+		return false, nil
+	}
+	handled, status, body, err := (*fn)(r)
+	if !handled {
+		return false, nil
+	}
+	r.Response.StatusCode = status
+	r.Response.Body = body
+	if err != nil {
+		return true, err
+	}
+	if r.MaxResponseBytes > 0 && int64(len(r.Response.Body)) > r.MaxResponseBytes {
+		r.Response.Body = nil
+		return true, fmt.Errorf("response body exceeds the %d-byte limit", r.MaxResponseBytes)
+	}
+	if r.Response.StatusCode < http.StatusOK || r.Response.StatusCode >= http.StatusMultipleChoices {
+		return true, fmt.Errorf("request failed with status %d", r.Response.StatusCode)
+	}
+	return true, nil
+}
+
 func (r *Request) Do() error {
+	if handled, err := r.intercept(); handled {
+		return err
+	}
 	body := r.RequestBody
 	if body == nil && r.Payload != nil {
 		var err error

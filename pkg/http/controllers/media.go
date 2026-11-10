@@ -72,6 +72,17 @@ func CleanupCompanyMedia(ctx iris.Context) {
 		if !item.CreatedAt.Before(cutoff) {
 			continue
 		}
+		if item.Scope == media.ScopeMessages {
+			scheduled, refErr := repo.CountScheduledMessageMediaReferences(agent.CompanyId, item.Name)
+			if refErr != nil {
+				writeJSONError(ctx, iris.StatusInternalServerError, "não foi possível validar o uso das mídias")
+				return
+			}
+			if scheduled > 0 {
+				skippedCount++
+				continue
+			}
+		}
 		if item.Scope == media.ScopeFlows {
 			references, refErr := repo.CountFlowMediaReferences(agent.CompanyId, item.Name)
 			if refErr != nil {
@@ -280,6 +291,17 @@ func DeleteCompanyMedia(ctx iris.Context) {
 	}
 	scope := ctx.Params().Get("scope")
 	fileName := ctx.Params().Get("file")
+	if scope == media.ScopeMessages {
+		scheduled, err := repo.CountScheduledMessageMediaReferences(agent.CompanyId, fileName)
+		if err != nil {
+			writeJSONError(ctx, iris.StatusInternalServerError, "não foi possível validar o uso da mídia")
+			return
+		}
+		if scheduled > 0 {
+			writeJSONError(ctx, iris.StatusConflict, "esta mídia está anexada a uma mensagem agendada")
+			return
+		}
+	}
 	if scope == media.ScopeFlows {
 		references, err := repo.CountFlowMediaReferences(agent.CompanyId, fileName)
 		if err != nil {

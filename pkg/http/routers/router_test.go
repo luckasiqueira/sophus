@@ -96,7 +96,7 @@ func TestOperationalRoutesRequireActiveSubscription(t *testing.T) {
 	}
 
 	for _, route := range app.GetRoutes() {
-		operational := strings.HasPrefix(route.Path, "/messages") || strings.HasPrefix(route.Path, "/flows") || route.Path == "/contacts" ||
+		operational := strings.HasPrefix(route.Path, "/messages") || strings.HasPrefix(route.Path, "/flows") || route.Path == "/contacts" || strings.HasPrefix(route.Path, "/schedules") ||
 			strings.HasPrefix(route.Path, "/instances") || route.Path == "/sse" || route.Path == "/sse/conversations"
 		if !operational {
 			continue
