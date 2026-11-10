@@ -300,11 +300,11 @@ func Complete(ctx context.Context, request Request) (Response, error) {
 	client := &http.Client{Timeout: 75 * time.Second}
 	switch request.Provider {
 	case "openai":
-		return completeOpenAICompatible(ctx, client, "https://api.openai.com/v1/chat/completions", request)
+		return completeOpenAICompatible(ctx, client, openAIChatURL, request)
 	case "deepseek":
-		return completeOpenAICompatible(ctx, client, "https://api.deepseek.com/chat/completions", request)
+		return completeOpenAICompatible(ctx, client, deepseekChatURL, request)
 	case "groq":
-		return completeOpenAICompatible(ctx, client, "https://api.groq.com/openai/v1/chat/completions", request)
+		return completeOpenAICompatible(ctx, client, groqChatURL, request)
 	case "gemini":
 		return completeGemini(ctx, client, request)
 	case "claude":

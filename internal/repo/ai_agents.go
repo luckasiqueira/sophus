@@ -3,6 +3,7 @@ package repo
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"errors"
 	"time"
 )
@@ -59,7 +60,10 @@ type AIAgentSession struct {
 	ConversationId int
 	AIAgentId      int
 	SafeMode       bool
-	Agent          AIAgent
+	// Extensions holds the knowledge and actions the flow connected to the
+	// agent block ({} for sessions started without them).
+	Extensions json.RawMessage
+	Agent      AIAgent
 }
 
 type AIHistoryMessage struct {
@@ -167,17 +171,22 @@ func DeleteAIAgent(id, companyID int) (bool, error) {
 	return rows == 1, err
 }
 
-func ActivateAIAgentSession(conversationID, agentID, companyID int, safeMode bool) (AIAgentSession, error) {
+func ActivateAIAgentSession(conversationID, agentID, companyID int, safeMode bool, extensions json.RawMessage) (AIAgentSession, error) {
+	if len(extensions) == 0 {
+		extensions = json.RawMessage(`{}`)
+	}
 	var session AIAgentSession
-	err := db.QueryRow(`INSERT INTO ai_agent_sessions ("companyId", "conversationId", "aiAgentId", "safeMode", status)
-		SELECT $3, cv.id, a.id, $4, 'active' FROM conversations cv
+	var stored []byte
+	err := db.QueryRow(`INSERT INTO ai_agent_sessions ("companyId", "conversationId", "aiAgentId", "safeMode", extensions, status)
+		SELECT $3, cv.id, a.id, $4, $5::jsonb, 'active' FROM conversations cv
 		JOIN connections c ON c.id = cv."connectionId" AND c."companyId" = $3
 		JOIN ai_agents a ON a.id = $2 AND a."companyId" = $3 AND a."isActive" = true
 		WHERE cv.id = $1
-		ON CONFLICT ("conversationId") DO UPDATE SET "aiAgentId" = EXCLUDED."aiAgentId", "safeMode" = EXCLUDED."safeMode", status = 'active',
-			"startedAt" = now(), "updatedAt" = now(), "endedAt" = NULL
-		RETURNING id, "companyId", "conversationId", "aiAgentId", "safeMode"`, conversationID, agentID, companyID, safeMode).
-		Scan(&session.Id, &session.CompanyId, &session.ConversationId, &session.AIAgentId, &session.SafeMode)
+		ON CONFLICT ("conversationId") DO UPDATE SET "aiAgentId" = EXCLUDED."aiAgentId", "safeMode" = EXCLUDED."safeMode",
+			extensions = EXCLUDED.extensions, status = 'active', "startedAt" = now(), "updatedAt" = now(), "endedAt" = NULL
+		RETURNING id, "companyId", "conversationId", "aiAgentId", "safeMode", extensions`, conversationID, agentID, companyID, safeMode, string(extensions)).
+		Scan(&session.Id, &session.CompanyId, &session.ConversationId, &session.AIAgentId, &session.SafeMode, &stored)
+	session.Extensions = stored
 	return session, err
 }
 
@@ -192,8 +201,8 @@ func ActivateDirectAIAgentSession(conversationID, agentID, companyID int) (AIAge
 		RETURNING cv.id
 	) INSERT INTO ai_agent_sessions ("companyId", "conversationId", "aiAgentId", "safeMode", status)
 		SELECT $3, released.id, $2, NULL, 'active' FROM released
-		ON CONFLICT ("conversationId") DO UPDATE SET "aiAgentId" = EXCLUDED."aiAgentId", "safeMode" = NULL, status = 'active',
-			"startedAt" = now(), "updatedAt" = now(), "endedAt" = NULL
+		ON CONFLICT ("conversationId") DO UPDATE SET "aiAgentId" = EXCLUDED."aiAgentId", "safeMode" = NULL, extensions = '{}'::jsonb,
+			status = 'active', "startedAt" = now(), "updatedAt" = now(), "endedAt" = NULL
 		RETURNING id, "companyId", "conversationId", "aiAgentId"`, conversationID, agentID, companyID).
 		Scan(&session.Id, &session.CompanyId, &session.ConversationId, &session.AIAgentId)
 	return session, err
@@ -201,11 +210,12 @@ func ActivateDirectAIAgentSession(conversationID, agentID, companyID int) (AIAge
 
 func GetActiveAIAgentSession(conversationID, companyID int) (AIAgentSession, error) {
 	var session AIAgentSession
-	row := db.QueryRow(`SELECT s.id, s."companyId", s."conversationId", s."aiAgentId", COALESCE(s."safeMode", a."safeMode"), `+aiAgentColumns+`
+	var extensions []byte
+	row := db.QueryRow(`SELECT s.id, s."companyId", s."conversationId", s."aiAgentId", COALESCE(s."safeMode", a."safeMode"), s.extensions, `+aiAgentColumns+`
 		FROM ai_agent_sessions s JOIN ai_agents a ON a.id = s."aiAgentId"
 		`+aiAgentJoins+`
 		WHERE s."conversationId" = $1 AND s."companyId" = $2 AND s.status = 'active' AND a."isActive" = true`, conversationID, companyID)
-	err := row.Scan(&session.Id, &session.CompanyId, &session.ConversationId, &session.AIAgentId, &session.SafeMode,
+	err := row.Scan(&session.Id, &session.CompanyId, &session.ConversationId, &session.AIAgentId, &session.SafeMode, &extensions,
 		&session.Agent.Id, &session.Agent.CompanyId, &session.Agent.ConnectionId, &session.Agent.ConnectionName,
 		&session.Agent.Name, &session.Agent.CredentialId, &session.Agent.CredentialName, &session.Agent.Provider,
 		&session.Agent.Model, &session.Agent.APIKeyCiphertext,
@@ -213,6 +223,7 @@ func GetActiveAIAgentSession(conversationID, companyID int) (AIAgentSession, err
 		&session.Agent.Temperature, &session.Agent.HistoryLimit, &session.Agent.WelcomeMessage, &session.Agent.SafeMode, &session.Agent.IsActive,
 		&session.Agent.Revision, &session.Agent.CreatedAt, &session.Agent.UpdatedAt)
 	session.Agent.HasAPIKey = session.Agent.APIKeyCiphertext != ""
+	session.Extensions = extensions
 	return session, err
 }
 

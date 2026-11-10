@@ -30,6 +30,13 @@ templ FlowBuilder() {
   .edge-remove { opacity: 0; pointer-events: none; transition: opacity .12s ease; }
   .edge-group.active .edge-remove { opacity: 1; pointer-events: all; }
   .handle-label { position: absolute; right: 18px; top: 50%; transform: translateY(-50%); white-space: nowrap; pointer-events: none; font-size: 10px; line-height: 1; color: #78716c; }
+  .handle.sub-handle { width: 12px; height: 12px; border-radius: 2px; transform: rotate(45deg); background: #fff; border: 0; box-shadow: 0 0 0 1.5px #7c3aed; }
+  .handle.sub-handle:hover, .handle.sub-handle.armed { background: #7c3aed; animation: none; }
+  .sub-port { position: absolute; bottom: -6px; display: flex; flex-direction: column; align-items: center; transform: translateX(-50%); z-index: 2; }
+  .sub-port .handle { position: relative; }
+  .sub-port-label { margin-top: 6px; display: inline-flex; align-items: center; gap: 4px; white-space: nowrap; border: 1px solid #ddd6fe; border-radius: 9999px; background: #fff; padding: 2px 7px; font-size: 10px; font-weight: 600; line-height: 1.2; color: #6d28d9; cursor: pointer; }
+  .sub-port-label:hover { background: #f5f3ff; border-color: #a78bfa; }
+  .sub-port-label.connected { border-color: #c4b5fd; background: #f5f3ff; }
 	input[type="checkbox"]:not(.hidden) { appearance: none; -webkit-appearance: none; width: 1.1rem; height: 1.1rem; flex: 0 0 auto; display: inline-grid; place-content: center; border: 1.5px solid #c4b5fd; border-radius: .32rem; background: #fff; cursor: pointer; transition: border-color .15s ease, background-color .15s ease, box-shadow .15s ease; }
 	input[type="checkbox"]:not(.hidden)::before { content: ''; width: .58rem; height: .32rem; border-left: 2px solid white; border-bottom: 2px solid white; transform: rotate(-45deg) scale(0); transform-origin: center; transition: transform .12s ease; margin-top: -.08rem; }
 	input[type="checkbox"]:not(.hidden):checked { border-color: #7c3aed; background: linear-gradient(135deg, #7c3aed, #4f46e5); box-shadow: 0 0 0 2px rgba(124,58,237,.12); }
@@ -238,6 +245,8 @@ const NODE_TYPES = {
 	 mediaTranscription: { label: 'Transcrever Mídia', icon: 'fa-file-waveform', color: '#7c3aed', category: 'Sistema' },
 	 conversationSummary: { label: 'Resumir Conversa', icon: 'fa-file-lines', color: '#7c3aed', category: 'Sistema' },
 	 aiAgent:        { label: 'Transferir para Agente IA', icon: 'fa-robot', color: '#7c3aed', category: 'Fluxo' },
+	 aiKnowledge:    { label: 'Base de Conhecimento', icon: 'fa-book-open', color: '#7c3aed', category: 'Fluxo', subNode: true },
+	 aiTools:        { label: 'Ações da IA', icon: 'fa-screwdriver-wrench', color: '#7c3aed', category: 'Fluxo', subNode: true },
   npsEvaluation:   { label: 'Avaliação NPS',          icon: 'fa-star-half-stroke', color: '#ec4899', category: 'Interação' },
   scheduleMessage: { label: 'Agendar Mensagem',      icon: 'fa-calendar-plus',    color: '#8b5cf6', category: 'Sistema' },
   end:             { label: 'Fim',                  icon: 'fa-flag-checkered', color: '#ef4444', category: 'Fluxo' },
@@ -279,6 +288,48 @@ const CONDITION_OUTPUT_LABELS = {
 };
 
 function uid(prefix) { return prefix + '_' + Math.random().toString(36).slice(2, 9); }
+
+// The AI agent block takes sub-blocks on its bottom ports (like the
+// knowledge and tool slots of an agent): each port accepts one block type.
+// Mirrors validateAIAgentEdge in internal/flowengine/ai_tools.go.
+const AI_SUB_PORTS = [
+	{ handle: 'knowledge', label: 'Base de conhecimento', accepts: 'aiKnowledge' },
+	{ handle: 'tools', label: 'Ações', accepts: 'aiTools' },
+];
+const VAR_OPEN = '{' + '{', VAR_CLOSE = '}' + '}';
+const AI_ACTION_TYPES = [
+	{ value: 'transfer', label: 'Transferir atendimento' },
+	{ value: 'close', label: 'Encerrar atendimento' },
+	{ value: 'tag', label: 'Adicionar etiqueta' },
+	{ value: 'contactField', label: 'Salvar dado do cliente' },
+	{ value: 'http', label: 'Chamar API / Webhook' },
+];
+
+function subPortsFor(node) { return node && node.type === 'aiAgent' ? AI_SUB_PORTS : []; }
+function subPortFor(nodeId, handle) { return subPortsFor(state.flowData.nodes.find(node => node.id === nodeId)).find(port => port.handle === handle); }
+function subPortX(index, count) { return Math.round(NODE_W * (2 * index + 1) / (2 * count)); }
+function isSubNode(node) { return !!(node && NODE_TYPES[node.type] && NODE_TYPES[node.type].subNode); }
+
+// canConnect tells whether the output (sourceId, handle) may end on target.
+function canConnect(sourceId, handle, target) {
+	if (!target || target.id === sourceId) return false;
+	const port = subPortFor(sourceId, handle);
+	if (port) return target.type === port.accepts;
+	const meta = NODE_TYPES[target.type] || {};
+	return !meta.noInput && !meta.subNode;
+}
+
+function defaultAIAction(type) {
+	const action = { id: uid('act'), type, name: '', description: '' };
+	switch (type) {
+	case 'transfer': return Object.assign(action, { name: 'Transferir atendimento', description: 'Quando o cliente pedir para falar com uma pessoa ou a dúvida não puder ser resolvida com a base de conhecimento.', assignType: 'department', message: '' });
+	case 'close': return Object.assign(action, { name: 'Encerrar atendimento', description: 'Quando o cliente confirmar que não precisa de mais nada.', message: '' });
+	case 'tag': return Object.assign(action, { name: 'Marcar interesse', description: 'Quando o cliente demonstrar interesse em contratar.', tag: '' });
+	case 'contactField': return Object.assign(action, { name: 'Salvar email', description: 'Quando o cliente informar o email dele.', field: 'email', fieldKey: '' });
+	case 'http': return Object.assign(action, { name: 'Agendar reunião', description: 'Quando o cliente quiser agendar uma reunião e já tiver informado data e horário.', method: 'POST', url: '', headers: [], parameters: [{ name: 'dataHora', description: 'Data e horário desejados, no formato AAAA-MM-DD HH:MM', required: true }], timeout: 15000 });
+	}
+	return action;
+}
 
 // ---------------------------------------------------------------------
 // Custom selectors use top-layer popovers so scrollable toolbars and the
@@ -849,6 +900,8 @@ function defaultDataFor(type) {
 	case 'mediaTranscription': return { credentialId: '', prompt: '', saveResponseTo: 'mediaText', safeMode: true };
 	case 'conversationSummary': return { credentialId: '', maxMessages: 30, instructions: '', saveResponseTo: 'conversationSummary', persist: true, safeMode: true };
 	case 'aiAgent': return { safeMode: true };
+	case 'aiKnowledge': return { content: '' };
+	case 'aiTools': return { actions: [defaultAIAction('transfer')] };
 	case 'npsEvaluation': return { message: 'De 0 a 10, o quanto você recomendaria nosso atendimento?', saveScoreTo: 'npsScore', timeout: 86400 };
 	case 'scheduleMessage': return { message: '', delayMinutes: 60 };
     case 'httpRequest': return {
@@ -934,7 +987,7 @@ function outputsFor(node) {
     out.push({ handle: 'fallback', label: 'Nenhuma opção' });
     return out;
   }
-	if (node.type === 'end' || node.type === 'aiAgent') return [];
+	if (node.type === 'end' || node.type === 'aiAgent' || isSubNode(node)) return [];
   return [{ handle: '', label: '' }];
 }
 
@@ -997,6 +1050,11 @@ function nodeSummary(node) {
 	case 'aiAgent': {
 	  const selected = state.aiAgents.find(agent => agent.id === Number(d.aiAgentId));
 	  return selected ? selected.name : 'Sem agente selecionado';
+	}
+	case 'aiKnowledge': return d.content ? truncate(d.content, 70) : 'Sem conteúdo';
+	case 'aiTools': {
+	  const actions = d.actions || [];
+	  return actions.length ? actions.length + (actions.length === 1 ? ' ação: ' : ' ações: ') + truncate(actions.map(action => action.name || 'sem nome').join(', '), 50) : 'Nenhuma ação';
 	}
 	case 'scheduleMessage': return d.delayMinutes ? ('Enviar em ' + d.delayMinutes + ' min') : 'Sem prazo definido';
 	case 'npsEvaluation': return d.saveScoreTo ? ('Nota em: ' + d.saveScoreTo) : 'Sem variável definida';
@@ -1078,7 +1136,16 @@ function renderCanvas() {
       ${nodeBodyHTML(node, outs)}
     `;
 
-    if (!meta.noInput) {
+    if (meta.subNode) {
+      // Sub-blocks hang under the AI agent: their single input sits on top.
+      const inHandle = document.createElement('div');
+      inHandle.className = 'handle sub-handle';
+      inHandle.style.left = (NODE_W / 2 - 6) + 'px';
+      inHandle.style.top = '-6px';
+      inHandle.title = 'Conecte ao Agente IA';
+      inHandle.onclick = (e) => { e.stopPropagation(); completeConnection(node.id); };
+      card.appendChild(inHandle);
+    } else if (!meta.noInput) {
       const inHandle = document.createElement('div');
       inHandle.className = 'handle';
       inHandle.style.left = '-7px';
@@ -1086,6 +1153,28 @@ function renderCanvas() {
       inHandle.onclick = (e) => { e.stopPropagation(); completeConnection(node.id); };
       card.appendChild(inHandle);
     }
+
+    const ports = subPortsFor(node);
+    ports.forEach((port, i) => {
+      const connected = state.flowData.edges.some(edge => edge.source === node.id && edge.sourceHandle === port.handle);
+      const wrap = document.createElement('div');
+      wrap.className = 'sub-port';
+      wrap.style.left = subPortX(i, ports.length) + 'px';
+      const handle = document.createElement('div');
+      handle.className = 'handle sub-handle' + (state.armedHandle && state.armedHandle.nodeId === node.id && state.armedHandle.handle === port.handle ? ' armed' : '');
+      handle.title = port.label;
+      handle.dataset.subPort = port.handle;
+      handle.onpointerdown = (e) => startConnectionDrag(e, node.id, port.handle);
+      const label = document.createElement('button');
+      label.type = 'button';
+      label.className = 'sub-port-label' + (connected ? ' connected' : '');
+      label.dataset.subPortLabel = port.handle;
+      label.title = connected ? 'Abrir ' + NODE_TYPES[port.accepts].label : 'Adicionar ' + NODE_TYPES[port.accepts].label;
+      label.innerHTML = (connected ? '' : '<i class="fas fa-plus text-[8px]"><\/i>') + escapeHtml(port.label);
+      label.onclick = (e) => { e.preventDefault(); e.stopPropagation(); openSubPort(node.id, port.handle); };
+      wrap.append(handle, label);
+      card.appendChild(wrap);
+    });
 
     outs.forEach((o, i) => {
       const y = outputY(node, i, outs.length);
@@ -1370,11 +1459,37 @@ function addNode(type) {
     alert('Só pode existir um node de ' + meta.label + ' no fluxo.');
     return;
   }
+	// With an AI agent selected, a sub-block goes straight onto its free port.
+	const selected = state.flowData.nodes.find(n => n.id === state.selectedNodeId);
+	const port = meta.subNode && subPortsFor(selected).find(item => item.accepts === type);
+	if (port && !state.flowData.edges.some(edge => edge.source === selected.id && edge.sourceHandle === port.handle)) {
+		openSubPort(selected.id, port.handle);
+		return;
+	}
   const node = { id: uid('n'), type, position: freeNodePosition(type), data: defaultDataFor(type) };
   state.flowData.nodes.push(node);
   state.selectedNodeId = node.id;
   renderCanvas();
   renderInspector();
+}
+
+// openSubPort selects the block attached to an AI agent port, or creates
+// and attaches one below the agent when the port is free.
+function openSubPort(nodeId, handle) {
+	const agent = state.flowData.nodes.find(n => n.id === nodeId);
+	const port = subPortFor(nodeId, handle);
+	if (!agent || !port) return;
+	state.armedHandle = null;
+	const existing = state.flowData.edges.find(edge => edge.source === nodeId && edge.sourceHandle === handle);
+	if (existing) { selectNode(existing.target); return; }
+	const index = subPortsFor(agent).indexOf(port);
+	const position = { x: agent.position.x + (index - (subPortsFor(agent).length - 1) * 0.5) * (NODE_W + 24), y: agent.position.y + nodeHeight(agent) + 90 };
+	const node = { id: uid('n'), type: port.accepts, position, data: defaultDataFor(port.accepts) };
+	state.flowData.nodes.push(node);
+	state.flowData.edges.push({ id: uid('e'), source: nodeId, target: node.id, sourceHandle: handle });
+	state.selectedNodeId = node.id;
+	renderCanvas();
+	renderInspector();
 }
 
 function startConnectionDrag(e, nodeId, handle) {
@@ -1402,7 +1517,7 @@ function startConnectionDrag(e, nodeId, handle) {
     drag.x = current.x;
     drag.y = current.y;
     drag.moved = drag.moved || Math.hypot(ev.clientX - drag.startClientX, ev.clientY - drag.startClientY) > 4;
-    highlightConnectionTarget(ev.clientX, ev.clientY, nodeId);
+    highlightConnectionTarget(ev.clientX, ev.clientY, nodeId, handle);
     renderEdges();
   }
 
@@ -1412,7 +1527,7 @@ function startConnectionDrag(e, nodeId, handle) {
     const targetCard = !cancelled && document.elementFromPoint(ev.clientX, ev.clientY)?.closest('.node-card');
     const targetId = targetCard && targetCard.dataset.nodeId;
     const targetNode = state.flowData.nodes.find(n => n.id === targetId);
-    const canConnect = targetNode && targetId !== nodeId && !(NODE_TYPES[targetNode.type] || {}).noInput;
+    const connectable = canConnect(nodeId, handle, targetNode);
 
     document.removeEventListener('pointermove', onMove);
     document.removeEventListener('pointerup', onUp);
@@ -1420,8 +1535,11 @@ function startConnectionDrag(e, nodeId, handle) {
     clearConnectionTarget();
     state.connectionDrag = null;
 
-    if (canConnect) {
+    if (connectable) {
       completeConnection(targetId);
+    } else if (!drag.moved && !cancelled && subPortFor(nodeId, handle)) {
+      // A click on an AI agent port adds or opens its sub-block.
+      openSubPort(nodeId, handle);
     } else if (drag.moved || cancelled) {
       state.armedHandle = null;
       renderCanvas();
@@ -1439,12 +1557,12 @@ function startConnectionDrag(e, nodeId, handle) {
   renderEdges();
 }
 
-function highlightConnectionTarget(clientX, clientY, sourceNodeId) {
+function highlightConnectionTarget(clientX, clientY, sourceNodeId, handle) {
   clearConnectionTarget();
   const card = document.elementFromPoint(clientX, clientY)?.closest('.node-card');
   if (!card || card.dataset.nodeId === sourceNodeId) return;
   const node = state.flowData.nodes.find(n => n.id === card.dataset.nodeId);
-  if (node && !(NODE_TYPES[node.type] || {}).noInput) card.classList.add('connection-target');
+  if (canConnect(sourceNodeId, handle, node)) card.classList.add('connection-target');
 }
 
 function clearConnectionTarget() {
@@ -1454,6 +1572,11 @@ function clearConnectionTarget() {
 function completeConnection(targetNodeId) {
   if (!state.armedHandle) return;
   if (state.armedHandle.nodeId === targetNodeId) { state.armedHandle = null; renderCanvas(); return; }
+  if (!canConnect(state.armedHandle.nodeId, state.armedHandle.handle, state.flowData.nodes.find(n => n.id === targetNodeId))) {
+    state.armedHandle = null;
+    renderCanvas();
+    return;
+  }
   state.flowData.edges = state.flowData.edges.filter(e => !(e.source === state.armedHandle.nodeId && (e.sourceHandle || '') === (state.armedHandle.handle || '')));
   state.flowData.edges.push({
     id: uid('e'),
@@ -1490,7 +1613,13 @@ async function deleteNode(id) {
 
 function handlePos(node, handle, isOutput) {
   const h = nodeHeight(node);
-  if (!isOutput) return { x: node.position.x, y: node.position.y + h / 2 };
+  if (!isOutput) {
+    if (isSubNode(node)) return { x: node.position.x + NODE_W / 2, y: node.position.y, vertical: true };
+    return { x: node.position.x, y: node.position.y + h / 2 };
+  }
+  const ports = subPortsFor(node);
+  const portIndex = ports.findIndex(port => port.handle === handle);
+  if (portIndex >= 0) return { x: node.position.x + subPortX(portIndex, ports.length), y: node.position.y + h, vertical: true };
   const outs = outputsFor(node);
   const idx = Math.max(0, outs.findIndex(o => o.handle === handle));
   const y = outputY(node, idx, outs.length);
@@ -1498,6 +1627,17 @@ function handlePos(node, handle, isOutput) {
 }
 
 const SVG_NS = 'http://www.w3.org/2000/svg';
+
+// Bezier control points: horizontal links leave right and enter left;
+// links from an AI agent port leave downwards and enter sub-blocks on top.
+function edgeControlPoints(p1, p2) {
+  if (p1.vertical) {
+    const dy = Math.max(40, Math.abs(p2.y - p1.y) * 0.5);
+    return [{ x: p1.x, y: p1.y + dy }, { x: p2.x, y: p2.y - dy }];
+  }
+  const dx = Math.max(60, Math.abs(p2.x - p1.x) * 0.5);
+  return [{ x: p1.x + dx, y: p1.y }, { x: p2.x - dx, y: p2.y }];
+}
 
 async function removeEdge(edgeId) {
   const flow = state.flowData;
@@ -1532,14 +1672,16 @@ function renderEdges() {
     if (!s || !t) continue;
     const p1 = handlePos(s, edge.sourceHandle, true);
     const p2 = handlePos(t, edge.targetHandle, false);
-    const dx = Math.max(60, Math.abs(p2.x - p1.x) * 0.5);
-    const c1 = { x: p1.x + dx, y: p1.y }, c2 = { x: p2.x - dx, y: p2.y };
+    const [c1, c2] = edgeControlPoints(p1, p2);
     const d = 'M ' + p1.x + ' ' + p1.y + ' C ' + c1.x + ' ' + c1.y + ', ' + c2.x + ' ' + c2.y + ', ' + p2.x + ' ' + p2.y;
     const active = state.hoveredEdgeId === edge.id;
     const group = svgElement('g', { class: 'edge-group' + (active ? ' active' : ''), 'data-edge-id': edge.id });
     // Wide transparent stroke: the target the pointer actually has to hit.
     const hit = svgElement('path', { d, class: 'edge-hit', stroke: 'transparent', 'stroke-width': hitWidth, fill: 'none' });
     const line = svgElement('path', { d, class: 'edge-line', stroke: active ? '#6123cc' : '#a8a29e', 'stroke-width': active ? 3 : 2, fill: 'none', 'marker-end': active ? 'url(#arrow-active)' : 'url(#arrow)' });
+    // Sub-block links (knowledge, actions) are attachments, not a path the
+    // conversation follows: dashed, like the agent's ports.
+    if (p1.vertical) line.setAttribute('stroke-dasharray', '6 4');
     // Removal button on the curve's midpoint, shown while the connection is hovered.
     const mid = { x: (p1.x + 3 * c1.x + 3 * c2.x + p2.x) * 0.125, y: (p1.y + 3 * c1.y + 3 * c2.y + p2.y) * 0.125 };
     const remove = svgElement('g', { class: 'edge-remove', transform: 'translate(' + mid.x + ' ' + mid.y + ')', role: 'button', 'aria-label': 'Remover conexão' });
@@ -1557,10 +1699,10 @@ function renderEdges() {
     const source = byId[state.armedHandle.nodeId];
     if (!source) return;
     const p1 = handlePos(source, state.armedHandle.handle, true);
-    const p2 = state.connectionDrag;
-    const dx = Math.max(60, Math.abs(p2.x - p1.x) / 2);
+    const p2 = { x: state.connectionDrag.x, y: state.connectionDrag.y, vertical: p1.vertical };
+    const [c1, c2] = edgeControlPoints(p1, p2);
     const preview = document.createElementNS('http://www.w3.org/2000/svg', 'path');
-    preview.setAttribute('d', 'M ' + p1.x + ' ' + p1.y + ' C ' + (p1.x + dx) + ' ' + p1.y + ', ' + (p2.x - dx) + ' ' + p2.y + ', ' + p2.x + ' ' + p2.y);
+    preview.setAttribute('d', 'M ' + p1.x + ' ' + p1.y + ' C ' + c1.x + ' ' + c1.y + ', ' + c2.x + ' ' + c2.y + ', ' + p2.x + ' ' + p2.y);
     preview.setAttribute('class', 'edge');
     preview.setAttribute('stroke', '#6123cc');
     preview.setAttribute('stroke-width', '2.5');
@@ -2084,6 +2226,17 @@ function renderFieldsFor(node) {
 	  html += field('Agente que assumirá a conversa', inspectorSelect('aiAgentId', [{ value: '', label: 'Selecione' }].concat(state.aiAgents.map(agent => ({ value: String(agent.id), label: agent.name + ' · ' + agent.provider }))), d.aiAgentId || '', 'Selecione'));
 	  html += safeModeField(d, 'Aplica as proteções durante toda esta sessão transferida: limita o agente ao escopo, oculta detalhes técnicos e recusa desvios ou conteúdo perigoso.');
 	  html += '<div class="rounded-xl border border-violet-200 bg-violet-50 p-3 text-xs leading-relaxed text-violet-800"><i class="fas fa-circle-info mr-1"><\/i> Este bloco encerra o flow e transfere as próximas mensagens para o agente autônomo.<\/div>';
+	  html += '<div class="rounded-xl border border-stone-200 bg-stone-50 p-3 text-xs leading-relaxed text-gray-600"><p class="font-semibold text-gray-700"><i class="fas fa-plug mr-1 text-violet-600"><\/i> Conectores do agente<\/p><p class="mt-1">Use os conectores abaixo do bloco para adicionar uma <strong>Base de conhecimento<\/strong> extra e <strong>Ações<\/strong> que a IA pode executar sozinha: transferir o atendimento, encerrar, etiquetar, salvar dados do cliente ou chamar uma API (agendamentos, CRM, pedidos).<\/p><div class="mt-2 flex flex-wrap gap-2">' +
+		AI_SUB_PORTS.map(port => '<button type="button" data-open-sub-port="' + port.handle + '" class="rounded-lg border border-violet-200 bg-white px-2.5 py-1.5 font-semibold text-violet-700 hover:bg-violet-50"><i class="fas ' + NODE_TYPES[port.accepts].icon + ' mr-1"><\/i>' + (state.flowData.edges.some(edge => edge.source === node.id && edge.sourceHandle === port.handle) ? 'Abrir ' : 'Adicionar ') + escapeHtml(port.label.toLowerCase()) + '<\/button>').join('') + '<\/div><\/div>';
+	  break;
+	case 'aiKnowledge':
+	  html += '<div class="rounded-xl border border-violet-200 bg-violet-50 p-3 text-xs leading-relaxed text-violet-800"><i class="fas fa-circle-info mr-1"><\/i> Conecte este bloco ao conector <strong>Base de conhecimento<\/strong> de um Agente IA. O conteúdo complementa a base cadastrada no agente e vale somente para conversas transferidas por este fluxo.<\/div>';
+	  html += field('Conteúdo', textArea(d.content, 'content', 14), 'Use seções curtas e objetivas. Aceita variáveis do fluxo, resolvidas no momento da transferência. Limite de 500.000 caracteres.');
+	  html += '<div class="flex items-center justify-between gap-2"><label class="cursor-pointer rounded-lg bg-violet-100 px-3 py-2 text-xs font-semibold text-violet-700 hover:bg-violet-200"><i class="fas fa-file-pdf mr-1"><\/i> Importar texto de PDF<input type="file" accept="application/pdf,.pdf" class="hidden" data-ai-knowledge-pdf><\/label><a href="/flows/knowledge-base-template.pdf" download class="text-xs font-semibold text-violet-700 hover:underline">Modelo de base<\/a><\/div><p data-ai-knowledge-status class="text-[11px] text-gray-500"><\/p>';
+	  break;
+	case 'aiTools':
+	  html += '<div class="rounded-xl border border-violet-200 bg-violet-50 p-3 text-xs leading-relaxed text-violet-800"><i class="fas fa-circle-info mr-1"><\/i> Conecte este bloco ao conector <strong>Ações<\/strong> de um Agente IA. A IA decide sozinha quando usar cada ação, com base no campo <em>Quando usar<\/em>.<\/div>';
+	  html += aiActionsHTML(d);
 	  break;
 	case 'scheduleMessage':
 	  html += field('Mensagem', formattedTextArea(d.message, 'message', 5), 'As variáveis são resolvidas no momento do agendamento.');
@@ -2107,7 +2260,7 @@ function renderFieldsFor(node) {
     const handler = () => {
       const val = input.type === 'checkbox' ? input.checked
         : input.type === 'number' ? (input.value === '' ? undefined : Number(input.value))
-		: (path === 'assignId' || path === 'aiAgentId' || path === 'credentialId') ? (input.value === '' ? undefined : Number(input.value))
+		: isNumericField(path) ? (input.value === '' ? undefined : Number(input.value))
         : input.value;
       setPath(d, path, val);
       if (node.type === 'httpRequest' && path === 'bodyMode') {
@@ -2139,9 +2292,13 @@ function renderFieldsFor(node) {
   box.querySelectorAll('[data-dd-field]').forEach(wrapper => {
     const path = wrapper.dataset.ddField;
     wrapper.querySelectorAll('input[type=radio]').forEach(radio => radio.addEventListener('change', () => {
-	  const numericSelect = path === 'assignId' || path === 'departmentId' || path === 'flowId' || path === 'templateId' || path === 'aiAgentId' || path === 'credentialId';
-      const val = numericSelect ? (radio.value === '' ? undefined : Number(radio.value)) : radio.value;
+      const val = isNumericField(path) ? (radio.value === '' ? undefined : Number(radio.value)) : radio.value;
       setPath(d, path, val);
+      if (node.type === 'aiTools' && path.startsWith('actions.')) {
+        const index = Number(path.split('.')[1]), action = d.actions[index];
+        if (path.endsWith('.type')) d.actions[index] = Object.assign(defaultAIAction(val), { id: action.id });
+        if (path.endsWith('.assignType')) delete action.assignId;
+      }
       if (node.type === 'httpRequest' && path === 'bodyMode') {
         d.bodyFields = d.bodyFields || [];
 		if ((val === 'json' || val === 'form' || val === 'multipart') && !d.bodyFields.length) d.bodyFields.push({ key: '', value: '', contentType: '' });
@@ -2196,6 +2353,9 @@ function renderFieldsFor(node) {
 	input.focus();
   });
 
+  if (node.type === 'aiTools') bindAIActions(node, box);
+  if (node.type === 'aiKnowledge') bindAIKnowledgePDF(node, box);
+  box.querySelectorAll('[data-open-sub-port]').forEach(button => button.onclick = () => openSubPort(node.id, button.dataset.openSubPort));
   if (node.type === 'switch') renderSwitchCases(node);
   if (node.type === 'sendMenu') renderMenuSections(node);
   if (node.type === 'sendButtons') renderReplyButtons(node);
@@ -2677,6 +2837,118 @@ function renderSwitchCases(node) {
   };
 }
 
+// Fields that store record ids, also when nested (actions.0.assignId).
+function isNumericField(path) {
+	const key = String(path).split('.').pop();
+	return ['assignId', 'departmentId', 'flowId', 'templateId', 'aiAgentId', 'credentialId'].includes(key);
+}
+
+function aiActionListHTML(title, addAttr, rows) {
+	return '<div><div class="mb-1 flex items-center justify-between gap-2"><span class="text-xs font-medium text-gray-600">' + title + '<\/span><button type="button" ' + addAttr + ' class="text-xs font-semibold text-purple-700 hover:underline"><i class="fas fa-plus mr-1"><\/i>Adicionar<\/button><\/div><div class="flex flex-col gap-2">' + rows + '<\/div><\/div>';
+}
+
+// aiActionsHTML renders the action editor of an "Ações da IA" block. Inputs
+// use data-field paths (actions.N.field), so the inspector's generic
+// bindings save them; bindAIActions wires the add/remove buttons.
+function aiActionsHTML(d) {
+	d.actions = Array.isArray(d.actions) ? d.actions : [];
+	const smallInput = (value, path, placeholder, extra) => '<input data-field="' + path + '" value="' + escapeAttr(value || '') + '" placeholder="' + escapeAttr(placeholder) + '" ' + (extra || '') + ' class="min-w-0 w-full rounded-lg border border-stone-200 bg-white px-2.5 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-purple-400">';
+	const removeButton = (attr, value, label) => '<button type="button" ' + attr + '="' + value + '" class="grid h-7 w-7 shrink-0 place-items-center rounded-lg text-red-500 hover:bg-red-50" aria-label="' + label + '"><i class="fas fa-times"><\/i><\/button>';
+	const cards = d.actions.map((action, i) => {
+		const p = 'actions.' + i + '.';
+		let body = field('Tipo de ação', inspectorSelect(p + 'type', AI_ACTION_TYPES, action.type, 'Selecione'));
+		body += field('Nome', textInput(action.name, p + 'name'));
+		body += field('Quando usar', textArea(action.description, p + 'description', 3), 'Explique para a IA em que situação esta ação deve ser executada.');
+		switch (action.type) {
+		case 'transfer': {
+			const department = action.assignType !== 'agent';
+			const options = department ? state.departments : state.agents;
+			body += field('Transferir para', inspectorSelect(p + 'assignType', [{ value: 'department', label: 'Setor' }, { value: 'agent', label: 'Agente' }], department ? 'department' : 'agent', 'Selecione'));
+			body += field(department ? 'Setor' : 'Agente', inspectorSelect(p + 'assignId', [{ value: '', label: 'Selecione' }].concat(options.map(option => ({ value: String(option.id), label: option.name }))), action.assignId || '', 'Selecione'));
+			body += field('Mensagem automática (opcional)', textArea(action.message, p + 'message', 2), 'Enviada depois da resposta da IA, antes da transferência. Aceita variáveis do fluxo. A IA também deixa um resumo no histórico do atendimento.');
+			break;
+		}
+		case 'close':
+			body += field('Mensagem automática (opcional)', textArea(action.message, p + 'message', 2), 'Enviada depois da despedida da IA, antes de encerrar o atendimento.');
+			break;
+		case 'tag':
+			body += field('Etiqueta', textInput(action.tag, p + 'tag'));
+			break;
+		case 'contactField':
+			body += field('Campo do cliente', inspectorSelect(p + 'field', [{ value: 'name', label: 'Nome' }, { value: 'email', label: 'Email' }, { value: 'custom', label: 'Campo personalizado' }], action.field || 'email', 'Selecione'));
+			if (action.field === 'custom') body += field('Chave do campo', textInput(action.fieldKey, p + 'fieldKey'), 'Começa com letra; use letras, números e _. Ex.: cpf, empresa.');
+			break;
+		case 'http': {
+			action.headers = Array.isArray(action.headers) ? action.headers : [];
+			action.parameters = Array.isArray(action.parameters) ? action.parameters : [];
+			body += field('Método', inspectorSelect(p + 'method', ['GET', 'POST', 'PUT', 'PATCH', 'DELETE'].map(method => ({ value: method, label: method })), action.method || 'POST', 'Selecione'));
+			body += field('URL', textInput(action.url, p + 'url'), 'Use ' + VAR_OPEN + 'parametro' + VAR_CLOSE + ' para pôr um parâmetro na URL; os demais vão no corpo JSON (ou na query, em GET e DELETE). Somente destinos públicos.');
+			body += aiActionListHTML('Parâmetros que a IA preenche', 'data-ai-param-add="' + i + '"', action.parameters.map((parameter, j) =>
+				'<div class="rounded-lg border border-stone-200 bg-white p-2"><div class="flex items-center gap-2">' +
+					smallInput(parameter.name, p + 'parameters.' + j + '.name', 'nome') +
+					'<label class="flex shrink-0 items-center gap-1 text-[11px] text-gray-600"><input type="checkbox" data-field="' + p + 'parameters.' + j + '.required" ' + (parameter.required ? 'checked' : '') + '> Obrigatório<\/label>' +
+					removeButton('data-ai-param-remove', i + ':' + j, 'Remover parâmetro') +
+				'<\/div><div class="mt-2">' + smallInput(parameter.description, p + 'parameters.' + j + '.description', 'O que a IA deve informar') + '<\/div><\/div>').join(''));
+			body += aiActionListHTML('Cabeçalhos', 'data-ai-header-add="' + i + '"', action.headers.map((header, j) =>
+				'<div class="flex items-center gap-2">' + smallInput(header.key, p + 'headers.' + j + '.key', 'Header') + smallInput(header.value, p + 'headers.' + j + '.value', 'Valor', 'autocomplete="off"') +
+				removeButton('data-ai-header-remove', i + ':' + j, 'Remover cabeçalho') + '<\/div>').join(''));
+			body += field('Timeout (ms)', numberInput(action.timeout, p + 'timeout'), 'Entre 100 e 60000. A resposta da API é repassada à IA para ela continuar a conversa.');
+			break;
+		}
+		}
+		return '<div class="rounded-xl border border-stone-200 bg-stone-50 p-3"><div class="mb-2 flex items-center justify-between gap-2"><span class="text-xs font-bold text-gray-700"><i class="fas fa-bolt mr-1 text-violet-600"><\/i>Ação ' + (i + 1) + '<\/span><button type="button" data-ai-action-remove="' + i + '" class="text-xs font-medium text-red-600 hover:underline">Remover<\/button><\/div><div class="flex flex-col gap-3">' + body + '<\/div><\/div>';
+	});
+	return '<div class="flex flex-col gap-3">' + (cards.join('') || '<p class="text-xs text-gray-500">Nenhuma ação cadastrada.<\/p>') +
+		'<button type="button" data-ai-action-add class="rounded-lg border border-dashed border-violet-300 px-3 py-2 text-sm font-semibold text-violet-700 hover:bg-violet-50"><i class="fas fa-plus mr-1"><\/i>Adicionar ação<\/button><\/div>';
+}
+
+function bindAIActions(node, box) {
+	const actions = node.data.actions;
+	const rerender = () => { renderCanvas(); renderInspector(); };
+	const pair = value => String(value).split(':').map(Number);
+	box.querySelectorAll('[data-ai-action-add]').forEach(button => button.onclick = () => { actions.push(defaultAIAction('transfer')); rerender(); });
+	box.querySelectorAll('[data-ai-action-remove]').forEach(button => button.onclick = () => { actions.splice(Number(button.dataset.aiActionRemove), 1); rerender(); });
+	box.querySelectorAll('[data-ai-param-add]').forEach(button => button.onclick = () => { actions[Number(button.dataset.aiParamAdd)].parameters.push({ name: '', description: '', required: false }); rerender(); });
+	box.querySelectorAll('[data-ai-param-remove]').forEach(button => button.onclick = () => { const [i, j] = pair(button.dataset.aiParamRemove); actions[i].parameters.splice(j, 1); rerender(); });
+	box.querySelectorAll('[data-ai-header-add]').forEach(button => button.onclick = () => { actions[Number(button.dataset.aiHeaderAdd)].headers.push({ key: '', value: '' }); rerender(); });
+	box.querySelectorAll('[data-ai-header-remove]').forEach(button => button.onclick = () => { const [i, j] = pair(button.dataset.aiHeaderRemove); actions[i].headers.splice(j, 1); rerender(); });
+}
+
+// The PDF text is extracted by the same endpoint the AI agent settings use.
+function bindAIKnowledgePDF(node, box) {
+	const input = box.querySelector('[data-ai-knowledge-pdf]');
+	const status = box.querySelector('[data-ai-knowledge-status]');
+	if (!input || !status) return;
+	input.onchange = async () => {
+		const file = input.files && input.files[0];
+		if (!file) return;
+		status.textContent = 'Lendo PDF...';
+		status.className = 'text-[11px] text-purple-700';
+		try {
+			const form = new FormData();
+			form.append('file', file);
+			const response = await fetch('/management/api/ai-agents/knowledge/pdf', { method: 'POST', body: form });
+			const payload = await response.json().catch(() => ({}));
+			if (!response.ok) throw new Error(payload.error || ('Erro ' + response.status));
+			if (state.selectedNodeId !== node.id || !state.flowData.nodes.includes(node)) return;
+			const text = String((payload.data && payload.data.text) || '').trim();
+			if (!text) throw new Error('o PDF não possui texto legível');
+			const merged = [String(node.data.content || '').trim(), '# ' + payload.data.fileName + '\n' + text].filter(Boolean).join('\n\n');
+			if (merged.length > 500000) throw new Error('o conteúdo passaria do limite de 500.000 caracteres');
+			node.data.content = merged;
+			renderCanvas();
+			renderInspector();
+			const done = document.querySelector('[data-ai-knowledge-status]');
+			if (done) { done.textContent = 'Texto de "' + payload.data.fileName + '" adicionado (' + text.length + ' caracteres).'; done.className = 'text-[11px] text-emerald-700'; }
+		} catch (error) {
+			status.textContent = 'Não foi possível importar: ' + error.message;
+			status.className = 'text-[11px] text-red-600';
+		} finally {
+			input.value = '';
+		}
+	};
+}
+
 function setPath(obj, path, val) {
   const parts = path.split('.');
   let cur = obj;
@@ -2795,6 +3067,9 @@ function flowReferenceCatalog(flow, flowData) {
 		if (d.credentialId) remember('aiCredentials', state.aiCredentials, d.credentialId);
 		if (node.type === 'assign') remember(d.assignType === 'department' ? 'departments' : 'agents', d.assignType === 'department' ? state.departments : state.agents, d.assignId);
 		if (node.type === 'smartAssign' && d.departmentId) remember('departments', state.departments, d.departmentId);
+		if (node.type === 'aiTools') (d.actions || []).forEach(action => {
+			if (action.type === 'transfer') remember(action.assignType === 'agent' ? 'agents' : 'departments', action.assignType === 'agent' ? state.agents : state.departments, action.assignId);
+		});
 	});
 	const noResponse = flowData.settings && flowData.settings.noResponse;
 	if (noResponse && noResponse.targetId) remember(noResponse.targetType === 'department' ? 'departments' : 'agents', noResponse.targetType === 'department' ? state.departments : state.agents, noResponse.targetId);
@@ -2810,6 +3085,9 @@ function flowSecrets(flowData) {
 	(flowData.nodes || []).forEach(node => {
 		const d = node.data || {};
 		if (node.type === 'callback' && d.token) found.push(nodeLabel(node) + ': token Bearer');
+		if (node.type === 'aiTools') (d.actions || []).forEach(action => (action.headers || []).forEach(header => {
+			if (header.value && SENSITIVE_HEADER.test(header.key || '')) found.push(nodeLabel(node) + ' "' + (action.name || 'ação') + '": header ' + header.key);
+		}));
 		if (node.type !== 'httpRequest') return;
 		(d.headerFields || []).forEach(header => { if (header.value && SENSITIVE_HEADER.test(header.key || '')) found.push(nodeLabel(node) + ': header ' + header.key); });
 		let raw = d.headers && typeof d.headers === 'object' ? d.headers : null;
@@ -2823,6 +3101,7 @@ function removeFlowSecrets(flowData) {
 	(flowData.nodes || []).forEach(node => {
 		const d = node.data || {};
 		if (node.type === 'callback') delete d.token;
+		if (node.type === 'aiTools') (d.actions || []).forEach(action => (action.headers || []).forEach(header => { if (SENSITIVE_HEADER.test(header.key || '')) header.value = ''; }));
 		if (node.type !== 'httpRequest') return;
 		(d.headerFields || []).forEach(header => { if (SENSITIVE_HEADER.test(header.key || '')) header.value = ''; });
 		const clean = headers => { Object.keys(headers).forEach(key => { if (SENSITIVE_HEADER.test(key)) headers[key] = ''; }); return headers; };
@@ -2984,6 +3263,13 @@ function rebindFlowReferences(flowData, references) {
 			bind(node, 'assignId', department ? state.departments : state.agents, department ? 'departments' : 'agents', department ? 'setor' : 'agente');
 		}
 		if (node.type === 'smartAssign') bind(node, 'departmentId', state.departments, 'departments', 'setor');
+		if (node.type === 'aiTools' && Array.isArray(node.data.actions)) node.data.actions.forEach(action => {
+			if (!action || action.type !== 'transfer') return;
+			const agent = action.assignType === 'agent';
+			const result = resolve(agent ? state.agents : state.departments, agent ? 'agents' : 'departments', action.assignId);
+			if (result.id === undefined) delete action.assignId; else action.assignId = result.id;
+			if (result.missing) warnings.push('Ação "' + (action.name || 'Transferir') + '": ' + (agent ? 'agente' : 'setor') + ' "' + result.name + '" não existe nesta empresa; selecione outro.');
+		});
 	});
 	const noResponse = flowData.settings.noResponse;
 	if (noResponse && noResponse.targetId) {

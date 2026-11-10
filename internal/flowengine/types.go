@@ -38,6 +38,8 @@ var knownFlowNodeTypes = map[FlowNodeType]bool{
 	NodeConversationSummary: true,
 	NodeNPSEvaluation:       true,
 	NodeMediaTranscription:  true,
+	NodeAIKnowledge:         true,
+	NodeAITools:             true,
 }
 
 type FlowNodeType string
@@ -78,6 +80,8 @@ const (
 	NodeConversationSummary FlowNodeType = "conversationSummary"
 	NodeNPSEvaluation       FlowNodeType = "npsEvaluation"
 	NodeMediaTranscription  FlowNodeType = "mediaTranscription"
+	NodeAIKnowledge         FlowNodeType = "aiKnowledge"
+	NodeAITools             FlowNodeType = "aiTools"
 	NodeEnd                 FlowNodeType = "end"
 )
 
@@ -189,8 +193,11 @@ func ValidateFlowData(raw json.RawMessage) error {
 		if _, ok := nodes[edge.Target]; !ok {
 			return fmt.Errorf("edge %s possui destino inexistente", edge.ID)
 		}
-		if nodes[edge.Source].Type == NodeEnd || nodes[edge.Source].Type == NodeAIAgent {
+		if nodes[edge.Source].Type == NodeEnd {
 			return fmt.Errorf("edge %s não pode sair de um node Fim", edge.ID)
+		}
+		if err := validateAIAgentEdge(edge, nodes[edge.Source], nodes[edge.Target]); err != nil {
+			return fmt.Errorf("edge %s: %w", edge.ID, err)
 		}
 		if nodes[edge.Target].Type == NodeStart {
 			return fmt.Errorf("edge %s não pode entrar em um node Início", edge.ID)
@@ -466,6 +473,14 @@ func validateNodeConfiguration(node FlowNode) error {
 		if intVal(node.Data, "aiAgentId") <= 0 {
 			return fmt.Errorf("agente de IA é obrigatório")
 		}
+	case NodeAIKnowledge:
+		if err := validateAIKnowledgeNode(node.Data); err != nil {
+			return err
+		}
+	case NodeAITools:
+		if err := validateAIToolsNode(node.Data); err != nil {
+			return err
+		}
 	case NodeMediaTranscription:
 		if intVal(node.Data, "credentialId") <= 0 && intVal(node.Data, "aiAgentId") <= 0 {
 			return fmt.Errorf("credencial de IA é obrigatória")
@@ -598,7 +613,9 @@ func validSourceHandle(node FlowNode, handle string) bool {
 			return false
 		}
 		return handle == fmt.Sprintf("case-%d", index) && index >= 0 && index < len(switchCases(node.Data))
-	case NodeEnd, NodeAIAgent:
+	case NodeAIAgent:
+		return handle == aiKnowledgeHandle || handle == aiToolsHandle
+	case NodeEnd, NodeAIKnowledge, NodeAITools:
 		return false
 	default:
 		return handle == ""

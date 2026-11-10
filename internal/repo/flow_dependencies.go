@@ -22,6 +22,12 @@ type flowDependencyData struct {
 			TemplateID   int `json:"templateId"`
 			AIAgentID    int `json:"aiAgentId"`
 			CredentialID int `json:"credentialId"`
+			Actions      []struct {
+				Type       string `json:"type"`
+				Name       string `json:"name"`
+				AssignType string `json:"assignType"`
+				AssignID   int    `json:"assignId"`
+			} `json:"actions"`
 		} `json:"data"`
 	} `json:"nodes"`
 }
@@ -83,6 +89,15 @@ func validateFlowDependencies(raw json.RawMessage, companyID int, ancestors map[
 			agent, err := GetAIAgent(node.Data.AIAgentID, companyID)
 			if err != nil || !agent.IsActive {
 				return fmt.Errorf("agente de IA %d não existe ou está inativo nesta empresa", node.Data.AIAgentID)
+			}
+		case "aiTools":
+			for _, action := range node.Data.Actions {
+				if action.Type != "transfer" {
+					continue
+				}
+				if err := ValidateAIAgentTransferTarget(companyID, action.AssignType, action.AssignID); err != nil {
+					return fmt.Errorf("ação de IA %q: %v", action.Name, err)
+				}
 			}
 		case "ai", "conversationSummary", "mediaTranscription":
 			if node.Data.CredentialID <= 0 {

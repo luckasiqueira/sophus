@@ -333,7 +333,11 @@ func (e *Engine) processNode(executionID int, node FlowNode, ctx ExecutionContex
 		if err != nil || !agent.IsActive {
 			return ProcessResult{}, errors.New("agente de IA não está disponível")
 		}
-		session, err := repo.ActivateAIAgentSession(conversation.Id, agentID, companyID, safeModeEnabled(node.Data))
+		extensions, err := json.Marshal(collectAIAgentExtensions(node, flowData, ctx))
+		if err != nil {
+			return ProcessResult{}, err
+		}
+		session, err := repo.ActivateAIAgentSession(conversation.Id, agentID, companyID, safeModeEnabled(node.Data), extensions)
 		if err != nil {
 			return ProcessResult{}, fmt.Errorf("não foi possível transferir para o agente de IA: %w", err)
 		}
@@ -816,6 +820,8 @@ func (e *Engine) processNode(executionID int, node FlowNode, ctx ExecutionContex
 		}}, nil
 	case NodeEnd:
 		return ProcessResult{}, nil
+	case NodeAIKnowledge, NodeAITools:
+		return ProcessResult{}, fmt.Errorf("o bloco %s só funciona conectado a um Agente IA", node.Type)
 	default:
 		return ProcessResult{}, fmt.Errorf("tipo de node desconhecido: %s", node.Type)
 	}

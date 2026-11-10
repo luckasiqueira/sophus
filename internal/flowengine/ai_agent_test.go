@@ -23,7 +23,7 @@ func TestNormalizeAIHistoryMergesConsecutiveRoles(t *testing.T) {
 }
 
 func TestBuildAIAgentSystemPromptIncludesKnowledgeAndTone(t *testing.T) {
-	prompt := buildAIAgentSystemPrompt(repo.AIAgent{Name: "Luna", Tone: "empathetic", SystemPrompt: "Não ofereça descontos.", KnowledgeBase: "Trocas em 30 dias."}, "troca")
+	prompt := buildAIAgentSystemPrompt(repo.AIAgent{Name: "Luna", Tone: "empathetic", SystemPrompt: "Não ofereça descontos.", KnowledgeBase: "Trocas em 30 dias."}, AIAgentExtensions{}, "troca")
 	for _, expected := range []string{"Luna", "empatia", "Não ofereça descontos.", "Trocas em 30 dias."} {
 		if !strings.Contains(prompt, expected) {
 			t.Fatalf("system prompt does not contain %q: %s", expected, prompt)

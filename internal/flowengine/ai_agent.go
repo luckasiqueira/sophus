@@ -60,16 +60,29 @@ func processAIAgentMessage(session repo.AIAgentSession, conversation repo.Conver
 		return
 	}
 	messages := normalizeAIHistory(history, messageText)
-	requestContext, cancel := context.WithTimeout(context.Background(), 70*time.Second)
+	extensions := parseAIAgentExtensions(session.Extensions)
+	tools, actions := aiActionTools(extensions.Actions)
+	runner := newAIToolRunner(session, conversation, connection, actions)
+	timeout := 70 * time.Second
+	if len(tools) > 0 {
+		// Each action adds a provider round trip and possibly an HTTP call.
+		timeout = 150 * time.Second
+	}
+	requestContext, cancel := context.WithTimeout(context.Background(), timeout)
 	defer cancel()
-	response, err := llm.Complete(requestContext, llm.Request{
+	response, err := llm.CompleteWithTools(requestContext, llm.Request{
 		Provider: session.Agent.Provider, Model: session.Agent.Model, APIKey: apiKey,
-		System: buildAIAgentSystemPrompt(session.Agent, messageText), Messages: messages,
+		System: buildAIAgentSystemPrompt(session.Agent, extensions, messageText), Messages: messages,
 		MaxOutputTokens: session.Agent.MaxOutputTokens, Temperature: session.Agent.Temperature, SafeMode: session.SafeMode,
-	})
+	}, tools, runner.Execute)
 	if err != nil {
 		responseErr = errors.New(llm.SafeErrorMessage(err))
 		logLLMFailure("ai_agent", connection.CompanyID, session.Agent.CredentialId, session.Agent.Provider, session.Agent.Model, err)
+		// A transfer the model already confirmed still happens, so the
+		// customer is not left with an agent that stopped answering.
+		if finishErr := runner.finish(); finishErr != nil {
+			log.Printf("ai agent action could not finish: agent=%d conversation=%d error=%v", session.Agent.Id, conversation.Id, finishErr)
+		}
 		return
 	}
 	promptTokens, completionTokens = response.PromptTokens, response.CompletionTokens
@@ -82,6 +95,10 @@ func processAIAgentMessage(session repo.AIAgentSession, conversation repo.Conver
 		responseErr = err
 		log.Printf("ai agent response could not be sent: agent=%d conversation=%d error=%v", session.Agent.Id, conversation.Id, err)
 		return
+	}
+	if err := runner.finish(); err != nil {
+		responseErr = err
+		log.Printf("ai agent action could not finish: agent=%d conversation=%d error=%v", session.Agent.Id, conversation.Id, err)
 	}
 }
 
@@ -111,7 +128,7 @@ func normalizeAIHistory(history []repo.AIHistoryMessage, currentMessage string) 
 	return messages
 }
 
-func buildAIAgentSystemPrompt(agent repo.AIAgent, query string) string {
+func buildAIAgentSystemPrompt(agent repo.AIAgent, extensions AIAgentExtensions, query string) string {
 	tone := map[string]string{
 		"professional": "Use um tom profissional, claro e confiável.",
 		"friendly":     "Use um tom amigável, natural e acolhedor.",
@@ -128,8 +145,13 @@ func buildAIAgentSystemPrompt(agent repo.AIAgent, query string) string {
 	if agent.SystemPrompt != "" {
 		parts = append(parts, "INSTRUÇÕES ESPECÍFICAS:\n"+agent.SystemPrompt)
 	}
-	if agent.KnowledgeBase != "" {
-		parts = append(parts, "BASE DE CONHECIMENTO (fonte prioritária):\n"+relevantKnowledge(agent.KnowledgeBase, query, 30000))
+	knowledge := strings.TrimSpace(agent.KnowledgeBase + "\n\n" + extensions.KnowledgeBase)
+	if knowledge != "" {
+		parts = append(parts, "BASE DE CONHECIMENTO (fonte prioritária):\n"+relevantKnowledge(knowledge, query, 30000))
+	}
+	if len(extensions.Actions) > 0 {
+		parts = append(parts, "AÇÕES DISPONÍVEIS: use as ferramentas quando a situação descrita em cada uma acontecer. "+
+			"Peça ao cliente os dados que faltarem antes de usá-las, nunca invente valores e não diga que executou uma ação sem receber a confirmação dela.")
 	}
 	return strings.Join(parts, "\n\n")
 }
