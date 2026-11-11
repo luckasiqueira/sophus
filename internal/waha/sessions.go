@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log"
 	"net/http"
 	"net/url"
 	"strconv"
@@ -40,6 +41,9 @@ type sessionInfo struct {
 			URL    string   `json:"url"`
 			Events []string `json:"events"`
 		} `json:"webhooks"`
+		Gows struct {
+			Storage map[string]bool `json:"storage"`
+		} `json:"gows"`
 	} `json:"config"`
 	Me *struct {
 		ID       string `json:"id"`
@@ -74,6 +78,9 @@ func sessionConfig(connection repo.ConnectionEVO, webhookURL string) map[string]
 	}
 	return map[string]any{
 		"metadata": metadata,
+		// GOWS caches Sophus never reads; disabling them saves memory.
+		// Messages (reply quotes), contacts and groups stay enabled.
+		"gows": map[string]any{"storage": disabledGOWSStorage},
 		"webhooks": []map[string]any{{
 			"url":    webhookURL,
 			"events": webhookEvents,
@@ -84,7 +91,15 @@ func sessionConfig(connection repo.ConnectionEVO, webhookURL string) map[string]
 	}
 }
 
+// disabledGOWSStorage lists the GOWS caches turned off for Sophus sessions.
+var disabledGOWSStorage = map[string]bool{"chats": false, "labels": false}
+
 func webhookConfigured(info sessionInfo, webhookURL string) bool {
+	for name := range disabledGOWSStorage {
+		if enabled, set := info.Config.Gows.Storage[name]; !set || enabled {
+			return false
+		}
+	}
 	if len(info.Config.Webhooks) != 1 || info.Config.Webhooks[0].URL != webhookURL {
 		return false
 	}
@@ -250,6 +265,13 @@ func (b *Bridge) reconnect(ctx context.Context, connection repo.ConnectionEVO) r
 			return fromWAHA(response, nil)
 		}
 		return result{err: err}
+	}
+	// Reconnecting is when stored sessions pick up configuration changes
+	// (webhook, GOWS caches). A failed repair must not block the reconnect.
+	if repaired, repairErr := b.ensureSession(ctx, connection, ""); repairErr != nil {
+		log.Printf("WAHA session config not updated on reconnect: session=%s error=%v", session, repairErr)
+	} else {
+		info = repaired
 	}
 	if info.Status == statusStopped {
 		if err := b.startSession(ctx, session); err != nil {

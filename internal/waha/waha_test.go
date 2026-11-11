@@ -569,3 +569,41 @@ func TestSendMediaForwardsQuotedReply(t *testing.T) {
 		t.Fatalf("audio reply must carry reply_to: %+v", sent.Body)
 	}
 }
+
+func TestReconnectAppliesGOWSStorageConfig(t *testing.T) {
+	updated := false
+	_, fake := setup(t, func(w http.ResponseWriter, r *http.Request, _ map[string]any) {
+		switch {
+		case r.Method == http.MethodGet && r.URL.Path == sessionPath():
+			config := map[string]any{
+				"metadata": map[string]string{metadataInstanceID: testInstanceID.String()},
+				"webhooks": []map[string]any{{"url": "https://app.example/webhook/" + testWebhookID.String(), "events": webhookEvents}},
+			}
+			if updated {
+				config["gows"] = map[string]any{"storage": map[string]bool{"chats": false, "labels": false}}
+			}
+			write(w, 200, map[string]any{"name": testSession, "status": "WORKING", "config": config})
+		case r.Method == http.MethodPut && r.URL.Path == sessionPath():
+			updated = true
+			write(w, 200, map[string]any{"name": testSession})
+		default:
+			write(w, 201, map[string]any{"name": testSession})
+		}
+	})
+	// A distinct instance ID avoids Sophus' 30s per-instance reconnect cooldown
+	// left by other tests; the bridge resolves the session from the token.
+	if err := (&instances.InstanceEVO{InstanceID: uuid.New(), APIToken: testToken}).Reconnect(); err != nil {
+		t.Fatal(err)
+	}
+	put, ok := fake.find(http.MethodPut, sessionPath())
+	if !ok {
+		t.Fatal("reconnect must update an outdated session config")
+	}
+	storage := put.Body["config"].(map[string]any)["gows"].(map[string]any)["storage"].(map[string]any)
+	if storage["chats"] != false || storage["labels"] != false {
+		t.Fatalf("unexpected GOWS storage config: %+v", storage)
+	}
+	if _, ok := fake.find(http.MethodPost, sessionPath()+"/restart"); !ok {
+		t.Fatal("session must still be restarted")
+	}
+}
