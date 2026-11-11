@@ -12,7 +12,7 @@ import (
 func TestDisconnectedInstanceShowsReconnectAction(t *testing.T) {
 	connection := repo.ConnectionEVO{Id: 7, Name: "Suporte", Status: repo.ConnectionStatusDisconnected}
 	var output bytes.Buffer
-	if err := InstanceList([]repo.ConnectionEVO{connection}).Render(context.Background(), &output); err != nil {
+	if err := InstanceList([]repo.ConnectionEVO{connection}).Render(adminRenderContext(), &output); err != nil {
 		t.Fatalf("render instance list: %v", err)
 	}
 	html := output.String()

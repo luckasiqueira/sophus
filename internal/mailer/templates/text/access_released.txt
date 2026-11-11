@@ -1,6 +1,6 @@
 Seu acesso foi liberado
 
-Olá, {{.Name}}. O acesso da empresa {{.CompanyName}} ao Sophus está liberado{{if .AccessUntil}} até {{.AccessUntil}}{{end}}.
+Olá, {{.Name}}. O acesso da empresa {{.CompanyName}} ao DoveChat está liberado{{if .AccessUntil}} até {{.AccessUntil}}{{end}}.
 
 Plano: {{.PlanName}}
 

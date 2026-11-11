@@ -1,6 +1,6 @@
 Olá, {{.Name}}!
 
-Sua conta para a empresa {{.CompanyName}} foi criada no Sophus.
+Sua conta para a empresa {{.CompanyName}} foi criada no DoveChat.
 
 Plano: {{.PlanName}}
 {{- if .AccessUntil}}

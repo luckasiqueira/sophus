@@ -7,11 +7,11 @@ import (
 )
 
 func TestMenuPayloadUsesEvolutionFooterField(t *testing.T) {
-	payload, err := json.Marshal(menuPayload{FooterText: "Sophus"})
+	payload, err := json.Marshal(menuPayload{FooterText: "DoveChat"})
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !strings.Contains(string(payload), `"footerText":"Sophus"`) {
+	if !strings.Contains(string(payload), `"footerText":"DoveChat"`) {
 		t.Fatalf("menu payload does not contain footerText: %s", payload)
 	}
 }
@@ -27,7 +27,7 @@ func TestFormatMenuAsText(t *testing.T) {
 	payload := menuPayload{
 		Title:       "Atendimento",
 		Description: "Escolha um setor",
-		FooterText:  "Sophus",
+		FooterText:  "DoveChat",
 		Sections: []menuSection{{
 			Title: "Setores",
 			Rows: []menuRow{
@@ -37,7 +37,7 @@ func TestFormatMenuAsText(t *testing.T) {
 		}},
 	}
 	text := formatMenuAsText(payload)
-	for _, expected := range []string{"*Atendimento*", "1. Vendas", "2. Suporte", "Responda com o número da opção.", "_Sophus_"} {
+	for _, expected := range []string{"*Atendimento*", "1. Vendas", "2. Suporte", "Responda com o número da opção.", "_DoveChat_"} {
 		if !strings.Contains(text, expected) {
 			t.Fatalf("formatted menu does not contain %q: %s", expected, text)
 		}

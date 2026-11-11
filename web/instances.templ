@@ -15,10 +15,12 @@ templ Instances(connectionsList []repo.ConnectionEVO) {
                         <p class="text-sm text-gray-500 mt-1">Gerencie suas contas de WhatsApp conectadas ao sistema</p>
                     </div>
                     // <button onclick="document.getElementById('qrcodeModal').classList.remove('hidden')" class="px-6 py-3 rounded-xl font-medium text-white shadow-sm hover:shadow-md transition-all flex items-center gap-2" style="background: linear-gradient(to right, #3b82f6, #6123cc);">
-                    <button hx-get="/instances/create" hx-target="#connections" hx-swap="afterend" class="flex items-center gap-2 rounded-xl px-4 py-2.5 font-medium text-white shadow-sm transition-all hover:shadow-md sm:px-6 sm:py-3" style="background: linear-gradient(to right, #3b82f6, #6123cc);">
-                        <i class="fas fa-plus"></i>
-                        Adicionar Conexão
-                    </button>
+                    if repo.CanSuperviseCompany(ctx) {
+	                    <button hx-get="/instances/create" hx-target="#connections" hx-swap="afterend" class="flex items-center gap-2 rounded-xl px-4 py-2.5 font-medium text-white shadow-sm transition-all hover:shadow-md sm:px-6 sm:py-3" style="background: linear-gradient(to right, #3b82f6, #6123cc);">
+	                        <i class="fas fa-plus"></i>
+	                        Adicionar Conexão
+	                    </button>
+                    }
                 </div>
 
                 <!-- Content -->
@@ -144,18 +146,26 @@ templ instanceList(connectionsList []repo.ConnectionEVO) {
                                 //<div><i class="fas fa-users mr-1"></i>23 contatos</div>
                             </div>
                             <div class="flex gap-2">
-								if connection.Status == repo.ConnectionStatusConnected {
-									<button type="button" data-import-contacts={ fmt.Sprintf("/instances/%d/contacts/import", connection.Id) } data-instance-name={ connection.Name } class="flex-1 p-2 bg-purple-50 hover:bg-purple-100 rounded-lg transition-colors text-xs font-medium text-purple-700 disabled:cursor-wait disabled:opacity-60">
-										<i class="fas fa-address-book mr-1"></i>Importar contatos
-									</button>
-								} else if connection.Status == repo.ConnectionStatusConnecting || connection.Status == repo.ConnectionStatusCreating {
-									<button type="button" disabled class="flex-1 p-2 bg-amber-50 rounded-lg text-xs font-medium text-amber-700 opacity-70"><i class="fas fa-circle-notch fa-spin mr-1"></i>Aguardando conexão</button>
+								if !repo.CanSuperviseCompany(ctx) {
+									if connection.Status == repo.ConnectionStatusConnecting || connection.Status == repo.ConnectionStatusCreating {
+										<span class="flex-1 p-2 bg-amber-50 rounded-lg text-center text-xs font-medium text-amber-700"><i class="fas fa-circle-notch fa-spin mr-1"></i>Aguardando conexão</span>
+									} else if connection.Status != repo.ConnectionStatusConnected {
+										<span class="flex-1 p-2 bg-red-50 rounded-lg text-center text-xs font-medium text-red-700"><i class="fas fa-plug-circle-xmark mr-1"></i>Desconectada</span>
+									}
 								} else {
-                                    <button data-instance-reconnect hx-post={ fmt.Sprintf("/instances/%d/reconnect", connection.Id) } hx-disabled-elt="this" hx-target="#connections" hx-swap="afterend" class="flex-1 p-2 bg-red-100 hover:bg-red-200 rounded-lg transition-colors text-xs font-medium text-red-700 disabled:opacity-50">
-                                        <i class="fas fa-qrcode mr-1"></i>Reconectar
-                                    </button>
-                                }
-								<details class="relative"><summary class="list-none cursor-pointer p-2 bg-stone-100 hover:bg-stone-200 rounded-lg transition-colors"><i class="fas fa-ellipsis-v text-gray-600 text-xs"></i></summary><div class="absolute bottom-11 right-0 z-20 w-48 rounded-xl border border-stone-200 bg-white p-1.5 shadow-xl"><button type="button" data-instance-rename={ fmt.Sprintf("/instances/%d", connection.Id) } data-instance-name={ connection.Name } class="w-full rounded-lg px-3 py-2 text-left text-xs font-semibold text-gray-700 hover:bg-stone-50"><i class="fas fa-pen mr-2 text-purple-600"></i>Renomear</button><button type="button" data-instance-disconnect={ fmt.Sprintf("/instances/%d/disconnect", connection.Id) } data-instance-name={ connection.Name } class="w-full rounded-lg px-3 py-2 text-left text-xs font-semibold text-amber-700 hover:bg-amber-50 disabled:cursor-wait disabled:opacity-60"><i class="fas fa-power-off mr-2"></i>Desconectar</button><button type="button" data-instance-delete={ fmt.Sprintf("/instances/%d", connection.Id) } data-instance-name={ connection.Name } class="w-full rounded-lg px-3 py-2 text-left text-xs font-semibold text-red-700 hover:bg-red-50"><i class="fas fa-trash mr-2"></i>Remover</button></div></details>
+									if connection.Status == repo.ConnectionStatusConnected {
+										<button type="button" data-import-contacts={ fmt.Sprintf("/instances/%d/contacts/import", connection.Id) } data-instance-name={ connection.Name } class="flex-1 p-2 bg-purple-50 hover:bg-purple-100 rounded-lg transition-colors text-xs font-medium text-purple-700 disabled:cursor-wait disabled:opacity-60">
+											<i class="fas fa-address-book mr-1"></i>Importar contatos
+										</button>
+									} else if connection.Status == repo.ConnectionStatusConnecting || connection.Status == repo.ConnectionStatusCreating {
+										<button type="button" disabled class="flex-1 p-2 bg-amber-50 rounded-lg text-xs font-medium text-amber-700 opacity-70"><i class="fas fa-circle-notch fa-spin mr-1"></i>Aguardando conexão</button>
+									} else {
+	                                    <button data-instance-reconnect hx-post={ fmt.Sprintf("/instances/%d/reconnect", connection.Id) } hx-disabled-elt="this" hx-target="#connections" hx-swap="afterend" class="flex-1 p-2 bg-red-100 hover:bg-red-200 rounded-lg transition-colors text-xs font-medium text-red-700 disabled:opacity-50">
+	                                        <i class="fas fa-qrcode mr-1"></i>Reconectar
+	                                    </button>
+	                                }
+									<details class="relative"><summary class="list-none cursor-pointer p-2 bg-stone-100 hover:bg-stone-200 rounded-lg transition-colors"><i class="fas fa-ellipsis-v text-gray-600 text-xs"></i></summary><div class="absolute bottom-11 right-0 z-20 w-48 rounded-xl border border-stone-200 bg-white p-1.5 shadow-xl"><button type="button" data-instance-rename={ fmt.Sprintf("/instances/%d", connection.Id) } data-instance-name={ connection.Name } class="w-full rounded-lg px-3 py-2 text-left text-xs font-semibold text-gray-700 hover:bg-stone-50"><i class="fas fa-pen mr-2 text-purple-600"></i>Renomear</button><button type="button" data-instance-disconnect={ fmt.Sprintf("/instances/%d/disconnect", connection.Id) } data-instance-name={ connection.Name } class="w-full rounded-lg px-3 py-2 text-left text-xs font-semibold text-amber-700 hover:bg-amber-50 disabled:cursor-wait disabled:opacity-60"><i class="fas fa-power-off mr-2"></i>Desconectar</button><button type="button" data-instance-delete={ fmt.Sprintf("/instances/%d", connection.Id) } data-instance-name={ connection.Name } class="w-full rounded-lg px-3 py-2 text-left text-xs font-semibold text-red-700 hover:bg-red-50"><i class="fas fa-trash mr-2"></i>Remover</button></div></details>
+								}
                             </div>
                         </div>
                         }

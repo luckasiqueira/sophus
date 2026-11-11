@@ -28,7 +28,7 @@ const (
 	metadataConnectionID = "sophus.connection_id"
 )
 
-// webhookEvents are all Sophus needs: engine.event carries whatsmeow's raw
+// webhookEvents are all DoveChat needs: engine.event carries whatsmeow's raw
 // events (same JSON Evolution GO forwards) and session.status reports pairing.
 var webhookEvents = []string{"engine.event", "session.status"}
 
@@ -78,7 +78,7 @@ func sessionConfig(connection repo.ConnectionEVO, webhookURL string) map[string]
 	}
 	return map[string]any{
 		"metadata": metadata,
-		// GOWS caches Sophus never reads; disabling them saves memory.
+		// GOWS caches DoveChat never reads; disabling them saves memory.
 		// Messages (reply quotes), contacts and groups stay enabled.
 		"gows": map[string]any{"storage": disabledGOWSStorage},
 		"webhooks": []map[string]any{{
@@ -91,7 +91,7 @@ func sessionConfig(connection repo.ConnectionEVO, webhookURL string) map[string]
 	}
 }
 
-// disabledGOWSStorage lists the GOWS caches turned off for Sophus sessions.
+// disabledGOWSStorage lists the GOWS caches turned off for DoveChat sessions.
 var disabledGOWSStorage = map[string]bool{"chats": false, "labels": false}
 
 func webhookConfigured(info sessionInfo, webhookURL string) bool {
@@ -166,7 +166,7 @@ func (b *Bridge) startSession(ctx context.Context, session string) error {
 	if response.OK() {
 		return nil
 	}
-	// Starting an already running session is not an error for Sophus.
+	// Starting an already running session is not an error for DoveChat.
 	if info, _, lookupErr := b.getSession(ctx, session); lookupErr == nil && info.Status != statusStopped && info.Status != statusFailed {
 		return nil
 	}

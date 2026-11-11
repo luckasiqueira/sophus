@@ -261,7 +261,7 @@ func StartOrReuseConversation(agent Agent, contactID, connectionID int) (Convers
 			return ConversationStartResult{}, err
 		}
 		result.Created = true
-	case status == ConversationStatusRunning || !ownerID.Valid || ownerID.Int64 == 0 || ownerID.Int64 == int64(agent.Id) || agent.IsAdmin():
+	case status == ConversationStatusRunning || !ownerID.Valid || ownerID.Int64 == 0 || ownerID.Int64 == int64(agent.Id) || agent.CanSupervise():
 		if _, err := tx.Exec(`UPDATE flow_executions SET status = 'failed', "errorMessage" = 'execução cancelada porque a conversa foi iniciada manualmente',
 			"completedAt" = now(), "updatedAt" = now() WHERE "conversationId" = $1 AND status IN ('running', 'waiting')`, conversationID); err != nil {
 			return ConversationStartResult{}, err

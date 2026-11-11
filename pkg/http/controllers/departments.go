@@ -8,7 +8,6 @@ import (
 
 	"sophus/internal/repo"
 	"sophus/pkg/http/middlewares"
-	"sophus/web"
 
 	"github.com/kataras/iris/v12"
 )
@@ -48,7 +47,8 @@ func DepartmentSettingsPage(ctx iris.Context) {
 		ctx.StopWithStatus(iris.StatusForbidden)
 		return
 	}
-	ctx.RenderComponent(web.DepartmentSettings())
+	// Sectors now live in the "Setores" tab of the unified team page.
+	ctx.Redirect("/agents?tab=setores", iris.StatusFound)
 }
 
 func GetDepartmentSettings(ctx iris.Context) {
@@ -174,7 +174,7 @@ func UpdateAgentDepartments(ctx iris.Context) {
 }
 
 func ListAssignmentOptions(ctx iris.Context) {
-	agent, ok := requireAdmin(ctx)
+	agent, ok := requireSupervisor(ctx)
 	if !ok {
 		return
 	}
@@ -189,6 +189,26 @@ func ListAssignmentOptions(ctx iris.Context) {
 		return
 	}
 	ctx.JSON(iris.Map{"data": iris.Map{"departments": departments, "agents": agents}})
+}
+
+// requireCompanyAgent accepts any authenticated company agent (admin or not).
+func requireCompanyAgent(ctx iris.Context) (repo.Agent, bool) {
+	agent, err := middlewares.AgentIdentifier(ctx)
+	if err != nil {
+		ctx.StopWithStatus(iris.StatusForbidden)
+		return repo.Agent{}, false
+	}
+	return agent, true
+}
+
+// requireSupervisor accepts supervisors and admins.
+func requireSupervisor(ctx iris.Context) (repo.Agent, bool) {
+	agent, err := middlewares.AgentIdentifier(ctx)
+	if err != nil || !agent.CanSupervise() {
+		ctx.StopWithStatus(iris.StatusForbidden)
+		return repo.Agent{}, false
+	}
+	return agent, true
 }
 
 func requireAdmin(ctx iris.Context) (repo.Agent, bool) {

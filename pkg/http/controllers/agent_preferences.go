@@ -30,7 +30,9 @@ func GetAgentPreferences(ctx iris.Context) {
 		return
 	}
 	ctx.Header("Cache-Control", "private, no-store")
-	ctx.JSON(iris.Map{"data": preferences, "isAdmin": agent.IsAdmin()})
+	// The tour only shows steps whose menu item is on the page, so supervisors
+	// get the management steps they can actually reach.
+	ctx.JSON(iris.Map{"data": preferences, "isAdmin": agent.CanSupervise()})
 }
 
 func SaveAgentOnboarding(ctx iris.Context) {

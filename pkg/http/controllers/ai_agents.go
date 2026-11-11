@@ -38,14 +38,14 @@ type aiAgentRequest struct {
 }
 
 func AIAgentSettingsPage(ctx iris.Context) {
-	if _, ok := requireAdmin(ctx); !ok {
+	if _, ok := requireSupervisor(ctx); !ok {
 		return
 	}
 	ctx.RenderComponent(web.AIAgentSettings())
 }
 
 func ListAIAgents(ctx iris.Context) {
-	agent, ok := requireAdmin(ctx)
+	agent, ok := requireSupervisor(ctx)
 	if !ok {
 		return
 	}
@@ -58,7 +58,7 @@ func ListAIAgents(ctx iris.Context) {
 }
 
 func ListAIAgentConnections(ctx iris.Context) {
-	agent, ok := requireAdmin(ctx)
+	agent, ok := requireSupervisor(ctx)
 	if !ok {
 		return
 	}
@@ -75,7 +75,7 @@ func ListAIAgentConnections(ctx iris.Context) {
 }
 
 func ListAIAgentModels(ctx iris.Context) {
-	if _, ok := requireAdmin(ctx); !ok {
+	if _, ok := requireSupervisor(ctx); !ok {
 		return
 	}
 	ctx.JSON(iris.Map{"data": llm.ProviderModels()})
@@ -86,7 +86,7 @@ func ListAIAgentModels(ctx iris.Context) {
 // file is not stored. Images are read by the vision model of the credential
 // chosen in the form.
 func ExtractAIAgentKnowledgeFile(ctx iris.Context) {
-	current, ok := requireAdmin(ctx)
+	current, ok := requireSupervisor(ctx)
 	if !ok {
 		return
 	}
@@ -163,7 +163,7 @@ func describeKnowledgeImage(ctx iris.Context, companyID int, data []byte) (strin
 }
 
 func CreateAIAgent(ctx iris.Context) {
-	current, ok := requireAdmin(ctx)
+	current, ok := requireSupervisor(ctx)
 	if !ok {
 		return
 	}
@@ -191,7 +191,7 @@ func CreateAIAgent(ctx iris.Context) {
 }
 
 func UpdateAIAgent(ctx iris.Context) {
-	current, ok := requireAdmin(ctx)
+	current, ok := requireSupervisor(ctx)
 	if !ok {
 		return
 	}
@@ -226,7 +226,7 @@ func UpdateAIAgent(ctx iris.Context) {
 }
 
 func DeleteAIAgent(ctx iris.Context) {
-	current, ok := requireAdmin(ctx)
+	current, ok := requireSupervisor(ctx)
 	if !ok {
 		return
 	}
@@ -256,7 +256,7 @@ func DeleteAIAgent(ctx iris.Context) {
 }
 
 func TestAIAgent(ctx iris.Context) {
-	current, ok := requireAdmin(ctx)
+	current, ok := requireSupervisor(ctx)
 	if !ok {
 		return
 	}

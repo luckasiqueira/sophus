@@ -74,7 +74,7 @@ func TestSMTPSenderDeliversMultipartMessage(t *testing.T) {
 			Host:       "127.0.0.1",
 			Port:       port,
 			FromEmail:  "no-reply@example.com",
-			FromName:   "Sophus",
+			FromName:   "DoveChat",
 			Encryption: EncryptionNone,
 			Timeout:    5 * time.Second,
 		},
@@ -93,7 +93,7 @@ func TestSMTPSenderDeliversMultipartMessage(t *testing.T) {
 
 	payload := <-received
 	for _, want := range []string{
-		`From: "Sophus" <no-reply@example.com>`,
+		`From: "DoveChat" <no-reply@example.com>`,
 		"To: ana@example.com",
 		"MIME-Version: 1.0",
 		"multipart/alternative",

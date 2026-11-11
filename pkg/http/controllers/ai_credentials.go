@@ -26,7 +26,7 @@ type aiCredentialRequest struct {
 }
 
 func ListAICredentials(ctx iris.Context) {
-	current, ok := requireAdmin(ctx)
+	current, ok := requireSupervisor(ctx)
 	if !ok {
 		return
 	}
@@ -39,7 +39,7 @@ func ListAICredentials(ctx iris.Context) {
 }
 
 func ListAICredentialModels(ctx iris.Context) {
-	if _, ok := requireAdmin(ctx); !ok {
+	if _, ok := requireSupervisor(ctx); !ok {
 		return
 	}
 	ctx.JSON(iris.Map{"data": llm.ProviderModels()})

@@ -175,8 +175,8 @@ func Router(r *iris.Application) {
 	web.Get("/messages/{url:uuid}/search", middlewares.AuthSubscription, controllers.SearchConversation)
 	web.Get("/messages/{url:uuid}/search-context", middlewares.AuthSubscription, controllers.ConversationSearchContext)
 	web.Post("/messages/{url:uuid}/media/retry", middlewares.AuthSubscription, controllers.RetryConversationMedia)
-	web.Get("/messages/{url:uuid}/export", middlewares.AuthSubscription, middlewares.RequireCompanyAdmin, controllers.ExportCurrentConversation)
-	web.Get("/messages/{url:uuid}/export/contact", middlewares.AuthSubscription, middlewares.RequireCompanyAdmin, controllers.ExportContactConversations)
+	web.Get("/messages/{url:uuid}/export", middlewares.AuthSubscription, middlewares.RequireCompanySupervisor, controllers.ExportCurrentConversation)
+	web.Get("/messages/{url:uuid}/export/contact", middlewares.AuthSubscription, middlewares.RequireCompanySupervisor, controllers.ExportContactConversations)
 	web.Get("/messages/{url:uuid}/notification", middlewares.AuthSubscription, controllers.ConversationNotification)
 	web.Post("/messages/{url:uuid}/read", middlewares.AuthSubscription, controllers.MarkConversationRead)
 	web.Post("/messages/{url:uuid}/notes", middlewares.AuthSubscription, middlewares.RequireStructuredContentType, controllers.AddConversationNote)
@@ -201,9 +201,9 @@ func Router(r *iris.Application) {
 	web.Put("/schedules/api/{id:int64}", middlewares.AuthSubscription, controllers.UpdateScheduledMessageAPI)
 	web.Delete("/schedules/api/{id:int64}", middlewares.AuthSubscription, controllers.CancelScheduledMessageAPI)
 	web.Post("/schedules/api/{id:int64}/send-now", middlewares.AuthSubscription, controllers.SendScheduledMessageNowAPI)
-	web.Get("/reports", middlewares.AuthSubscription, controllers.ReportsPage)
+	web.Get("/reports", middlewares.AuthSubscription, middlewares.RequireCompanySupervisor, controllers.ReportsPage)
 	web.Get("/quick-replies", controllers.QuickRepliesPage)
-	web.Get("/reports/pdf", middlewares.AuthSubscription, controllers.ExportReportPDF)
+	web.Get("/reports/pdf", middlewares.AuthSubscription, middlewares.RequireCompanySupervisor, controllers.ExportReportPDF)
 	web.Get("/media", controllers.MediaLibraryPage)
 
 	flows := web.Party("/flows")
@@ -240,19 +240,21 @@ func Router(r *iris.Application) {
 	}
 
 	instance := web.Party("/instances")
-	instance.Use(middlewares.AuthSubscription, middlewares.RequireCompanyAdmin)
+	instance.Use(middlewares.AuthSubscription)
 	{
+		// Every agent may see the instances; supervisors and admins manage them.
 		instance.Get("/", controllers.Instances)
 		instance.Get("/list", controllers.InstanceList)
 		instance.Get("/events", middlewares.SSEInstances)
-		instance.Get("/create", controllers.InstancePopup)
-		instance.Post("/create", controllers.NewInstance)
-		instance.Post("/{id:int}/reconnect", controllers.AuditCompanyAction("reconnect", "instance", controllers.ReconnectInstance))
-		instance.Post("/{id:int}/disconnect", controllers.AuditCompanyAction("disconnect", "instance", controllers.DisconnectInstance))
-		instance.Put("/{id:int}", controllers.AuditCompanyAction("update", "instance", controllers.RenameInstance))
-		instance.Delete("/{id:int}", controllers.AuditCompanyAction("delete", "instance", controllers.DeleteInstance))
-		instance.Post("/{id:int}/contacts/import", controllers.AuditCompanyAction("import", "contacts", controllers.ImportInstanceContacts))
-		instance.Get("/{id:int}/qrcode/events", middlewares.SSEQRCode)
+		supervisor := middlewares.RequireCompanySupervisor
+		instance.Get("/create", supervisor, controllers.InstancePopup)
+		instance.Post("/create", supervisor, controllers.NewInstance)
+		instance.Post("/{id:int}/reconnect", supervisor, controllers.AuditCompanyAction("reconnect", "instance", controllers.ReconnectInstance))
+		instance.Post("/{id:int}/disconnect", supervisor, controllers.AuditCompanyAction("disconnect", "instance", controllers.DisconnectInstance))
+		instance.Put("/{id:int}", supervisor, controllers.AuditCompanyAction("update", "instance", controllers.RenameInstance))
+		instance.Delete("/{id:int}", supervisor, controllers.AuditCompanyAction("delete", "instance", controllers.DeleteInstance))
+		instance.Post("/{id:int}/contacts/import", supervisor, controllers.AuditCompanyAction("import", "contacts", controllers.ImportInstanceContacts))
+		instance.Get("/{id:int}/qrcode/events", supervisor, middlewares.SSEQRCode)
 	}
 
 }

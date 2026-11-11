@@ -39,9 +39,9 @@ var (
 )
 
 var subjects = map[Kind]string{
-	KindWelcome:          "Bem-vindo ao Sophus",
+	KindWelcome:          "Bem-vindo ao DoveChat",
 	KindPaymentConfirmed: "Pagamento confirmado",
-	KindAccessReleased:   "Seu acesso ao Sophus está liberado",
+	KindAccessReleased:   "Seu acesso ao DoveChat está liberado",
 }
 
 // header holds the per-message banner text each layout shows above the body.
@@ -53,7 +53,7 @@ type header struct {
 }
 
 var headers = map[Kind]header{
-	KindWelcome:          {Hero: "Bem-vindo ao Sophus", Kicker: "Conta criada", Status: "Conta ativa", Edition: "Boas-vindas"},
+	KindWelcome:          {Hero: "Bem-vindo ao DoveChat", Kicker: "Conta criada", Status: "Conta ativa", Edition: "Boas-vindas"},
 	KindPaymentConfirmed: {Hero: "Pagamento confirmado", Kicker: "Recibo", Status: "Pago", Edition: "Comprovante de pagamento"},
 	KindAccessReleased:   {Hero: "Seu acesso está liberado", Kicker: "Acesso", Status: "Liberado", Edition: "Acesso liberado"},
 }

@@ -109,25 +109,43 @@ func TestOperationalRoutesRequireActiveSubscription(t *testing.T) {
 	}
 }
 
-func TestInstanceRoutesRequireCompanyAdmin(t *testing.T) {
+// Every agent may view instances; managing them (and reports) needs a
+// supervisor or admin.
+func TestInstanceManagementAndReportRoutesRequireSupervisor(t *testing.T) {
 	app := iris.New()
 	Router(app)
 	if err := app.Build(); err != nil {
 		t.Fatalf("build routes: %v", err)
 	}
+	viewOnly := map[string]bool{"GET /instances": true, "GET /instances/list": true, "GET /instances/events": true}
+	checked := 0
 	for _, route := range app.GetRoutes() {
-		if !strings.HasPrefix(route.Path, "/instances") {
+		if !strings.HasPrefix(route.Path, "/instances") && !strings.HasPrefix(route.Path, "/reports") {
 			continue
 		}
 		handlerNames := make([]string, 0, len(route.Handlers))
 		for _, handler := range route.Handlers {
 			handlerNames = append(handlerNames, context.HandlerName(handler))
 		}
-		assertHasMiddleware(t, route.Method, route.Path, handlerNames, "RequireCompanyAdmin")
+		key := route.Method + " " + strings.TrimSuffix(route.Path, "/")
+		if viewOnly[key] {
+			for _, name := range handlerNames {
+				if strings.HasSuffix(name, ".RequireCompanyAdmin") || strings.HasSuffix(name, ".RequireCompanySupervisor") {
+					t.Errorf("%s must stay visible to every agent", key)
+				}
+			}
+			continue
+		}
+		checked++
+		assertHasMiddleware(t, route.Method, route.Path, handlerNames, "RequireCompanySupervisor")
+	}
+	if checked < 10 {
+		t.Fatalf("expected instance management and report routes, checked %d", checked)
 	}
 }
 
-func TestConversationExportRoutesRequireCompanyAdmin(t *testing.T) {
+// Supervisors handle conversations like admins, including exports.
+func TestConversationExportRoutesRequireSupervisor(t *testing.T) {
 	app := iris.New()
 	Router(app)
 	if err := app.Build(); err != nil {
@@ -143,7 +161,7 @@ func TestConversationExportRoutesRequireCompanyAdmin(t *testing.T) {
 		for _, handler := range route.Handlers {
 			names = append(names, context.HandlerName(handler))
 		}
-		assertHasMiddleware(t, route.Method, route.Path, names, "RequireCompanyAdmin")
+		assertHasMiddleware(t, route.Method, route.Path, names, "RequireCompanySupervisor")
 	}
 	if count != 2 {
 		t.Fatalf("export routes = %d, want 2", count)

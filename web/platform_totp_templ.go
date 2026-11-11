@@ -29,7 +29,15 @@ func PlatformSecondFactor(enrollment bool, secret, image string) templ.Component
 			templ_7745c5c3_Var1 = templ.NopComponent
 		}
 		ctx = templ.ClearChildren(ctx)
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 1, "<!doctype html><html lang=\"pt-BR\"><head><meta charset=\"UTF-8\"><meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0\"><title>Verificação em duas etapas | Sophus</title>")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 1, "<!doctype html><html lang=\"pt-BR\"><head>")
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		templ_7745c5c3_Err = ThemeRuntime().Render(ctx, templ_7745c5c3_Buffer)
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 2, "<meta charset=\"UTF-8\"><meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0\"><title>Verificação em duas etapas | DoveChat</title>")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -37,7 +45,7 @@ func PlatformSecondFactor(enrollment bool, secret, image string) templ.Component
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 2, "<script src=\"https://cdn.tailwindcss.com\"></script><script src=\"https://cdn.jsdelivr.net/npm/htmx.org@2.0.10/dist/htmx.min.js\" integrity=\"sha384-H5SrcfygHmAuTDZphMHqBJLc3FhssKjG7w/CeCpFReSfwBWDTKpkzPP8c+cLsK+V\" crossorigin=\"anonymous\"></script></head><body class=\"min-h-screen bg-stone-100 px-5 py-10 text-gray-950\"><main class=\"mx-auto w-full max-w-md rounded-3xl border border-stone-200 bg-white p-6 shadow-sm sm:p-8\">")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 3, "<script src=\"https://cdn.tailwindcss.com\"></script><script src=\"https://cdn.jsdelivr.net/npm/htmx.org@2.0.10/dist/htmx.min.js\" integrity=\"sha384-H5SrcfygHmAuTDZphMHqBJLc3FhssKjG7w/CeCpFReSfwBWDTKpkzPP8c+cLsK+V\" crossorigin=\"anonymous\"></script></head><body class=\"min-h-screen bg-stone-100 px-5 py-10 text-gray-950\"><main class=\"mx-auto w-full max-w-md rounded-3xl border border-stone-200 bg-white p-6 shadow-sm sm:p-8\">")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -45,48 +53,48 @@ func PlatformSecondFactor(enrollment bool, secret, image string) templ.Component
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 3, "<p class=\"text-xs font-bold uppercase tracking-widest text-purple-600\">Super admin · 2FA</p>")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 4, "<p class=\"text-xs font-bold uppercase tracking-widest text-purple-600\">Super admin · 2FA</p>")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
 		if enrollment {
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 4, "<h1 class=\"mt-3 text-2xl font-black\">Cadastre seu autenticador</h1><p class=\"mt-3 text-sm leading-relaxed text-gray-600\">Abra o Google Authenticator, toque em “+” e escaneie o QR Code. Depois, informe o código de 6 dígitos para ativar a verificação em duas etapas.</p><img src=\"")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 5, "<h1 class=\"mt-3 text-2xl font-black\">Cadastre seu autenticador</h1><p class=\"mt-3 text-sm leading-relaxed text-gray-600\">Abra o Google Authenticator, toque em “+” e escaneie o QR Code. Depois, informe o código de 6 dígitos para ativar a verificação em duas etapas.</p><img src=\"")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
 			var templ_7745c5c3_Var2 string
 			templ_7745c5c3_Var2, templ_7745c5c3_Err = templ.ResolveAttributeValue(image)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/platform_totp.templ`, Line: 21, Col: 21}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/platform_totp.templ`, Line: 23, Col: 21}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var2)
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 5, "\" alt=\"QR Code para cadastrar o super admin no Google Authenticator\" class=\"mx-auto mt-5 h-64 w-64\"> <details class=\"mt-3 rounded-xl bg-stone-50 p-3 text-sm\"><summary class=\"cursor-pointer font-semibold text-purple-700\">Cadastrar com uma chave manual</summary><p class=\"mt-3 text-gray-600\">Escolha uma chave baseada em tempo (TOTP) e use:</p><code class=\"mt-2 block break-all select-all rounded-lg bg-white p-3 font-mono text-sm\">")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 6, "\" alt=\"QR Code para cadastrar o super admin no Google Authenticator\" class=\"mx-auto mt-5 h-64 w-64\"> <details class=\"mt-3 rounded-xl bg-stone-50 p-3 text-sm\"><summary class=\"cursor-pointer font-semibold text-purple-700\">Cadastrar com uma chave manual</summary><p class=\"mt-3 text-gray-600\">Escolha uma chave baseada em tempo (TOTP) e use:</p><code class=\"mt-2 block break-all select-all rounded-lg bg-white p-3 font-mono text-sm\">")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
 			var templ_7745c5c3_Var3 string
 			templ_7745c5c3_Var3, templ_7745c5c3_Err = templ.JoinStringErrs(secret)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/platform_totp.templ`, Line: 22, Col: 342}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/platform_totp.templ`, Line: 24, Col: 342}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var3))
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 6, "</code></details>")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 7, "</code></details>")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
 		} else {
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 7, "<h1 class=\"mt-3 text-2xl font-black\">Verificação em duas etapas</h1><p class=\"mt-3 text-sm leading-relaxed text-gray-600\">Informe o código de 6 dígitos exibido no Google Authenticator para concluir seu login.</p>")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 8, "<h1 class=\"mt-3 text-2xl font-black\">Verificação em duas etapas</h1><p class=\"mt-3 text-sm leading-relaxed text-gray-600\">Informe o código de 6 dígitos exibido no Google Authenticator para concluir seu login.</p>")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 8, "<form id=\"totp-form\" hx-post=\"/login/2fa\" hx-swap=\"none\" class=\"mt-6 space-y-4\"><div id=\"totp-error\" role=\"alert\" class=\"hidden rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-700\"></div><div><label for=\"totp-code\" class=\"mb-2 block text-sm font-semibold\">Código do autenticador</label><input id=\"totp-code\" name=\"code\" required type=\"text\" inputmode=\"numeric\" autocomplete=\"one-time-code\" pattern=\"[0-9]{6}\" minlength=\"6\" maxlength=\"6\" autofocus class=\"w-full rounded-xl border border-stone-200 px-4 py-3 text-center font-mono text-2xl tracking-[0.3em] outline-none focus:border-purple-400 focus:ring-2 focus:ring-purple-100\"></div><button id=\"totp-submit\" type=\"submit\" class=\"w-full rounded-xl bg-purple-700 px-5 py-3 font-bold text-white hover:bg-purple-800 disabled:opacity-60\">Confirmar e entrar</button></form><p class=\"mt-4 text-xs text-gray-500\">Esta etapa expira em 5 minutos.</p><a href=\"/login\" class=\"mt-5 block text-center text-sm font-semibold text-purple-700\">Voltar ao login</a></main><script>\n    const form = document.getElementById('totp-form');\n    const button = document.getElementById('totp-submit');\n    const errorBox = document.getElementById('totp-error');\n    form.addEventListener('htmx:beforeRequest', () => { button.disabled = true; errorBox.classList.add('hidden'); });\n    form.addEventListener('htmx:afterRequest', event => {\n     button.disabled = false;\n     if (event.detail.successful) return;\n     let message = 'Não foi possível verificar o código. Tente novamente.';\n     try { message = JSON.parse(event.detail.xhr.responseText).error || message; } catch (_) {}\n     errorBox.textContent = message; errorBox.classList.remove('hidden');\n     document.getElementById('totp-code').value = ''; document.getElementById('totp-code').focus();\n    });\n   </script></body></html>")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 9, "<form id=\"totp-form\" hx-post=\"/login/2fa\" hx-swap=\"none\" class=\"mt-6 space-y-4\"><div id=\"totp-error\" role=\"alert\" class=\"hidden rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-700\"></div><div><label for=\"totp-code\" class=\"mb-2 block text-sm font-semibold\">Código do autenticador</label><input id=\"totp-code\" name=\"code\" required type=\"text\" inputmode=\"numeric\" autocomplete=\"one-time-code\" pattern=\"[0-9]{6}\" minlength=\"6\" maxlength=\"6\" autofocus class=\"w-full rounded-xl border border-stone-200 px-4 py-3 text-center font-mono text-2xl tracking-[0.3em] outline-none focus:border-purple-400 focus:ring-2 focus:ring-purple-100\"></div><button id=\"totp-submit\" type=\"submit\" class=\"w-full rounded-xl bg-purple-700 px-5 py-3 font-bold text-white hover:bg-purple-800 disabled:opacity-60\">Confirmar e entrar</button></form><p class=\"mt-4 text-xs text-gray-500\">Esta etapa expira em 5 minutos.</p><a href=\"/login\" class=\"mt-5 block text-center text-sm font-semibold text-purple-700\">Voltar ao login</a></main><script>\n    const form = document.getElementById('totp-form');\n    const button = document.getElementById('totp-submit');\n    const errorBox = document.getElementById('totp-error');\n    form.addEventListener('htmx:beforeRequest', () => { button.disabled = true; errorBox.classList.add('hidden'); });\n    form.addEventListener('htmx:afterRequest', event => {\n     button.disabled = false;\n     if (event.detail.successful) return;\n     let message = 'Não foi possível verificar o código. Tente novamente.';\n     try { message = JSON.parse(event.detail.xhr.responseText).error || message; } catch (_) {}\n     errorBox.textContent = message; errorBox.classList.remove('hidden');\n     document.getElementById('totp-code').value = ''; document.getElementById('totp-code').focus();\n    });\n   </script></body></html>")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}

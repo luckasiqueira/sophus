@@ -1,6 +1,7 @@
 package repo
 
 import (
+	"context"
 	"database/sql"
 	"errors"
 	"time"
@@ -8,7 +9,11 @@ import (
 
 const (
 	RoleAdmin = "admin"
-	RoleAgent = "agent"
+	// RoleSupervisor sits between admin and agent: it runs the operation
+	// (instances, flows, AI agents, tags, reports, contact deletion) but not
+	// company administration (settings, team, media deletion, billing).
+	RoleSupervisor = "supervisor"
+	RoleAgent      = "agent"
 )
 
 var (
@@ -298,7 +303,7 @@ func scanAgent(scanner rowScanner) (Agent, error) {
 }
 
 func validAgentRole(role string) bool {
-	return role == RoleAdmin || role == RoleAgent
+	return role == RoleAdmin || role == RoleSupervisor || role == RoleAgent
 }
 
 func lockAgentEmail(tx *sql.Tx, email string, excludeAgentID int) error {
@@ -341,4 +346,41 @@ func ensureAnotherActiveAdmin(tx *sql.Tx, agentID, companyID int) error {
 
 func (a Agent) IsAdmin() bool {
 	return a.Role == RoleAdmin
+}
+
+// CanSupervise reports whether the agent may run supervisor actions; admins
+// inherit every supervisor permission.
+func (a Agent) CanSupervise() bool {
+	return a.Role == RoleAdmin || a.Role == RoleSupervisor
+}
+
+type agentContextKey struct{}
+
+// ContextWithAgent attaches the authenticated agent to a request context.
+func ContextWithAgent(ctx context.Context, agent Agent) context.Context {
+	return context.WithValue(ctx, agentContextKey{}, agent)
+}
+
+// AgentFromContext returns the authenticated agent, if the request has one.
+func AgentFromContext(ctx context.Context) (Agent, bool) {
+	if ctx == nil {
+		return Agent{}, false
+	}
+	agent, ok := ctx.Value(agentContextKey{}).(Agent)
+	return agent, ok
+}
+
+// CanManageCompany reports whether the rendering request belongs to a company
+// admin. It fails closed: without an authenticated agent, management UI is
+// hidden (the handlers enforce the same rule independently).
+func CanManageCompany(ctx context.Context) bool {
+	agent, ok := AgentFromContext(ctx)
+	return ok && agent.IsAdmin()
+}
+
+// CanSuperviseCompany is the supervisor-level counterpart of CanManageCompany
+// (admins and supervisors). It fails closed the same way.
+func CanSuperviseCompany(ctx context.Context) bool {
+	agent, ok := AgentFromContext(ctx)
+	return ok && agent.CanSupervise()
 }

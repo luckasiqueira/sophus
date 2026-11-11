@@ -102,7 +102,8 @@ func GetConversationReport(ctx context.Context, agent Agent, filter ReportFilter
 		from = filter.From
 		to = filter.To
 	}
-	args := []any{agent.CompanyId, agent.IsAdmin(), agent.Id, filter.ConnectionID, filter.DepartmentID, filter.AgentID, from, to}
+	// Supervisors read company-wide reports like admins.
+	args := []any{agent.CompanyId, agent.CanSupervise(), agent.Id, filter.ConnectionID, filter.DepartmentID, filter.AgentID, from, to}
 	// Aggregate messages first to count each conversation once, including those
 	// without messages and histories retained after deleting a connection.
 	rows, err := db.QueryContext(ctx, reportScopeSQL+`

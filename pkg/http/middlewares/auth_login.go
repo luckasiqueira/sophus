@@ -16,6 +16,14 @@ var secret = []byte(strings.TrimSpace(env.Backend["SALT_JWT"]))
 
 const agentContextKey = "authenticatedAgent"
 
+// setAuthenticatedAgent stores the agent for handlers and in the request
+// context, which is the context templ components render with, so pages can
+// adapt to the agent's role.
+func setAuthenticatedAgent(ctx iris.Context, agent repo.Agent) {
+	ctx.Values().Set(agentContextKey, agent)
+	ctx.ResetRequest(ctx.Request().WithContext(repo.ContextWithAgent(ctx.Request().Context(), agent)))
+}
+
 func AuthUser(ctx iris.Context) {
 	started := time.Now()
 	if HasSupportCookie(ctx) && !supportExitRequest(ctx) {
@@ -24,7 +32,7 @@ func AuthUser(ctx iris.Context) {
 			supportAuthenticationFailure(ctx)
 			return
 		}
-		ctx.Values().Set(agentContextKey, agent)
+		setAuthenticatedAgent(ctx, agent)
 		ServerTiming(ctx, "auth", started)
 		ctx.Next()
 		return
@@ -36,7 +44,7 @@ func AuthUser(ctx iris.Context) {
 		return
 	}
 	if agent, err := identifyAgent(ctx); err == nil {
-		ctx.Values().Set(agentContextKey, agent)
+		setAuthenticatedAgent(ctx, agent)
 		ServerTiming(ctx, "auth", started)
 		ctx.Next()
 		return
@@ -64,7 +72,7 @@ func AuthLogin(ctx iris.Context) {
 		ctx.Redirect("/login", iris.StatusFound)
 		return
 	}
-	ctx.Values().Set(agentContextKey, agent)
+	setAuthenticatedAgent(ctx, agent)
 	ServerTiming(ctx, "auth", started)
 	ctx.Next()
 }
@@ -95,7 +103,7 @@ func AgentIdentifier(ctx iris.Context) (repo.Agent, error) {
 		ctx.StopWithStatus(iris.StatusUnauthorized)
 		return repo.Agent{}, err
 	}
-	ctx.Values().Set(agentContextKey, agent)
+	setAuthenticatedAgent(ctx, agent)
 	return agent, nil
 }
 
@@ -107,7 +115,7 @@ func OptionalAgent(ctx iris.Context) (repo.Agent, bool) {
 	if err != nil {
 		return repo.Agent{}, false
 	}
-	ctx.Values().Set(agentContextKey, agent)
+	setAuthenticatedAgent(ctx, agent)
 	return agent, true
 }
 

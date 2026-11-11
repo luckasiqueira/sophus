@@ -20,14 +20,14 @@ import (
 )
 
 func MediaLibraryPage(ctx iris.Context) {
-	if _, ok := requireAdmin(ctx); !ok {
+	if _, ok := requireCompanyAgent(ctx); !ok {
 		return
 	}
 	ctx.RenderComponent(web.MediaLibrary())
 }
 
 func ListCompanyMedia(ctx iris.Context) {
-	agent, ok := requireAdmin(ctx)
+	agent, ok := requireCompanyAgent(ctx)
 	if !ok {
 		return
 	}
@@ -252,7 +252,7 @@ func ServeForwardMedia(ctx iris.Context) {
 }
 
 func ForwardCompanyMedia(ctx iris.Context) {
-	agent, ok := requireAdmin(ctx)
+	agent, ok := requireCompanyAgent(ctx)
 	if !ok {
 		return
 	}

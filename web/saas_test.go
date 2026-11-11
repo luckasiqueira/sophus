@@ -21,7 +21,7 @@ func TestSaaSPagesRender(t *testing.T) {
 		{name: "platform settings", content: "Cobrança global", page: SaaSSettings()},
 		{name: "company settings", content: "Configurações da empresa", page: CompanySettings()},
 		{name: "company overview", content: "Mensagens por período", page: CompanyOverview()},
-		{name: "agents", content: "Agentes da empresa", page: AgentSettings()},
+		{name: "agents", content: "Agentes e setores", page: AgentSettings()},
 		{name: "media", content: "Biblioteca de mídia", page: MediaLibrary()},
 		{name: "contacts", content: "Gerencie clientes", page: Contacts()},
 		{name: "ai agents", content: "operadores autônomos", page: AIAgentSettings()},
@@ -128,7 +128,7 @@ func TestBillingUsesStandaloneLandingLayout(t *testing.T) {
 		t.Fatalf("render billing page: %v", err)
 	}
 	html := output.String()
-	for _, expected := range []string{"Planos e contratação | Sophus", "Workspace de atendimento", "billing-mobile-menu"} {
+	for _, expected := range []string{"Planos e contratação | DoveChat", "Workspace de atendimento", "billing-mobile-menu"} {
 		if !strings.Contains(html, expected) {
 			t.Fatalf("standalone billing page does not contain %q", expected)
 		}
@@ -250,7 +250,7 @@ func TestFlowBusinessHoursUsesCompanySettings(t *testing.T) {
 func TestConnectedInstanceIncludesContactImport(t *testing.T) {
 	var output strings.Builder
 	connection := repo.ConnectionEVO{Id: 42, Name: "Suporte", Status: repo.ConnectionStatusConnected}
-	if err := InstanceList([]repo.ConnectionEVO{connection}).Render(context.Background(), &output); err != nil {
+	if err := InstanceList([]repo.ConnectionEVO{connection}).Render(adminRenderContext(), &output); err != nil {
 		t.Fatalf("render instances: %v", err)
 	}
 	for _, expected := range []string{"Importar contatos", "/instances/42/contacts/import"} {

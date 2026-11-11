@@ -7,7 +7,7 @@ import (
 	"github.com/google/uuid"
 )
 
-// SessionName is the WAHA session that backs one Sophus connection. It is
+// SessionName is the WAHA session that backs one DoveChat connection. It is
 // derived from the Evolution instance ID, so it is stable across restarts and
 // never contains secrets.
 func SessionName(instanceID uuid.UUID) string {
@@ -34,7 +34,7 @@ func cleanDevice(jid string) string {
 	return jid
 }
 
-// ChatID converts what Sophus sends as "number" (digits, phone with symbols, a
+// ChatID converts what DoveChat sends as "number" (digits, phone with symbols, a
 // whatsmeow JID or a WAHA chat ID) into WAHA's chat ID format.
 func ChatID(value string) string {
 	value = strings.TrimSpace(value)
@@ -56,7 +56,7 @@ func ChatID(value string) string {
 }
 
 // whatsmeowJID converts a WAHA chat ID into the whatsmeow JID format that
-// Evolution GO payloads (and therefore Sophus) use.
+// Evolution GO payloads (and therefore DoveChat) use.
 func whatsmeowJID(chatID string) string {
 	chatID = strings.TrimSpace(chatID)
 	if user, ok := strings.CutSuffix(chatID, "@c.us"); ok {

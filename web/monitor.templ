@@ -1,6 +1,6 @@
 package web
 
-// MonitorCharts defines window.SophusCharts, the line charts and stat tiles
+// MonitorCharts defines window.DoveChatCharts, the line charts and stat tiles
 // shared by the monitoring home and the stress-test panel.
 templ MonitorCharts() {
 	<style>
@@ -9,7 +9,7 @@ templ MonitorCharts() {
 		.sophus-chart-tip { position: absolute; top: 0; pointer-events: none; transform: translateX(-50%); white-space: nowrap; border-radius: .5rem; background: #1c1917; color: #fff; padding: .25rem .5rem; font-size: 11px; font-weight: 600; }
 	</style>
 	<script>
-	window.SophusCharts = (() => {
+	window.DoveChatCharts = (() => {
 		const ACCENT = '#7e22ce';
 		const hover = {};
 		const number = (value, digits) => new Intl.NumberFormat('pt-BR', { maximumFractionDigits: digits || 0, minimumFractionDigits: digits || 0 }).format(value || 0);
@@ -116,7 +116,7 @@ templ MonitorPanel(stressEnabled bool) {
 	</section>
 	<script>
 	(() => {
-		const charts = window.SophusCharts, number = charts.number;
+		const charts = window.DoveChatCharts, number = charts.number;
 		const monitor = { samples: [], lastSample: 0, timer: null, host: null };
 		const $ = id => document.getElementById(id);
 		const memory = sample => sample.rssMB || sample.runtimeMB || 0;

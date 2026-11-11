@@ -86,7 +86,7 @@ func (value *nullableFlowConnection) UnmarshalJSON(data []byte) error {
 }
 
 func ParseFlowCURL(ctx iris.Context) {
-	if _, ok := requireAdmin(ctx); !ok {
+	if _, ok := requireSupervisor(ctx); !ok {
 		return
 	}
 	var body struct {
@@ -106,7 +106,7 @@ func ParseFlowCURL(ctx iris.Context) {
 }
 
 func TestFlowHTTPRequest(ctx iris.Context) {
-	if _, ok := requireAdmin(ctx); !ok {
+	if _, ok := requireSupervisor(ctx); !ok {
 		return
 	}
 	var body struct {
@@ -133,7 +133,7 @@ func TestFlowHTTPRequest(ctx iris.Context) {
 }
 
 func ListFlows(ctx iris.Context) {
-	agent, ok := requireAdmin(ctx)
+	agent, ok := requireSupervisor(ctx)
 	if !ok {
 		return
 	}
@@ -146,7 +146,7 @@ func ListFlows(ctx iris.Context) {
 }
 
 func ListFlowAIAgents(ctx iris.Context) {
-	agent, ok := requireAdmin(ctx)
+	agent, ok := requireSupervisor(ctx)
 	if !ok {
 		return
 	}
@@ -165,7 +165,7 @@ func ListFlowAIAgents(ctx iris.Context) {
 }
 
 func ListFlowAICredentials(ctx iris.Context) {
-	agent, ok := requireAdmin(ctx)
+	agent, ok := requireSupervisor(ctx)
 	if !ok {
 		return
 	}
@@ -184,7 +184,7 @@ func ListFlowAICredentials(ctx iris.Context) {
 }
 
 func GetFlow(ctx iris.Context) {
-	agent, ok := requireAdmin(ctx)
+	agent, ok := requireSupervisor(ctx)
 	if !ok {
 		return
 	}
@@ -202,7 +202,7 @@ func GetFlow(ctx iris.Context) {
 }
 
 func CreateFlow(ctx iris.Context) {
-	agent, ok := requireAdmin(ctx)
+	agent, ok := requireSupervisor(ctx)
 	if !ok {
 		return
 	}
@@ -262,7 +262,7 @@ func CreateFlow(ctx iris.Context) {
 }
 
 func UpdateFlow(ctx iris.Context) {
-	agent, ok := requireAdmin(ctx)
+	agent, ok := requireSupervisor(ctx)
 	if !ok {
 		return
 	}
@@ -343,7 +343,7 @@ func UpdateFlow(ctx iris.Context) {
 }
 
 func DeleteFlow(ctx iris.Context) {
-	agent, ok := requireAdmin(ctx)
+	agent, ok := requireSupervisor(ctx)
 	if !ok {
 		return
 	}
@@ -390,7 +390,7 @@ func validateRequestedFlow(data json.RawMessage, active bool, triggerType, trigg
 }
 
 func ExecuteFlowTest(ctx iris.Context) {
-	agent, ok := requireAdmin(ctx)
+	agent, ok := requireSupervisor(ctx)
 	if !ok {
 		return
 	}
@@ -448,7 +448,7 @@ func flowConnectionBelongsToCompany(connectionID *int, companyID int) bool {
 }
 
 func FlowBuilderPage(ctx iris.Context) {
-	if _, ok := requireAdmin(ctx); !ok {
+	if _, ok := requireSupervisor(ctx); !ok {
 		return
 	}
 	ctx.Header("Cache-Control", "no-store, no-cache, must-revalidate")

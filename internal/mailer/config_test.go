@@ -29,7 +29,7 @@ func TestConfigFromEnvDefaults(t *testing.T) {
 	if cfg.Port != 587 || cfg.Encryption != EncryptionSTARTTLS {
 		t.Fatalf("expected starttls on 587, got %s on %d", cfg.Encryption, cfg.Port)
 	}
-	if cfg.FromName != "Sophus" || cfg.Timeout != 15*time.Second {
+	if cfg.FromName != "DoveChat" || cfg.Timeout != 15*time.Second {
 		t.Fatalf("unexpected defaults: name=%q timeout=%s", cfg.FromName, cfg.Timeout)
 	}
 	if cfg.Address() != "smtp.example.com:587" {
@@ -62,7 +62,7 @@ func TestConfigFromEnvRejectsInvalidValues(t *testing.T) {
 		"missing host":           {"SMTP_HOST": ""},
 		"host with spaces":       {"SMTP_HOST": "smtp example.com"},
 		"invalid from email":     {"SMTP_FROM_EMAIL": "nope"},
-		"from name with newline": {"SMTP_FROM_NAME": "Sophus\r\nBcc: x@y.com"},
+		"from name with newline": {"SMTP_FROM_NAME": "DoveChat\r\nBcc: x@y.com"},
 		"unknown encryption":     {"SMTP_ENCRYPTION": "ssl3"},
 		"auth without tls":       {"SMTP_ENCRYPTION": "none", "SMTP_USERNAME": "user"},
 		"port out of range":      {"SMTP_PORT": "70000"},

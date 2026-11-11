@@ -372,10 +372,10 @@ func (m *Messenger) SendMenu(conversation repo.Conversation, data map[string]int
 }
 
 // menuFooter returns the menu's footer. An empty footer means none; only
-// menus saved before the field existed keep the old "Sophus" default.
+// menus saved before the field existed keep the old "DoveChat" default.
 func menuFooter(data map[string]interface{}, ctx ExecutionContext) string {
 	if _, configured := data["footerText"]; !configured {
-		return "Sophus"
+		return "DoveChat"
 	}
 	return strings.TrimSpace(ReplaceVariables(stringVal(data, "footerText"), ctx))
 }

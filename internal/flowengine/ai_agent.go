@@ -2,6 +2,7 @@ package flowengine
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"log"
@@ -72,11 +73,25 @@ func processAIAgentMessage(session repo.AIAgentSession, conversation repo.Conver
 		// Each action adds a provider round trip and possibly an HTTP call.
 		timeout = 150 * time.Second
 	}
+	system := buildAIAgentSystemPrompt(session.Agent, extensions, messageText)
+	var memory []aiActionMemoryEntry
+	if len(tools) > 0 {
+		// Read under the conversation lock: the previous answer has saved.
+		stored, memoryErr := repo.GetAIAgentActionMemory(session.Id)
+		if memoryErr != nil {
+			log.Printf("ai agent action memory could not be read: conversation=%d error=%v", conversation.Id, memoryErr)
+		}
+		memory = parseAIActionMemory(stored)
+		if recalled := aiActionMemoryPrompt(memory, time.Now()); recalled != "" {
+			system += "\n\n" + recalled
+		}
+		defer func() { saveAIActionMemory(session.Id, conversation.Id, memory, runner.remembered) }()
+	}
 	requestContext, cancel := context.WithTimeout(context.Background(), timeout)
 	defer cancel()
 	response, err := llm.CompleteWithTools(requestContext, llm.Request{
 		Provider: session.Agent.Provider, Model: session.Agent.Model, APIKey: apiKey,
-		System: buildAIAgentSystemPrompt(session.Agent, extensions, messageText), Messages: messages,
+		System: system, Messages: messages,
 		MaxOutputTokens: session.Agent.MaxOutputTokens, Temperature: session.Agent.Temperature, SafeMode: session.SafeMode,
 	}, tools, runner.Execute)
 	if err != nil {
@@ -108,6 +123,20 @@ func processAIAgentMessage(session repo.AIAgentSession, conversation repo.Conver
 
 // normalizeAIHistory turns the chat history into alternating user and
 // assistant messages ending with currentMessage, without images.
+// saveAIActionMemory stores this answer's API results with the recent ones.
+func saveAIActionMemory(sessionID int64, conversationID int, previous, added []aiActionMemoryEntry) {
+	if len(added) == 0 {
+		return
+	}
+	encoded, err := json.Marshal(mergeAIActionMemory(previous, added, time.Now()))
+	if err == nil {
+		err = repo.SaveAIAgentActionMemory(sessionID, encoded)
+	}
+	if err != nil {
+		log.Printf("ai agent action memory could not be saved: conversation=%d error=%v", conversationID, err)
+	}
+}
+
 func normalizeAIHistory(history []repo.AIHistoryMessage, currentMessage string) []llm.Message {
 	return buildAIMessages(history, currentMessage, nil)
 }

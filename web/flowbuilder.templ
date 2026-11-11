@@ -206,7 +206,6 @@ templ FlowBuilder() {
 	</form>
   </dialog>
 <script>
-document.title = 'Automações - Sophus';
 // ---------------------------------------------------------------------
 // Node type metadata - field names/behavior mirror internal/flowengine
 // exactly (types.go / engine.go).
@@ -875,7 +874,7 @@ function renderPalette() {
 function defaultDataFor(type) {
   switch (type) {
     case 'sendMenu': return {
-      title: 'Menu', description: '', buttonText: 'Ver Menu', footerText: 'Sophus', useFallback: false,
+      title: 'Menu', description: '', buttonText: 'Ver Menu', footerText: 'DoveChat', useFallback: false,
 	  allowBackPrevious: false, allowBackMain: false,
       sections: [{ title: 'Opções', rows: [{ title: 'Opção 1', description: '', rowId: 'opcao_1', _handleId: uid('mh') }] }],
     };
@@ -2003,7 +2002,7 @@ function renderFieldsFor(node) {
       html += field('Título', textInput(d.title || 'Menu', 'title'));
 	  html += field('Mensagem', formattedTextArea(d.description, 'description', 4));
       html += field('Texto do botão', textInput(d.buttonText || 'Ver Menu', 'buttonText'));
-      html += field('Rodapé', textInput(d.footerText ?? 'Sophus', 'footerText'), 'Deixe vazio para enviar o menu sem rodapé.');
+      html += field('Rodapé', textInput(d.footerText ?? 'DoveChat', 'footerText'), 'Deixe vazio para enviar o menu sem rodapé.');
       html += field('Caminho padrão', '<label class="flex items-center gap-2 text-sm text-gray-700"><input type="checkbox" data-field="useFallback" ' + (d.useFallback?'checked':'') + '> Adicionar saída para respostas inválidas<\/label>');
 	  html += field('Navegação entre menus', '<div class="space-y-2 rounded-xl border border-stone-200 bg-stone-50 p-3">' +
 		'<label class="flex items-start gap-2 text-sm text-gray-700"><input type="checkbox" data-field="allowBackPrevious" ' + (d.allowBackPrevious?'checked':'') + '><span><span class="block font-medium">Voltar ao menu anterior<\/span><span class="block text-[11px] text-gray-400">Retoma o menu visitado imediatamente antes deste.<\/span><\/span><\/label>' +
@@ -3209,14 +3208,14 @@ function parseFlowFile(text) {
 	if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) throw new Error('o arquivo não contém um fluxo.');
 	let flow, references = {}, media = [];
 	if (parsed.format === FLOW_FILE_FORMAT) {
-		if (Number(parsed.version) > FLOW_FILE_VERSION) throw new Error('o arquivo foi gerado por uma versão mais nova do Sophus (versão ' + parsed.version + ').');
+		if (Number(parsed.version) > FLOW_FILE_VERSION) throw new Error('o arquivo foi gerado por uma versão mais nova do DoveChat (versão ' + parsed.version + ').');
 		flow = parsed.flow || {}; references = parsed.references || {}; media = Array.isArray(parsed.media) ? parsed.media : [];
 	} else if (Array.isArray(parsed.nodes)) {
 		flow = { flowData: parsed };
 	} else if (parsed.flowData && Array.isArray(parsed.flowData.nodes)) {
 		flow = parsed;
 	} else {
-		throw new Error('formato não reconhecido; use um arquivo exportado pelo Sophus.');
+		throw new Error('formato não reconhecido; use um arquivo exportado pelo DoveChat.');
 	}
 	const flowData = flow.flowData;
 	if (!flowData || !Array.isArray(flowData.nodes) || (flowData.edges !== undefined && !Array.isArray(flowData.edges))) throw new Error('o fluxo não possui blocos.');

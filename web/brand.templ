@@ -1,22 +1,22 @@
 package web
 
-// BrandLogo uses outlined lettering so the logo never depends on a web font.
+// BrandLogo renders the horizontal DoveChat logo for dark or light backgrounds.
 templ BrandLogo(darkBackground bool, className string) {
 	if darkBackground {
-		<img src="/logos/Sophus_logo_horizontal_colorido_branco.svg" alt="Sophus" width="1120" height="256" class={ className }/>
+		<img src="/logos/DoveChat_logo_horizontal_transparente.svg" alt="DoveChat" width="1310" height="360" class={ className }/>
 	} else {
-		<img src="/logos/Sophus_logo_horizontal.svg" alt="Sophus" width="1120" height="256" class={ className }/>
+		<img src="/logos/DoveChat_logo_horizontal_fundo_claro.svg" alt="DoveChat" width="1310" height="360" class={ className }/>
 	}
 }
 
 templ BrandSymbol(white bool, className string) {
 	if white {
-		<img src="/logos/Sophus_simbolo_branco.svg" alt="Sophus" width="256" height="256" class={ className }/>
+		<img src="/logos/DoveChat_simbolo_branco.svg" alt="DoveChat" width="256" height="256" class={ className }/>
 	} else {
-		<img src="/logos/Sophus_simbolo_colorido.svg" alt="Sophus" width="256" height="256" class={ className }/>
+		<img src="/logos/DoveChat_simbolo_colorido.svg" alt="DoveChat" width="256" height="256" class={ className }/>
 	}
 }
 
 templ BrandIcons() {
-	<link rel="icon" type="image/svg+xml" href="/logos/Sophus_simbolo_colorido.svg"/>
+	<link rel="icon" type="image/svg+xml" href="/logos/DoveChat_icone_aplicativo.svg"/>
 }

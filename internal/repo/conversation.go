@@ -181,7 +181,7 @@ func conversationListQuery(tab string) string {
 
 func GetConversationsByAgent(agent Agent, tab string, groups bool) ([]Conversation, error) {
 	conversations := []Conversation{}
-	rows, err := db.Query(conversationListQuery(tab), agent.CompanyId, agent.IsAdmin(), agent.Id, groups)
+	rows, err := db.Query(conversationListQuery(tab), agent.CompanyId, agent.CanSupervise(), agent.Id, groups)
 	if err != nil {
 		return nil, err
 	}
@@ -259,7 +259,7 @@ func GetConversationScopeCounts(agent Agent, groups bool) (ConversationScopeCoun
 		WHERE cv."companyId" = $1 AND ($2 OR cv."agentId" = $3
 			OR cv."departmentId" IN (SELECT ad."departmentId" FROM agent_departments ad WHERE ad."agentId" = $3)
 			OR (cv."agentId" IS NULL AND cv."departmentId" IS NULL AND cv.status <> 'closed'))`,
-		agent.CompanyId, agent.IsAdmin(), agent.Id, groups).Scan(&counts.Individual, &counts.Group, &counts.ActiveUnread, &counts.PendingUnread)
+		agent.CompanyId, agent.CanSupervise(), agent.Id, groups).Scan(&counts.Individual, &counts.Group, &counts.ActiveUnread, &counts.PendingUnread)
 	return counts, err
 }
 
@@ -300,7 +300,7 @@ func GetVisibleConversationByProtocol(protocol int64, agent Agent) (Conversation
 
 func getVisibleConversation(query string, value any, agent Agent) (Conversation, error) {
 	var conversation Conversation
-	err := db.QueryRow(query, value, agent.CompanyId, agent.IsAdmin(), agent.Id).Scan(
+	err := db.QueryRow(query, value, agent.CompanyId, agent.CanSupervise(), agent.Id).Scan(
 		&conversation.Id, &conversation.Status, &conversation.Contact.Id, &conversation.ConnectionID,
 		&conversation.AgentID, &conversation.DepartmentID, &conversation.URL, &conversation.CreatedAt, &conversation.UpdatedAt,
 		&conversation.Contact.Id, &conversation.Contact.Name, &conversation.Contact.Number, &conversation.Contact.Email, &conversation.Contact.CompanyId,
@@ -568,7 +568,7 @@ func AcceptConversation(url uuid.UUID, agent Agent) (bool, error) {
 		AND ($3 OR cv."agentId" = $4
 			OR cv."departmentId" IN (SELECT ad."departmentId" FROM agent_departments ad WHERE ad."agentId" = $4)
 			OR (cv."agentId" IS NULL AND cv."departmentId" IS NULL))
-		FOR UPDATE`, url, agent.CompanyId, agent.IsAdmin(), agent.Id).Scan(&conversationID)
+		FOR UPDATE`, url, agent.CompanyId, agent.CanSupervise(), agent.Id).Scan(&conversationID)
 	if err != nil {
 		return false, err
 	}
@@ -611,7 +611,7 @@ func IgnoreConversation(url uuid.UUID, agent Agent) (bool, error) {
 		AND ($3 OR cv."agentId" = $4
 			OR cv."departmentId" IN (SELECT ad."departmentId" FROM agent_departments ad WHERE ad."agentId" = $4)
 			OR (cv."agentId" IS NULL AND cv."departmentId" IS NULL))
-		FOR UPDATE`, url, agent.CompanyId, agent.IsAdmin(), agent.Id).Scan(&conversationID)
+		FOR UPDATE`, url, agent.CompanyId, agent.CanSupervise(), agent.Id).Scan(&conversationID)
 	if err != nil {
 		return false, err
 	}

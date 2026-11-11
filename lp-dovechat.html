@@ -1,0 +1,982 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>DoveChat | Atendimento no WhatsApp com equipe, automação e IA</title>
+<meta name="description" content="DoveChat reúne sua equipe, seus números de WhatsApp, automações e agentes de IA em uma única caixa de entrada. Teste grátis por 10 dias.">
+<meta name="theme-color" content="#090816">
+<link rel="icon" type="image/svg+xml" href="logos/DoveChat_simbolo_colorido.svg">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --ink:#090816; --ink-2:#0F0D22; --ink-3:#16132E; --ink-4:#1F1B3D;
+  --violet:#683EF2; --violet-2:#7F5BF4; --violet-3:#A78DFE; --lav:#CFC0FD;
+  --mist:#ECEAF8; --paper:#F5F5FD; --night:#14112B;
+  --mut-d:#A8A3C8; --mut-l:#5A5578;
+  --line-d:rgba(207,192,253,.13); --line-l:rgba(20,17,43,.09);
+  --ok:#34D399;
+  --display:'Outfit','Poppins','Segoe UI',Arial,sans-serif;
+  --body:'Plus Jakarta Sans','Segoe UI',Arial,sans-serif;
+  --wrap:1180px;
+}
+*,*::before,*::after{box-sizing:border-box}
+html{scroll-behavior:smooth;scroll-padding-top:84px;-webkit-text-size-adjust:100%}
+body{margin:0;background:var(--ink);color:var(--mist);font-family:var(--body);font-size:16px;line-height:1.6;-webkit-font-smoothing:antialiased;overflow-x:hidden}
+img,svg{display:block;max-width:100%}
+a{color:inherit;text-decoration:none}
+h1,h2,h3,h4,p{margin:0}
+ul{margin:0;padding:0;list-style:none}
+button{font:inherit;color:inherit;background:none;border:0;cursor:pointer}
+::selection{background:var(--violet);color:#fff}
+:focus-visible{outline:2px solid var(--violet-3);outline-offset:3px;border-radius:6px}
+
+.wrap{width:100%;max-width:var(--wrap);margin:0 auto;padding:0 24px}
+section{padding:104px 0;position:relative}
+.light{background:var(--paper);color:var(--night)}
+.ico{width:22px;height:22px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round;flex:none}
+
+/* ---------- tipografia ---------- */
+.eyebrow{display:inline-flex;align-items:center;gap:8px;font-family:var(--display);font-size:13px;font-weight:600;letter-spacing:.16em;text-transform:uppercase;color:var(--violet-3)}
+.light .eyebrow{color:var(--violet)}
+.eyebrow::before{content:"";width:22px;height:2px;border-radius:2px;background:currentColor}
+h1,h2,h3{font-family:var(--display);font-weight:600;letter-spacing:-.025em;line-height:1.08}
+h2{font-size:clamp(2rem,4.2vw,3.1rem);margin-top:16px}
+.lead{margin-top:18px;font-size:1.09rem;color:var(--mut-d);max-width:620px}
+.light .lead{color:var(--mut-l)}
+.head{max-width:720px}
+.head.center{margin:0 auto;text-align:center}
+.head.center .lead{margin-left:auto;margin-right:auto}
+.grad{background:linear-gradient(100deg,#F5F5FD 0%,#CFC0FD 35%,#8B6BF8 100%);-webkit-background-clip:text;background-clip:text;color:transparent}
+
+/* ---------- botões ---------- */
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:10px;padding:15px 26px;border-radius:14px;font-family:var(--display);font-weight:600;font-size:1rem;letter-spacing:.01em;transition:transform .18s ease,box-shadow .18s ease,background .18s ease,border-color .18s ease;white-space:nowrap}
+.btn .ico{width:18px;height:18px;transition:transform .18s ease}
+.btn:hover .ico{transform:translateX(3px)}
+.btn-primary{background:linear-gradient(120deg,#683EF2,#8B6BF8);color:#fff;box-shadow:0 12px 34px -10px rgba(104,62,242,.75),inset 0 1px 0 rgba(255,255,255,.22)}
+.btn-primary:hover{transform:translateY(-2px);box-shadow:0 18px 42px -10px rgba(104,62,242,.9),inset 0 1px 0 rgba(255,255,255,.22)}
+.btn-ghost{border:1px solid var(--line-d);color:var(--mist);background:rgba(255,255,255,.03)}
+.btn-ghost:hover{border-color:var(--violet-3);background:rgba(167,141,254,.08)}
+.light .btn-ghost{border-color:rgba(20,17,43,.16);color:var(--night);background:#fff}
+.light .btn-ghost:hover{border-color:var(--violet);background:#fff}
+.btn-white{background:#fff;color:var(--violet);box-shadow:0 14px 34px -12px rgba(9,8,22,.6)}
+.btn-white:hover{transform:translateY(-2px)}
+.btn-sm{padding:10px 18px;font-size:.92rem;border-radius:11px}
+.btn-block{width:100%}
+
+/* ---------- navegação ---------- */
+.nav{position:sticky;top:0;z-index:50;background:rgba(9,8,22,.78);backdrop-filter:blur(16px);-webkit-backdrop-filter:blur(16px);border-bottom:1px solid var(--line-d)}
+.nav .wrap{display:flex;align-items:center;justify-content:space-between;height:70px;gap:24px}
+.brand{display:inline-flex;align-items:center;gap:10px;font-family:var(--display);font-weight:500;font-size:1.5rem;letter-spacing:.02em;color:var(--mist)}
+.brand svg{width:40px;height:30px}
+.brand b{font-weight:500;color:var(--violet-2)}
+.nav-links{display:flex;align-items:center;gap:30px;font-size:.94rem;font-weight:500;color:var(--mut-d);white-space:nowrap}
+.nav-links a:hover{color:#fff}
+.nav-cta{display:flex;align-items:center;gap:14px}
+.nav-cta .login{font-size:.94rem;font-weight:600;color:var(--mist)}
+.burger{display:none;width:42px;height:42px;border-radius:11px;border:1px solid var(--line-d);align-items:center;justify-content:center}
+
+/* ---------- hero ---------- */
+.hero{padding:84px 0 0;overflow:hidden;isolation:isolate}
+.hero::before{content:"";position:absolute;inset:0;z-index:-2;background:
+  radial-gradient(60% 55% at 50% 0%,rgba(104,62,242,.42),transparent 70%),
+  radial-gradient(34% 40% at 88% 30%,rgba(167,141,254,.18),transparent 70%),
+  radial-gradient(30% 36% at 8% 42%,rgba(104,62,242,.2),transparent 70%)}
+.hero::after{content:"";position:absolute;inset:0;z-index:-1;background-image:linear-gradient(rgba(207,192,253,.06) 1px,transparent 1px),linear-gradient(90deg,rgba(207,192,253,.06) 1px,transparent 1px);background-size:56px 56px;-webkit-mask-image:radial-gradient(70% 60% at 50% 20%,#000,transparent 75%);mask-image:radial-gradient(70% 60% at 50% 20%,#000,transparent 75%)}
+.hero-copy{text-align:center;max-width:880px;margin:0 auto}
+.pill{display:inline-flex;align-items:center;gap:10px;padding:7px 16px 7px 8px;border-radius:999px;border:1px solid var(--line-d);background:rgba(22,19,46,.7);font-size:.86rem;color:var(--lav)}
+.pill span{padding:3px 10px;border-radius:999px;background:linear-gradient(120deg,#683EF2,#8B6BF8);color:#fff;font-family:var(--display);font-weight:600;font-size:.74rem;letter-spacing:.08em;text-transform:uppercase}
+h1{margin-top:26px;font-size:clamp(2.6rem,7vw,5rem);letter-spacing:-.035em;line-height:1.02;color:#fff}
+.hero .lead{margin:24px auto 0;max-width:660px;font-size:1.16rem}
+.hero-actions{margin-top:36px;display:flex;flex-wrap:wrap;gap:14px;justify-content:center}
+.hero-notes{margin-top:22px;display:flex;flex-wrap:wrap;justify-content:center;gap:10px 26px;font-size:.9rem;color:var(--mut-d)}
+.hero-notes li{display:flex;align-items:center;gap:8px}
+.hero-notes .ico{width:16px;height:16px;color:var(--ok);stroke-width:2.4}
+
+/* Simulações do produto: seguem o layout real do app
+   (web/base.templ, messages.templ, message-single.templ, components/message.templ) */
+.stage{position:relative;margin:68px auto 0;max-width:1080px}
+.stage::before{content:"";position:absolute;left:8%;right:8%;top:-30px;height:240px;background:radial-gradient(closest-side,rgba(127,91,244,.55),transparent);filter:blur(40px);z-index:-1}
+.app,.shot{font-family:ui-sans-serif,system-ui,'Segoe UI',Roboto,Arial,sans-serif;color:#111827;line-height:1.4;text-align:left}
+.app{display:flex;gap:10px;height:560px;padding:10px 10px 0;border-radius:22px 22px 0 0;border:1px solid var(--line-d);border-bottom:0;background:#f5f5f4;box-shadow:0 -10px 80px -20px rgba(104,62,242,.5);overflow:hidden}
+.app .ico{width:15px;height:15px}
+.app-nav{width:54px;flex:none;display:flex;flex-direction:column;align-items:center;gap:4px;padding:12px 0;border-radius:16px 16px 0 0;background:#6123cc;color:#fff}
+.app-nav .logo{width:30px;height:22px;filter:brightness(0) invert(1);margin-bottom:4px}
+.app-nav span{position:relative;width:36px;height:30px;border-radius:12px;display:grid;place-items:center}
+.app-nav span.tgl{width:30px;border-radius:10px;border:1px solid rgba(255,255,255,.2);background:rgba(255,255,255,.1);margin-bottom:8px}
+.app-nav span.on{background:rgba(255,255,255,.2);box-shadow:0 4px 6px -1px rgba(0,0,0,.18)}
+.app-nav span b{position:absolute;top:-4px;right:-5px;min-width:16px;padding:1px 4px;border-radius:99px;background:#25D366;font-size:8px;font-weight:900;line-height:1.5;text-align:center;box-shadow:0 0 0 2px #6b21a8}
+.app-nav span u{position:absolute;top:4px;right:6px;width:7px;height:7px;border-radius:50%;background:#60a5fa;border:2px solid #6123cc}
+.app-nav .sp{flex:1}
+.app-nav .me{width:30px;height:30px;border-radius:50%;background:#fff;color:#6123cc;font-size:11px;font-weight:800}
+.app-list,.app-chat{display:flex;flex-direction:column;border-radius:16px 16px 0 0;background:#fafaf9;box-shadow:0 1px 2px rgba(0,0,0,.06);overflow:hidden}
+.app-list{width:292px;flex:none}
+.al-head{display:flex;align-items:center;justify-content:space-between;padding:11px 13px;border-bottom:1px solid #e7e5e4}
+.al-head strong{display:block;font-size:16px;font-weight:700;letter-spacing:-.02em;line-height:1.25}
+.al-head small{font-size:9.5px;color:#9ca3af}
+.al-head i{width:32px;height:32px;border-radius:11px;background:#9333ea;color:#fff;display:grid;place-items:center}
+.al-search{margin:10px 13px;display:flex;align-items:center;gap:8px;padding:8px 11px;border-radius:11px;background:#f5f5f4;border:1px solid #e7e5e4;font-size:11px;color:#9ca3af}
+.al-search .ico{width:12px;height:12px}
+.al-search .ico:last-child{margin-left:auto;color:#9333ea}
+.al-scope{margin:0 11px 8px;display:flex;padding:4px;border-radius:11px;background:#e7e5e4}
+.al-scope span{flex:1;display:flex;align-items:center;justify-content:center;gap:5px;padding:6px;border-radius:8px;font-size:10.5px;font-weight:700;color:#6b7280}
+.al-scope span.on{background:#fff;color:#7e22ce;box-shadow:0 1px 2px rgba(0,0,0,.07)}
+.al-scope .ico{width:9px;height:9px;stroke-width:2.6}
+.al-scope b{padding:1px 6px;border-radius:99px;font-size:8.5px;background:#d6d3d1;color:#4b5563}
+.al-scope .on b{background:#25D366;color:#fff}
+.al-tabs{display:flex;gap:5px;padding:7px 11px;border-top:1px solid #f5f5f4;border-bottom:1px solid #f5f5f4}
+.al-tabs span{flex:1;display:flex;align-items:center;justify-content:center;gap:5px;padding:5px;border-radius:8px;font-size:11px;font-weight:600;color:#6b7280}
+.al-tabs span.on{background:#f3e8ff;color:#7e22ce}
+.al-tabs b{min-width:15px;padding:2px 4px;border-radius:99px;background:#25D366;color:#fff;font-size:8px;font-weight:900;line-height:1;text-align:center}
+.al-items{flex:1;padding:6px;overflow:hidden}
+.cv{display:flex;gap:9px;padding:9px;margin-bottom:6px;border-radius:15px;border:1px solid #e7e5e4;background:#fff;box-shadow:0 1px 2px rgba(0,0,0,.05)}
+.cv.on{background:#faf5ff;border-color:#f3e8ff;box-shadow:0 0 0 1px #f3e8ff}
+.pic{width:36px;height:36px;border-radius:50%;flex:none;display:grid;place-items:center;font-size:12px;font-weight:700;color:#6d28d9;background:#ede9fe;box-shadow:0 0 0 1px #e7e5e4}
+.pic.b{background:#dbeafe;color:#1d4ed8}.pic.c{background:#dcfce7;color:#15803d}.pic.d{background:#fef3c7;color:#b45309}.pic.e{background:#fce7f3;color:#be185d}
+.cv-main{flex:1;min-width:0}
+.cv-top{display:flex;justify-content:space-between;gap:8px}
+.cv-name{min-width:0;display:flex;align-items:baseline;gap:5px;font-size:12.5px;font-weight:700;color:#111827}
+.cv-name span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.cv-name small{font-size:9.5px;font-weight:600;color:#9ca3af}
+.cv-meta{flex:none;display:flex;flex-direction:column;align-items:flex-end;gap:3px;font-size:9.5px;color:#9ca3af;line-height:1.1}
+.cv-meta em{font-style:normal;font-weight:600;color:#6b7280;display:flex;align-items:center;gap:3px}
+.cv-meta em .ico{width:8px;height:8px;stroke-width:2.6;color:#9ca3af}
+.cv-meta span{display:flex;align-items:center;gap:5px}
+.cv-meta b{min-width:17px;padding:2px 5px;border-radius:99px;background:#25D366;color:#fff;font-size:8.5px;font-weight:900;text-align:center}
+.cv-prev{margin-top:2px;display:flex;align-items:center;gap:5px;font-size:10.5px;color:#6b7280;white-space:nowrap;overflow:hidden}
+.cv-prev.un{font-weight:600;color:#1f2937}
+.cv-prev .ico{width:10px;height:10px;color:#9ca3af}
+.cv-prev span{overflow:hidden;text-overflow:ellipsis}
+.cv-flow{margin-top:4px;display:inline-flex;align-items:center;gap:4px;padding:2px 6px;border-radius:99px;background:#f3e8ff;color:#7e22ce;font-size:8.5px;font-weight:600}
+.cv-flow .ico{width:9px;height:9px}
+.cv-tags{margin-top:5px;display:flex;gap:4px}
+.tg{display:inline-flex;align-items:center;gap:4px;padding:2px 6px;border-radius:6px;font-size:9.5px;font-weight:600;line-height:1.3;background:#f3e8ff;color:#7e22ce}
+.tg::before{content:"";width:5px;height:5px;border-radius:50%;background:currentColor}
+.tg.g{background:#dcfce7;color:#15803d}.tg.b{background:#dbeafe;color:#1d4ed8}
+.app-chat{flex:1;min-width:0}
+.ac-head{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:12px 14px;background:#fff;border-bottom:1px solid #e7e5e4}
+.ac-who{display:flex;align-items:center;gap:10px;min-width:0}
+.ac-who strong{font-size:13px;font-weight:700;white-space:nowrap}
+.ac-who strong small{margin-left:4px;font-weight:400;font-size:10.5px;color:#9ca3af}
+.ac-who p{font-size:10.5px;color:#6b7280;white-space:nowrap}
+.ac-acts{display:flex;align-items:center;gap:7px;color:#4b5563}
+.ac-btn{display:flex;align-items:center;gap:6px;padding:7px 13px;border-radius:11px;font-size:12px;font-weight:600;color:#fff;background:#7e22ce;white-space:nowrap;box-shadow:0 1px 2px rgba(0,0,0,.08)}
+.ac-btn.red{background:#dc2626}
+.ac-btn .ico{width:13px;height:13px}
+.ac-acts > .ico{margin:0 5px}
+.ac-msgs{flex:1;display:flex;flex-direction:column;gap:13px;padding:18px;background:linear-gradient(#f5f5f4,#e7e5e4);overflow:hidden}
+.mg{display:flex;gap:7px;align-items:flex-start}
+.mg .pic{width:28px;height:28px;font-size:10px;box-shadow:none}
+.mg p{max-width:68%;padding:11px 13px;border-radius:0 15px 15px 15px;background:#fff;box-shadow:0 1px 2px rgba(0,0,0,.07);font-size:13px;color:#1f2937}
+.mg.me{justify-content:flex-end}
+.mg.me p{border-radius:15px 0 15px 15px;background:linear-gradient(90deg,#3b82f6,#9333ea);color:#fff;font-weight:600}
+.mg time{display:flex;align-items:center;justify-content:flex-end;gap:4px;margin-top:6px;font-size:10px;font-weight:600;color:#6b7280}
+.mg.me time{color:rgba(255,255,255,.9)}
+.mg time .ico{width:9px;height:9px;stroke-width:2.4}
+.mg.nt p{max-width:74%;margin-left:auto;border-radius:15px 0 15px 15px;background:#fef3c7;border:1px solid #fcd34d}
+.mg.nt b{display:flex;justify-content:space-between;gap:10px;margin-bottom:5px;font-size:10.5px;color:#92400e}
+.mg.nt b span{display:flex;align-items:center;gap:5px}
+.mg.nt b span + span{font-weight:400;font-size:9.5px;color:#b45309}
+.mg.nt b .ico{width:10px;height:10px;stroke-width:2.4}
+.mg.nt small{display:block;margin-top:5px;font-size:9.5px;font-weight:600;color:#b45309}
+.ac-comp{display:flex;align-items:center;gap:11px;padding:12px 14px;border-top:1px solid #e7e5e4;background:#fafaf9;color:#9ca3af}
+.ac-comp > .ico{width:18px;height:18px}
+.ac-comp div{flex:1;min-width:0;padding:10px 14px;border-radius:15px;border:1px solid #e7e5e4;background:#fff;font-size:12.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.ac-comp .amber{color:#d97706}
+.ac-comp i{width:38px;height:38px;flex:none;border-radius:50%;display:grid;place-items:center;color:#fff;background:linear-gradient(90deg,#3b82f6,#9333ea);box-shadow:0 1px 2px rgba(0,0,0,.1)}
+.chips{display:flex;flex-wrap:wrap;gap:6px}
+
+/* ---------- faixa de fatos ---------- */
+.facts{padding:0;background:var(--ink-2);border-top:1px solid var(--line-d);border-bottom:1px solid var(--line-d)}
+.facts ul{display:grid;grid-template-columns:repeat(4,1fr)}
+.facts li{padding:30px 24px;text-align:center;border-left:1px solid var(--line-d)}
+.facts li:first-child{border-left:0}
+.facts strong{display:block;font-family:var(--display);font-weight:600;font-size:2rem;letter-spacing:-.02em;color:#fff}
+.facts span{font-size:.9rem;color:var(--mut-d)}
+
+/* ---------- antes / depois ---------- */
+.versus{margin-top:56px;display:grid;grid-template-columns:1fr 1fr;gap:22px}
+.vs{padding:34px;border-radius:24px;border:1px solid var(--line-d);background:var(--ink-2)}
+.vs.win{background:linear-gradient(160deg,rgba(104,62,242,.3),rgba(22,19,46,.9) 60%);border-color:rgba(167,141,254,.4);box-shadow:0 30px 70px -40px rgba(104,62,242,.9)}
+.vs h3{font-size:1.3rem;display:flex;align-items:center;gap:12px}
+.vs h3 svg{width:36px;height:27px}
+.vs ul{margin-top:22px;display:grid;gap:14px}
+.vs li{display:flex;gap:12px;color:var(--mut-d);font-size:.98rem}
+.vs.win li{color:var(--mist)}
+.vs li .ico{width:20px;height:20px;margin-top:3px;color:#F87171;stroke-width:2.2}
+.vs.win li .ico{color:var(--ok)}
+
+/* ---------- recursos ---------- */
+.cards{margin-top:56px;display:grid;grid-template-columns:repeat(3,1fr);gap:20px}
+.card{padding:30px;border-radius:22px;background:#fff;border:1px solid var(--line-l);box-shadow:0 1px 2px rgba(20,17,43,.04);transition:transform .22s ease,box-shadow .22s ease,border-color .22s ease}
+.card:hover{transform:translateY(-4px);border-color:rgba(104,62,242,.35);box-shadow:0 26px 50px -28px rgba(104,62,242,.5)}
+.badge{width:48px;height:48px;border-radius:14px;display:grid;place-items:center;color:#fff;background:linear-gradient(135deg,#683EF2,#A78DFE);box-shadow:0 10px 22px -10px rgba(104,62,242,.8)}
+.card h3{margin-top:22px;font-size:1.25rem;letter-spacing:-.015em}
+.card p{margin-top:10px;font-size:.96rem;color:var(--mut-l)}
+.card ul{margin-top:16px;display:grid;gap:7px;font-size:.9rem;font-weight:500;color:var(--night)}
+.card li{display:flex;gap:9px;align-items:flex-start}
+.card li .ico{width:16px;height:16px;margin-top:4px;color:var(--violet);stroke-width:2.6}
+.extras{margin-top:20px;display:grid;grid-template-columns:repeat(4,1fr);gap:14px}
+.extra{display:flex;gap:13px;align-items:flex-start;padding:18px;border-radius:16px;background:rgba(104,62,242,.06);border:1px solid rgba(104,62,242,.1)}
+.extra .ico{color:var(--violet);margin-top:2px}
+.extra strong{display:block;font-family:var(--display);font-weight:600;font-size:.98rem}
+.extra span{font-size:.84rem;color:var(--mut-l);line-height:1.45;display:block}
+
+/* ---------- destaques (split) ---------- */
+.split{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:64px;align-items:center}
+.split + .split{margin-top:120px}
+.split.rev .split-art{order:-1}
+.ticks{margin-top:28px;display:grid;gap:18px}
+.ticks li{display:flex;gap:15px}
+.ticks .n{width:38px;height:38px;border-radius:11px;flex:none;display:grid;place-items:center;background:rgba(104,62,242,.18);color:var(--violet-3);border:1px solid rgba(167,141,254,.22)}
+.ticks .n .ico{width:19px;height:19px}
+.ticks strong{display:block;font-family:var(--display);font-weight:600;font-size:1.05rem;color:#fff}
+.ticks span{font-size:.94rem;color:var(--mut-d)}
+.providers{margin-top:30px;display:flex;flex-wrap:wrap;align-items:center;gap:8px;font-size:.84rem;color:var(--mut-d)}
+.providers b{padding:5px 12px;border-radius:999px;border:1px solid var(--line-d);font-weight:600;color:var(--lav)}
+.shot{position:relative;padding:10px;border-radius:22px;border:1px solid var(--line-d);background:#f5f5f4;box-shadow:0 40px 90px -50px rgba(104,62,242,.9)}
+.shot-in{border-radius:14px;background:#fafaf9;box-shadow:0 1px 2px rgba(0,0,0,.06);overflow:hidden}
+/* Flow Builder (web/flowbuilder.templ): canvas pontilhado, blocos brancos com cabeçalho colorido */
+.fb-canvas{position:relative;overflow-x:auto;background-color:#fafaf9;background-image:radial-gradient(#e7e5e4 1.5px,transparent 1.5px);background-size:22px 22px}
+.fb-canvas svg{width:100%;min-width:520px;height:auto}
+.fb-canvas .ft{font-size:10px;font-weight:700;fill:#374151}
+.fb-canvas .fd{font-size:9.5px;fill:#78716c}
+.fb-canvas .fl{font-size:8.5px;fill:#78716c;text-anchor:end}
+.fb-canvas .fp{font-size:8.5px;font-weight:600;fill:#6d28d9;text-anchor:middle}
+.fb-canvas .fh{fill:#78716c;stroke:#fff;stroke-width:2}
+.fb-canvas .fe{fill:none;stroke:#a8a29e;stroke-width:2}
+.fb-canvas .fi{fill:none;stroke:currentColor;stroke-width:2.2;stroke-linecap:round;stroke-linejoin:round}
+.fb-zoom{position:absolute;left:10px;bottom:10px;display:flex;align-items:center;gap:9px;padding:5px 10px;border-radius:11px;border:1px solid #e7e5e4;background:#fff;box-shadow:0 4px 6px -1px rgba(0,0,0,.1);font-size:11px;font-weight:600;color:#4b5563}
+/* Relatórios (web/reports.templ) */
+.rp{padding:16px}
+.rp header{display:flex;align-items:flex-end;justify-content:space-between;gap:10px}
+.rp header small{display:block;font-size:9px;font-weight:700;letter-spacing:.2em;text-transform:uppercase;color:#9333ea}
+.rp header strong{display:block;margin-top:3px;font-size:20px;font-weight:900;letter-spacing:-.02em;color:#030712;line-height:1.2}
+.rp header span{font-size:11px;color:#6b7280}
+.rp header em{font-style:normal;display:flex;align-items:center;gap:6px;padding:8px 13px;border-radius:11px;border:1px solid #e9d5ff;background:#fff;font-size:11.5px;font-weight:700;color:#7e22ce;white-space:nowrap;box-shadow:0 1px 2px rgba(0,0,0,.05)}
+.rp header em .ico{width:13px;height:13px}
+.rp-kpis{margin-top:14px;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:9px}
+.rp-kpis article,.rp-card{border-radius:14px;border:1px solid #e7e5e4;background:#fff;box-shadow:0 1px 2px rgba(0,0,0,.05)}
+.rp-kpis article{padding:12px 13px}
+.rp-kpis p{display:flex;justify-content:space-between;gap:8px;font-size:9.5px;font-weight:600;letter-spacing:.05em;text-transform:uppercase;color:#6b7280}
+.rp-kpis .ico{width:13px;height:13px;color:#9333ea;stroke-width:2.4}
+.rp-kpis strong{display:block;margin-top:5px;font-size:22px;font-weight:900;color:#030712;line-height:1.15}
+.rp-card{margin-top:9px;padding:14px}
+.rp-card h4{display:flex;justify-content:space-between;align-items:center;gap:8px;font-family:inherit;font-size:13px;font-weight:700;letter-spacing:0;color:#030712}
+.rp-card h4 span{display:flex;gap:10px;font-size:10px;font-weight:600;color:#374151}
+.rp-card h4 i{display:inline-block;width:7px;height:7px;border-radius:50%;margin-right:4px;background:#9333ea}
+.rp-card h4 i.g{background:#10b981}
+.tr{margin-top:12px;display:grid;grid-template-columns:repeat(7,1fr);gap:8px;text-align:center}
+.tr u{display:flex;align-items:flex-end;justify-content:center;gap:3px;height:96px;border-bottom:1px solid #e7e5e4;text-decoration:none}
+.tr u i{width:11px;border-radius:5px 5px 0 0;background:#9333ea;height:var(--h)}
+.tr u i + i{background:#10b981}
+.tr small{display:block;margin-top:5px;font-size:9px;font-weight:600;color:#9ca3af}
+.rb{margin-top:10px}
+.rb p{display:flex;justify-content:space-between;margin-bottom:4px;font-size:11px;font-weight:600;color:#4b5563}
+.rb p b{color:#7e22ce}
+.rb u{display:block;height:8px;border-radius:99px;background:#faf5ff;overflow:hidden;text-decoration:none}
+.rb u::after{content:"";display:block;height:100%;width:var(--w);border-radius:99px;background:linear-gradient(90deg,#a855f7,#6d28d9)}
+.demo-label{margin-top:10px;font-size:10px;color:#9ca3af;text-align:center}
+
+/* ---------- como funciona ---------- */
+.steps{margin-top:60px;display:grid;grid-template-columns:repeat(4,1fr);gap:22px;counter-reset:s}
+.step{position:relative;padding:28px 24px;border-radius:22px;background:#fff;border:1px solid var(--line-l);counter-increment:s}
+.step::before{content:counter(s,decimal-leading-zero);font-family:var(--display);font-weight:600;font-size:2.6rem;line-height:1;letter-spacing:-.03em;background:linear-gradient(120deg,#683EF2,#A78DFE);-webkit-background-clip:text;background-clip:text;color:transparent}
+.step h3{margin-top:16px;font-size:1.16rem}
+.step p{margin-top:8px;font-size:.93rem;color:var(--mut-l)}
+.step small{display:inline-block;margin-top:14px;font-size:.76rem;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--violet)}
+
+/* ---------- diferenciais ---------- */
+.diffs{margin-top:56px;display:grid;grid-template-columns:repeat(2,1fr);gap:20px}
+.diff{display:flex;gap:20px;padding:30px;border-radius:22px;border:1px solid var(--line-d);background:var(--ink-2);transition:border-color .2s ease,transform .2s ease}
+.diff:hover{border-color:rgba(167,141,254,.45);transform:translateY(-3px)}
+.diff .badge{flex:none}
+.diff h3{font-size:1.22rem;color:#fff}
+.diff p{margin-top:8px;font-size:.96rem;color:var(--mut-d)}
+
+/* ---------- planos ---------- */
+.cycle{margin:34px auto 0;display:flex;align-items:center;justify-content:center;gap:14px;font-weight:600;font-size:.96rem;color:var(--mut-l)}
+.cycle .on{color:var(--night)}
+.switch{position:relative;width:56px;height:30px;border-radius:999px;background:var(--violet);transition:background .2s ease}
+.switch::after{content:"";position:absolute;top:4px;left:4px;width:22px;height:22px;border-radius:50%;background:#fff;box-shadow:0 2px 6px rgba(20,17,43,.3);transition:transform .2s ease}
+.switch[aria-checked="true"]::after{transform:translateX(26px)}
+.save{padding:3px 10px;border-radius:999px;background:rgba(52,211,153,.16);color:#047857;font-size:.76rem;font-weight:700}
+.plans{margin-top:44px;display:grid;grid-template-columns:repeat(3,1fr);gap:22px;align-items:stretch}
+.plan{position:relative;display:flex;flex-direction:column;padding:34px 30px;border-radius:26px;background:#fff;border:1px solid var(--line-l)}
+.plan.hot{background:linear-gradient(170deg,#1A1440 0%,#090816 70%);color:var(--mist);border-color:rgba(167,141,254,.5);box-shadow:0 40px 80px -36px rgba(104,62,242,.85);transform:translateY(-12px)}
+.plan .flag{position:absolute;top:-14px;left:50%;transform:translateX(-50%);padding:5px 16px;border-radius:999px;background:linear-gradient(120deg,#683EF2,#A78DFE);color:#fff;font-family:var(--display);font-weight:600;font-size:.76rem;letter-spacing:.1em;text-transform:uppercase;white-space:nowrap}
+.plan h3{font-size:1.4rem}
+.plan .for{margin-top:6px;font-size:.92rem;color:var(--mut-l);min-height:46px}
+.plan.hot .for{color:var(--mut-d)}
+.price{margin-top:20px;display:flex;align-items:baseline;gap:6px;font-family:var(--display)}
+.price sup{font-size:1.1rem;font-weight:500;align-self:flex-start;margin-top:10px}
+.price b{font-size:3.4rem;font-weight:600;letter-spacing:-.04em;line-height:1}
+.price span{font-size:.95rem;color:var(--mut-l)}
+.plan.hot .price span{color:var(--mut-d)}
+.billed{margin-top:6px;font-size:.82rem;color:var(--mut-l);min-height:20px}
+.plan.hot .billed{color:var(--mut-d)}
+.caps{margin:22px 0;padding:14px 0;display:grid;grid-template-columns:repeat(3,1fr);text-align:center;border-top:1px solid var(--line-l);border-bottom:1px solid var(--line-l)}
+.plan.hot .caps{border-color:var(--line-d)}
+.caps b{display:block;font-family:var(--display);font-weight:600;font-size:1.3rem}
+.caps span{font-size:.74rem;color:var(--mut-l)}
+.plan.hot .caps span{color:var(--mut-d)}
+.plan ul{display:grid;gap:11px;font-size:.93rem;margin-bottom:28px}
+.plan li{display:flex;gap:10px;align-items:flex-start}
+.plan li .ico{width:17px;height:17px;margin-top:4px;color:var(--violet);stroke-width:2.6}
+.plan.hot li .ico{color:var(--violet-3)}
+.plan .btn{margin-top:auto}
+.addons{margin-top:26px;padding:24px 28px;border-radius:22px;background:rgba(104,62,242,.07);border:1px dashed rgba(104,62,242,.3);display:flex;flex-wrap:wrap;align-items:center;gap:14px 26px}
+.addons strong{font-family:var(--display);font-weight:600;font-size:1.05rem}
+.addons p{font-size:.9rem;color:var(--mut-l);flex:1;min-width:240px}
+.addons .chips b{padding:6px 13px;border-radius:999px;background:#fff;border:1px solid var(--line-l);font-size:.82rem;font-weight:600}
+
+/* ---------- faq ---------- */
+.faq{padding-top:0}
+.faq-grid{display:grid;grid-template-columns:.8fr 1.2fr;gap:56px;align-items:start}
+details{border-bottom:1px solid var(--line-l)}
+details:first-child{border-top:1px solid var(--line-l)}
+summary{display:flex;justify-content:space-between;align-items:center;gap:18px;padding:22px 0;cursor:pointer;list-style:none;font-family:var(--display);font-weight:600;font-size:1.1rem}
+summary::-webkit-details-marker{display:none}
+summary::after{content:"+";flex:none;width:30px;height:30px;border-radius:50%;display:grid;place-items:center;background:rgba(104,62,242,.1);color:var(--violet);font-weight:500;font-size:1.25rem;transition:transform .2s ease}
+details[open] summary::after{transform:rotate(45deg)}
+details p{padding:0 46px 24px 0;color:var(--mut-l);font-size:.98rem}
+
+/* ---------- cta final ---------- */
+.final{padding:96px 0}
+.cta{position:relative;overflow:hidden;padding:72px 40px;border-radius:34px;text-align:center;background:linear-gradient(135deg,#4A27C9 0%,#683EF2 45%,#A78DFE 100%);box-shadow:0 50px 100px -50px rgba(104,62,242,.95)}
+.cta::before{content:"";position:absolute;inset:0;background:radial-gradient(50% 80% at 85% 0%,rgba(245,245,253,.3),transparent 60%),radial-gradient(40% 70% at 0% 100%,rgba(9,8,22,.4),transparent 60%)}
+.cta > *{position:relative}
+.cta svg.mark{width:74px;height:55px;margin:0 auto 22px;filter:drop-shadow(0 10px 20px rgba(9,8,22,.35))}
+.cta h2{margin:0;color:#fff;font-size:clamp(2rem,4.6vw,3.3rem)}
+.cta p{margin:16px auto 0;max-width:560px;font-size:1.1rem;color:rgba(255,255,255,.86)}
+.cta .hero-actions{margin-top:32px}
+.cta .btn-ghost{border-color:rgba(255,255,255,.4);color:#fff;background:rgba(255,255,255,.08)}
+.cta .btn-ghost:hover{background:rgba(255,255,255,.16);border-color:#fff}
+
+/* ---------- rodapé ---------- */
+footer{border-top:1px solid var(--line-d);padding:44px 0;font-size:.9rem;color:var(--mut-d)}
+footer .wrap{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:20px}
+footer nav{display:flex;flex-wrap:wrap;gap:22px}
+footer nav a:hover{color:#fff}
+
+/* ---------- animação de entrada ---------- */
+.js .reveal{opacity:0;transform:translateY(22px);transition:opacity .7s ease,transform .7s cubic-bezier(.2,.7,.2,1)}
+.js .reveal.in{opacity:1;transform:none}
+.js .plan.hot.reveal.in{transform:translateY(-12px)}
+@media (prefers-reduced-motion:reduce){
+  html{scroll-behavior:auto}
+  .js .reveal{opacity:1;transform:none;transition:none}
+  .btn,.card,.diff{transition:none}
+}
+
+/* ---------- responsivo ---------- */
+@media (max-width:1080px){
+  .app-list{width:250px}
+  .cards{grid-template-columns:repeat(2,1fr)}
+  .extras{grid-template-columns:repeat(2,1fr)}
+  .steps{grid-template-columns:repeat(2,1fr)}
+  .split{gap:44px}
+}
+@media (max-width:1020px){
+  .nav-links{position:absolute;top:70px;left:0;right:0;flex-direction:column;align-items:stretch;gap:0;padding:8px 24px 18px;background:rgba(9,8,22,.97);border-bottom:1px solid var(--line-d);display:none}
+  .nav-links.open{display:flex}
+  .nav-links a{padding:14px 0;border-bottom:1px solid var(--line-d);font-size:1rem}
+  .nav-links a:last-child{border-bottom:0}
+  .burger{display:inline-flex}
+  .nav-cta .login{display:none}
+}
+@media (max-width:900px){
+  section{padding:76px 0}
+  .ac-acts > .ico:not(:last-child){display:none}
+  .split,.faq-grid,.versus{grid-template-columns:minmax(0,1fr)}
+  .split.rev .split-art{order:0}
+  .split + .split{margin-top:84px}
+  .plans{grid-template-columns:1fr;max-width:460px;margin-left:auto;margin-right:auto}
+  .plan.hot,.js .plan.hot.reveal.in{transform:none}
+  .plan .for{min-height:0}
+  .diffs{grid-template-columns:1fr}
+  .facts ul{grid-template-columns:repeat(2,1fr)}
+  .facts li:nth-child(3){border-left:0}
+  .facts li:nth-child(n+3){border-top:1px solid var(--line-d)}
+  .faq{padding-top:0}
+}
+@media (max-width:640px){
+  .wrap{padding:0 18px}
+  .hero{padding-top:56px}
+  .hero .lead{font-size:1.04rem}
+  .hero-actions .btn{width:100%}
+  .app{height:500px;padding:8px 8px 0}
+  .app-nav,.app-list,.ac-btn{display:none}
+  .mg p{max-width:84%}
+  .ac-msgs{padding:14px 12px}
+  .stage{margin-top:48px}
+  .cards,.extras,.steps{grid-template-columns:1fr}
+  .vs,.card,.diff{padding:24px}
+  .rp{padding:12px}
+  .diff{flex-direction:column;gap:16px}
+  .cta{padding:52px 22px;border-radius:26px}
+  .nav-cta .btn{padding:9px 14px;font-size:.86rem}
+  .brand{font-size:1.3rem}
+  .brand svg{width:34px;height:26px}
+  details p{padding-right:0}
+}
+</style>
+<script>if('IntersectionObserver' in window)document.documentElement.classList.add('js')</script>
+</head>
+<body>
+
+<!-- Símbolo DoveChat (traços e gradientes de logos/DoveChat_simbolo_colorido.svg) + ícones -->
+<svg width="0" height="0" style="position:absolute" aria-hidden="true" focusable="false">
+  <defs>
+    <linearGradient id="dc-asa-sup" x1="31" y1="92.8" x2="206.2" y2="399.2" gradientUnits="userSpaceOnUse"><stop offset="0" stop-color="#F5F5FD"/><stop offset="1" stop-color="#AF94FC"/></linearGradient>
+    <linearGradient id="dc-asa-inf" x1="47" y1="264.8" x2="287.4" y2="172.8" gradientUnits="userSpaceOnUse"><stop offset="0" stop-color="#683EF2"/><stop offset="1" stop-color="#A78DFE"/></linearGradient>
+    <linearGradient id="dc-corpo" x1="427" y1="176.8" x2="275" y2="408.8" gradientUnits="userSpaceOnUse"><stop offset="0" stop-color="#F2F0FF"/><stop offset="1" stop-color="#E9E5FE"/></linearGradient>
+    <clipPath id="dc-recorte"><path d="M315 242.8C335 216.8 359 172.8 411 171.2C435 171.2 459 188.8 481 210L461 216C431 236.8 415 288.8 387 328.8C363 360.8 291 408.8 211 420C291 388.8 343 324.8 315 242.8Z"/></clipPath>
+  </defs>
+  <symbol id="dove" viewBox="22 84 468 344">
+    <path fill="url(#dc-asa-sup)" d="M31 92.8C147 136.8 259 168.8 315 242.8C331 264.8 355 312.8 355 340.8C355 352.8 331 350.8 315 346.8C223 332.8 107 288.8 55 200.8C43 180.8 31 136.8 31 92.8Z"/>
+    <path fill="url(#dc-corpo)" d="M315 242.8C335 216.8 359 172.8 411 171.2C435 171.2 459 188.8 481 210L461 216C431 236.8 415 288.8 387 328.8C363 360.8 291 408.8 211 420C291 388.8 343 324.8 315 242.8Z"/>
+    <g clip-path="url(#dc-recorte)"><path fill="#CFC0FD" d="M31 92.8C147 136.8 259 168.8 315 242.8C331 264.8 355 312.8 355 340.8C355 352.8 331 350.8 315 346.8C223 332.8 107 288.8 55 200.8C43 180.8 31 136.8 31 92.8Z"/></g>
+    <path fill="url(#dc-asa-inf)" d="M47 262.8C107 304.8 235 316.8 357 358C322.6 384.4 269 412 211 420C131 424.8 55 356.8 47 262.8Z"/>
+    <g clip-path="url(#dc-recorte)"><path fill="#AE92FC" d="M47 262.8C107 304.8 235 316.8 357 358C322.6 384.4 269 412 211 420C131 424.8 55 356.8 47 262.8Z"/></g>
+  </symbol>
+  <symbol id="i-arrow" viewBox="0 0 24 24"><path d="M5 12h14M13 6l6 6-6 6"/></symbol>
+  <symbol id="i-check" viewBox="0 0 24 24"><path d="M5 12.5l4.5 4.5L19 7.5"/></symbol>
+  <symbol id="i-x" viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></symbol>
+  <symbol id="i-inbox" viewBox="0 0 24 24"><path d="M3 13l3-8h12l3 8v5a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1z"/><path d="M3 13h5l1.5 3h5L16 13h5"/></symbol>
+  <symbol id="i-team" viewBox="0 0 24 24"><circle cx="9" cy="8" r="3.2"/><path d="M3 19c.6-3.4 3-5 6-5s5.4 1.6 6 5"/><path d="M16 5.2a3.2 3.2 0 0 1 0 5.6M18 14.4c1.7.7 2.7 2.2 3 4.6"/></symbol>
+  <symbol id="i-phone" viewBox="0 0 24 24"><rect x="6.5" y="2.5" width="11" height="19" rx="2.6"/><path d="M10.5 18.2h3"/></symbol>
+  <symbol id="i-flow" viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="6" rx="1.6"/><rect x="14" y="15" width="7" height="6" rx="1.6"/><rect x="3" y="15" width="7" height="6" rx="1.6"/><path d="M6.5 9v6M10 6h5a2.5 2.5 0 0 1 2.5 2.5V15"/></symbol>
+  <symbol id="i-spark" viewBox="0 0 24 24"><path d="M12 3l1.9 5.1L19 10l-5.1 1.9L12 17l-1.9-5.1L5 10l5.1-1.9z"/><path d="M19 15.5l.8 2.2 2.2.8-2.2.8-.8 2.2-.8-2.2-2.2-.8 2.2-.8z"/></symbol>
+  <symbol id="i-chart" viewBox="0 0 24 24"><path d="M4 20V4M4 20h16"/><path d="M8.5 16v-4M13 16V8M17.5 16v-6.5"/></symbol>
+  <symbol id="i-bolt" viewBox="0 0 24 24"><path d="M13 3L5 13.5h6L10 21l8-10.5h-6z"/></symbol>
+  <symbol id="i-clock" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.5"/><path d="M12 7.5V12l3 2"/></symbol>
+  <symbol id="i-note" viewBox="0 0 24 24"><path d="M5 4h14v11l-5 5H5z"/><path d="M14 20v-5h5M8.5 9h7M8.5 12.5h4"/></symbol>
+  <symbol id="i-tag" viewBox="0 0 24 24"><path d="M3.5 12.2V4.5h7.7l9.3 9.3-7.7 7.7z"/><circle cx="8" cy="9" r="1.3"/></symbol>
+  <symbol id="i-mic" viewBox="0 0 24 24"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5.5 11.5a6.5 6.5 0 0 0 13 0M12 18v3"/></symbol>
+  <symbol id="i-star" viewBox="0 0 24 24"><path d="M12 3.5l2.6 5.4 5.9.8-4.3 4.1 1 5.8L12 16.8l-5.2 2.8 1-5.8-4.3-4.1 5.9-.8z"/></symbol>
+  <symbol id="i-code" viewBox="0 0 24 24"><path d="M8.5 7.5L4 12l4.5 4.5M15.5 7.5L20 12l-4.5 4.5M13.5 5l-3 14"/></symbol>
+  <symbol id="i-shield" viewBox="0 0 24 24"><path d="M12 3l7.5 3v5.5c0 4.6-3 8-7.5 9.5-4.5-1.5-7.5-4.9-7.5-9.5V6z"/><path d="M9 12l2.2 2.2L15.2 10"/></symbol>
+  <symbol id="i-msg" viewBox="0 0 24 24"><path d="M4 5.5h16v11H10l-4.5 3.5v-3.5H4z"/></symbol>
+  <symbol id="i-send" viewBox="0 0 24 24"><path d="M4 12l16-7.5-5.5 16-3-6.5z"/></symbol>
+  <symbol id="i-hand" viewBox="0 0 24 24"><path d="M4 12h10M10 8l4 4-4 4"/><path d="M14 5h5v14h-5"/></symbol>
+  <symbol id="i-layers" viewBox="0 0 24 24"><path d="M12 3.5L21 8l-9 4.5L3 8z"/><path d="M3 12.5l9 4.5 9-4.5M3 16.5L12 21l9-4.5"/></symbol>
+  <symbol id="i-book" viewBox="0 0 24 24"><path d="M5 4.5h10.5A3.5 3.5 0 0 1 19 8v11.5H8.5A3.5 3.5 0 0 1 5 16z"/><path d="M5 16a3.5 3.5 0 0 1 3.5-3.5H19M9 8.5h6"/></symbol>
+  <symbol id="i-play" viewBox="0 0 24 24"><path d="M8 5.5v13l10-6.5z"/></symbol>
+  <symbol id="i-cal" viewBox="0 0 24 24"><rect x="4" y="5.5" width="16" height="14.5" rx="2.5"/><path d="M8 3.5v4M16 3.5v4M4 10h16M9.5 15l2 2 3.5-3.5"/></symbol>
+  <symbol id="i-calplus" viewBox="0 0 24 24"><rect x="4" y="5.5" width="16" height="14.5" rx="2.5"/><path d="M8 3.5v4M16 3.5v4M4 10h16M12 12.5v5M9.5 15h5"/></symbol>
+  <symbol id="i-robot" viewBox="0 0 24 24"><rect x="5" y="8.5" width="14" height="10.5" rx="3"/><path d="M12 8.5V5M9.5 13v1.5M14.5 13v1.5M2.5 13v2.5M21.5 13v2.5"/><circle cx="12" cy="4" r="1"/></symbol>
+  <symbol id="i-contact" viewBox="0 0 24 24"><rect x="5" y="3.5" width="14" height="17" rx="2.5"/><circle cx="12" cy="10" r="2.3"/><path d="M8.5 16.5c.6-1.8 1.9-2.6 3.5-2.6s2.9.8 3.5 2.6M3 8h2M3 12h2M3 16h2"/></symbol>
+  <symbol id="i-brain" viewBox="0 0 24 24"><path d="M12 5.5a2.6 2.6 0 0 0-5-.6 3 3 0 0 0-2.3 4.3A3.2 3.2 0 0 0 5 14.6a3 3 0 0 0 3.2 4.2A2.5 2.5 0 0 0 12 18zM12 5.5a2.6 2.6 0 0 1 5-.6 3 3 0 0 1 2.3 4.3 3.2 3.2 0 0 1-.3 5.4 3 3 0 0 1-3.2 4.2A2.5 2.5 0 0 1 12 18"/></symbol>
+  <symbol id="i-ring" viewBox="0 0 24 24"><path d="M20.5 12A8.5 8.5 0 1 1 12 3.5"/></symbol>
+  <symbol id="i-image" viewBox="0 0 24 24"><rect x="3.5" y="5" width="17" height="14" rx="2.5"/><circle cx="9" cy="10" r="1.6"/><path d="M4 17l5-4.5 3.5 3 3-2.5 5 4"/></symbol>
+  <symbol id="i-gear" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M12 3v2.5M12 18.5V21M3 12h2.5M18.5 12H21M5.6 5.6l1.8 1.8M16.6 16.6l1.8 1.8M18.4 5.6l-1.8 1.8M7.4 16.6l-1.8 1.8"/></symbol>
+  <symbol id="i-bell" viewBox="0 0 24 24"><path d="M6 16.5V11a6 6 0 0 1 12 0v5.5l1.5 2h-15zM10 21h4"/></symbol>
+  <symbol id="i-search" viewBox="0 0 24 24"><circle cx="11" cy="11" r="6.5"/><path d="M16 16l4.5 4.5"/></symbol>
+  <symbol id="i-plus" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></symbol>
+  <symbol id="i-user" viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4.5 20.5c1-4 4-5.5 7.5-5.5s6.5 1.5 7.5 5.5"/></symbol>
+  <symbol id="i-clip" viewBox="0 0 24 24"><path d="M19.5 11.5l-7.8 7.8a4.6 4.6 0 0 1-6.5-6.5l8.5-8.5a3.1 3.1 0 0 1 4.4 4.4l-8.4 8.4a1.6 1.6 0 0 1-2.3-2.3l7.6-7.6"/></symbol>
+  <symbol id="i-smile" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.5"/><path d="M8.5 14.5c1 1.4 2.2 2 3.5 2s2.5-.6 3.5-2M9 9.5v.5M15 9.5v.5"/></symbol>
+  <symbol id="i-lock" viewBox="0 0 24 24"><rect x="5" y="10.5" width="14" height="10" rx="2.5"/><path d="M8 10.5V8a4 4 0 0 1 8 0v2.5"/></symbol>
+  <symbol id="i-swap" viewBox="0 0 24 24"><path d="M4 8h15M15 4l4 4-4 4M20 16H5M9 12l-4 4 4 4"/></symbol>
+  <symbol id="i-dots" viewBox="0 0 24 24"><path stroke-width="3" d="M12 5.5v.01M12 12v.01M12 18.5v.01"/></symbol>
+  <symbol id="i-file" viewBox="0 0 24 24"><path d="M6.5 3.5h8l4 4v13h-12z"/><path d="M14.5 3.5v4h4"/></symbol>
+  <symbol id="i-up" viewBox="0 0 24 24"><path d="M12 19V5M6 11l6-6 6 6"/></symbol>
+  <symbol id="i-down" viewBox="0 0 24 24"><path d="M12 5v14M6 13l6 6 6-6"/></symbol>
+  <symbol id="i-chats" viewBox="0 0 24 24"><path d="M3.5 5h11v8H9l-3 2.5V13H3.5z"/><path d="M17 9h3.5v8H18v2.5L15 17h-4v-1.5"/></symbol>
+  <symbol id="i-angles" viewBox="0 0 24 24"><path d="M6 6l6 6-6 6M13 6l6 6-6 6"/></symbol>
+  <symbol id="i-okcircle" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.5"/><path d="M8.5 12.3l2.4 2.4 4.6-4.9"/></symbol>
+  <symbol id="i-menu" viewBox="0 0 24 24"><path d="M4 7h16M4 12h16M4 17h16"/></symbol>
+</svg>
+
+<!-- ============ NAVEGAÇÃO ============ -->
+<header class="nav">
+  <div class="wrap">
+    <a href="#topo" class="brand" aria-label="DoveChat — início">
+      <svg aria-hidden="true"><use href="#dove"/></svg>
+      <span>Dove<b>Chat</b></span>
+    </a>
+    <nav class="nav-links" id="menu" aria-label="Principal">
+      <a href="#recursos">Recursos</a>
+      <a href="#ia">Automação e IA</a>
+      <a href="#como-funciona">Como funciona</a>
+      <a href="#diferenciais">Diferenciais</a>
+      <a href="#planos">Planos</a>
+      <a href="#faq">Dúvidas</a>
+    </nav>
+    <div class="nav-cta">
+      <a href="/login" class="login">Entrar</a>
+      <a href="/billing" class="btn btn-primary btn-sm">Testar grátis</a>
+      <button class="burger" id="burger" aria-label="Abrir menu" aria-controls="menu" aria-expanded="false"><svg class="ico"><use href="#i-menu"/></svg></button>
+    </div>
+  </div>
+</header>
+
+<main id="topo">
+
+<!-- ============ HERO ============ -->
+<section class="hero">
+  <div class="wrap">
+    <div class="hero-copy">
+      <p class="pill reveal"><span>Novo</span> Agentes de IA que lembram do contexto de cada cliente</p>
+      <h1 class="reveal">Atendimento no WhatsApp que <span class="grad">voa.</span></h1>
+      <p class="lead reveal">O DoveChat reúne sua equipe, seus números, suas automações e seus agentes de IA em uma única caixa de entrada — para que nenhuma conversa fique sem resposta e cada cliente chegue a quem resolve.</p>
+      <div class="hero-actions reveal">
+        <a href="/billing" class="btn btn-primary">Testar grátis por 10 dias <svg class="ico"><use href="#i-arrow"/></svg></a>
+        <a href="#planos" class="btn btn-ghost">Ver planos e preços</a>
+      </div>
+      <ul class="hero-notes reveal">
+        <li><svg class="ico"><use href="#i-check"/></svg>Nenhum pagamento durante o teste</li>
+        <li><svg class="ico"><use href="#i-check"/></svg>Conecte seu número por QR Code</li>
+        <li><svg class="ico"><use href="#i-check"/></svg>Cancele quando quiser</li>
+      </ul>
+    </div>
+
+    <!-- Simulação da tela de Conversas, no layout real do app (dados fictícios) -->
+    <div class="stage reveal" aria-hidden="true">
+      <div class="app">
+        <div class="app-nav">
+          <svg class="logo"><use href="#dove"/></svg>
+          <span class="tgl"><svg class="ico"><use href="#i-angles"/></svg></span>
+          <span class="on"><svg class="ico"><use href="#i-msg"/></svg><b>3</b></span><span><svg class="ico"><use href="#i-contact"/></svg></span><span><svg class="ico"><use href="#i-cal"/></svg></span><span><svg class="ico"><use href="#i-flow"/></svg></span><span><svg class="ico"><use href="#i-brain"/></svg></span><span><svg class="ico"><use href="#i-team"/></svg></span><span><svg class="ico"><use href="#i-ring"/></svg><u></u></span><span><svg class="ico"><use href="#i-bolt"/></svg></span><span><svg class="ico"><use href="#i-image"/></svg></span><span><svg class="ico"><use href="#i-chart"/></svg></span><span><svg class="ico"><use href="#i-gear"/></svg></span>
+          <i class="sp"></i>
+          <span><svg class="ico"><use href="#i-bell"/></svg></span>
+          <span class="me">BS</span>
+        </div>
+        <div class="app-list">
+          <div class="al-head"><div><strong>Conversas</strong><small>Atendimento em tempo real</small></div><i><svg class="ico"><use href="#i-plus"/></svg></i></div>
+          <div class="al-search"><svg class="ico"><use href="#i-search"/></svg>Buscar contato ou #protocolo<svg class="ico"><use href="#i-arrow"/></svg></div>
+          <div class="al-scope"><span class="on"><svg class="ico"><use href="#i-user"/></svg>Individuais<b>3</b></span><span><svg class="ico"><use href="#i-team"/></svg>Grupos<b>0</b></span></div>
+          <div class="al-tabs"><span class="on">Ativas<b>2</b></span><span>Pendentes<b>1</b></span><span>Fechadas</span></div>
+          <div class="al-items">
+            <div class="cv on"><span class="pic">CM</span><div class="cv-main"><div class="cv-top"><div class="cv-name"><span>Clara Monteiro</span><small>#1284</small></div><div class="cv-meta"><em><svg class="ico"><use href="#i-user"/></svg>Bianca</em><span>10:42</span></div></div><div class="cv-prev"><svg class="ico"><use href="#i-msg"/></svg><span>Quero trocar do M para o G.</span></div><div class="cv-tags"><span class="tg">Troca</span><span class="tg g">Cliente recorrente</span></div></div></div>
+            <div class="cv"><span class="pic b">RP</span><div class="cv-main"><div class="cv-top"><div class="cv-name"><span>Rafael Prado</span><small>#1283</small></div><div class="cv-meta"><em><svg class="ico"><use href="#i-user"/></svg>Diego</em><span>10:39<b>2</b></span></div></div><div class="cv-prev un"><svg class="ico"><use href="#i-msg"/></svg><span>Pode me enviar a proposta?</span></div><div class="cv-tags"><span class="tg b">Orçamento</span></div></div></div>
+            <div class="cv"><span class="pic c">LT</span><div class="cv-main"><div class="cv-top"><div class="cv-name"><span>Lívia Teixeira</span><small>#1281</small></div><div class="cv-meta"><span>10:31<b>1</b></span></div></div><div class="cv-prev un"><svg class="ico"><use href="#i-mic"/></svg><span>Áudio</span></div><span class="cv-flow"><svg class="ico"><use href="#i-flow"/></svg>Flow em execução</span></div></div>
+            <div class="cv"><span class="pic d">JB</span><div class="cv-main"><div class="cv-top"><div class="cv-name"><span>Jonas Barros</span><small>#1279</small></div><div class="cv-meta"><em><svg class="ico"><use href="#i-user"/></svg>Bianca</em><span>10:12</span></div></div><div class="cv-prev"><svg class="ico"><use href="#i-msg"/></svg><span>Perfeito, muito obrigado!</span></div></div></div>
+            <div class="cv"><span class="pic e">MV</span><div class="cv-main"><div class="cv-top"><div class="cv-name"><span>Marcos Vidal</span><small>#1276</small></div><div class="cv-meta"><em><svg class="ico"><use href="#i-user"/></svg>Diego</em><span>09:58</span></div></div><div class="cv-prev"><svg class="ico"><use href="#i-file"/></svg><span>Comprovante.pdf</span></div></div></div>
+          </div>
+        </div>
+        <div class="app-chat">
+          <div class="ac-head">
+            <div class="ac-who"><span class="pic">CM</span><div><strong>Clara Monteiro<small>#1284</small></strong><p>+55 11 90000-0000</p></div></div>
+            <div class="ac-acts"><span class="ac-btn"><svg class="ico"><use href="#i-swap"/></svg>Transferir</span><span class="ac-btn red"><svg class="ico"><use href="#i-okcircle"/></svg>Fechar conversa</span><svg class="ico"><use href="#i-calplus"/></svg><svg class="ico"><use href="#i-search"/></svg><svg class="ico"><use href="#i-dots"/></svg></div>
+          </div>
+          <div class="ac-msgs">
+            <div class="mg"><span class="pic">CM</span><p>Oi! Comprei ontem e queria trocar o tamanho. Ainda dá tempo?<time><svg class="ico"><use href="#i-clock"/></svg>10:38</time></p></div>
+            <div class="mg me"><p>Oi, Clara! Dá sim 😊 Seu pedido ainda não saiu para entrega.<time><svg class="ico"><use href="#i-clock"/></svg>10:40<svg class="ico"><use href="#i-check"/></svg></time></p></div>
+            <div class="mg"><span class="pic">CM</span><p>Ótimo! Quero trocar do M para o G.<time><svg class="ico"><use href="#i-clock"/></svg>10:42</time></p></div>
+            <div class="mg nt"><p><b><span><svg class="ico"><use href="#i-lock"/></svg>Nota interna · Bianca</span><span>10:43</span></b>Troca solicitada antes do envio. Ajustar o pedido no sistema.<small>Visível apenas para a equipe. Não enviada ao WhatsApp.</small></p></div>
+            <div class="mg me"><p>Prontinho! Troca registrada para o tamanho G.<time><svg class="ico"><use href="#i-clock"/></svg>10:44<svg class="ico"><use href="#i-check"/></svg></time></p></div>
+          </div>
+          <div class="ac-comp"><svg class="ico"><use href="#i-clip"/></svg><div>Mensagem ou / para atalhos</div><svg class="ico amber"><use href="#i-note"/></svg><svg class="ico"><use href="#i-smile"/></svg><svg class="ico"><use href="#i-mic"/></svg><i><svg class="ico"><use href="#i-send"/></svg></i></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ FATOS ============ -->
+<section class="facts" aria-label="Resumo">
+  <div class="wrap">
+    <ul>
+      <li><strong>10 dias</strong><span>de teste grátis, sem pagamento</span></li>
+      <li><strong>1 caixa</strong><span>para todos os números e equipes</span></li>
+      <li><strong>24/7</strong><span>com flows e agentes de IA</span></li>
+      <li><strong>0 código</strong><span>para montar suas automações</span></li>
+    </ul>
+  </div>
+</section>
+
+<!-- ============ ANTES / DEPOIS ============ -->
+<section>
+  <div class="wrap">
+    <div class="head center reveal">
+      <p class="eyebrow">O problema</p>
+      <h2>WhatsApp no celular não foi feito para atender em equipe.</h2>
+      <p class="lead">Quando o volume cresce, o improviso custa caro: clientes esperando, respostas duplicadas e nenhuma visão do que está acontecendo.</p>
+    </div>
+    <div class="versus">
+      <div class="vs reveal">
+        <h3>Atendimento improvisado</h3>
+        <ul>
+          <li><svg class="ico"><use href="#i-x"/></svg>Um número preso a um único aparelho e a uma única pessoa</li>
+          <li><svg class="ico"><use href="#i-x"/></svg>Ninguém sabe quem respondeu, quem está esperando ou o que foi combinado</li>
+          <li><svg class="ico"><use href="#i-x"/></svg>Fora do horário, o cliente fica sem resposta até o dia seguinte</li>
+          <li><svg class="ico"><use href="#i-x"/></svg>As mesmas perguntas respondidas à mão dezenas de vezes por dia</li>
+          <li><svg class="ico"><use href="#i-x"/></svg>Decisões no escuro, sem números sobre a operação</li>
+        </ul>
+      </div>
+      <div class="vs win reveal">
+        <h3><svg aria-hidden="true"><use href="#dove"/></svg>Com o DoveChat</h3>
+        <ul>
+          <li><svg class="ico"><use href="#i-check"/></svg>Toda a equipe atende o mesmo número, cada um com seu acesso</li>
+          <li><svg class="ico"><use href="#i-check"/></svg>Cada conversa tem dono, setor, histórico e notas internas</li>
+          <li><svg class="ico"><use href="#i-check"/></svg>Flows e agentes de IA acolhem o cliente a qualquer hora</li>
+          <li><svg class="ico"><use href="#i-check"/></svg>Respostas rápidas e automações cuidam do que é repetitivo</li>
+          <li><svg class="ico"><use href="#i-check"/></svg>Relatórios por conexão, fila e agente para decidir com clareza</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ RECURSOS ============ -->
+<section class="light" id="recursos">
+  <div class="wrap">
+    <div class="head reveal">
+      <p class="eyebrow">Recursos</p>
+      <h2>Tudo o que sua operação precisa, em um só lugar.</h2>
+      <p class="lead">Da primeira mensagem ao encerramento: organize, automatize e acompanhe o atendimento sem trocar de ferramenta.</p>
+    </div>
+
+    <div class="cards">
+      <article class="card reveal">
+        <span class="badge"><svg class="ico"><use href="#i-inbox"/></svg></span>
+        <h3>Caixa de entrada compartilhada</h3>
+        <p>Todas as conversas da empresa em uma tela, com status claros e um responsável por atendimento.</p>
+        <ul>
+          <li><svg class="ico"><use href="#i-check"/></svg>Abertas, atribuídas e concluídas</li>
+          <li><svg class="ico"><use href="#i-check"/></svg>Transferência entre agentes e setores</li>
+          <li><svg class="ico"><use href="#i-check"/></svg>Histórico completo do contato</li>
+        </ul>
+      </article>
+      <article class="card reveal">
+        <span class="badge"><svg class="ico"><use href="#i-team"/></svg></span>
+        <h3>Setores e distribuição inteligente</h3>
+        <p>Comercial, suporte, financeiro: cada conversa cai na fila certa e é distribuída entre quem está disponível.</p>
+        <ul>
+          <li><svg class="ico"><use href="#i-check"/></svg>Agentes em um ou mais setores</li>
+          <li><svg class="ico"><use href="#i-check"/></svg>Permissões por perfil de acesso</li>
+          <li><svg class="ico"><use href="#i-check"/></svg>Regras por horário de atendimento</li>
+        </ul>
+      </article>
+      <article class="card reveal">
+        <span class="badge"><svg class="ico"><use href="#i-phone"/></svg></span>
+        <h3>Vários números de WhatsApp</h3>
+        <p>Conecte mais de um número lendo um QR Code e atenda todos pela mesma caixa de entrada.</p>
+        <ul>
+          <li><svg class="ico"><use href="#i-check"/></svg>Conexão em poucos minutos</li>
+          <li><svg class="ico"><use href="#i-check"/></svg>Um número por unidade ou equipe</li>
+          <li><svg class="ico"><use href="#i-check"/></svg>Status de cada conexão em tempo real</li>
+        </ul>
+      </article>
+      <article class="card reveal">
+        <span class="badge"><svg class="ico"><use href="#i-flow"/></svg></span>
+        <h3>Flow Builder visual</h3>
+        <p>Desenhe jornadas de atendimento arrastando blocos: menus, condições, esperas, capturas de resposta e muito mais.</p>
+        <ul>
+          <li><svg class="ico"><use href="#i-check"/></svg>Botões, condições e variáveis</li>
+          <li><svg class="ico"><use href="#i-check"/></svg>Chamadas de API e webhooks</li>
+          <li><svg class="ico"><use href="#i-check"/></svg>Modelos prontos para começar</li>
+        </ul>
+      </article>
+      <article class="card reveal">
+        <span class="badge"><svg class="ico"><use href="#i-spark"/></svg></span>
+        <h3>Agentes de IA</h3>
+        <p>Assistentes treinados com o conhecimento do seu negócio, que conversam, executam ações e passam a bola para um humano.</p>
+        <ul>
+          <li><svg class="ico"><use href="#i-check"/></svg>Base de conhecimento própria</li>
+          <li><svg class="ico"><use href="#i-check"/></svg>Memória do que já foi feito</li>
+          <li><svg class="ico"><use href="#i-check"/></svg>Transferência para a equipe</li>
+        </ul>
+      </article>
+      <article class="card reveal">
+        <span class="badge"><svg class="ico"><use href="#i-chart"/></svg></span>
+        <h3>Relatórios de atendimento</h3>
+        <p>Volume de mensagens, conversas recebidas e não atendidas, com recortes por período, conexão, fila e agente.</p>
+        <ul>
+          <li><svg class="ico"><use href="#i-check"/></svg>Evolução das mensagens no tempo</li>
+          <li><svg class="ico"><use href="#i-check"/></svg>Situação atual das conversas</li>
+          <li><svg class="ico"><use href="#i-check"/></svg>Filtros por calendário</li>
+        </ul>
+      </article>
+    </div>
+
+    <div class="extras">
+      <div class="extra reveal"><svg class="ico"><use href="#i-bolt"/></svg><div><strong>Respostas rápidas</strong><span>Atalhos para as mensagens que a equipe mais usa.</span></div></div>
+      <div class="extra reveal"><svg class="ico"><use href="#i-clock"/></svg><div><strong>Mensagens agendadas</strong><span>Programe retornos e lembretes para a hora certa.</span></div></div>
+      <div class="extra reveal"><svg class="ico"><use href="#i-note"/></svg><div><strong>Notas internas</strong><span>Contexto visível só para a equipe, em cada conversa.</span></div></div>
+      <div class="extra reveal"><svg class="ico"><use href="#i-tag"/></svg><div><strong>Contatos e etiquetas</strong><span>Tags e campos personalizados para segmentar.</span></div></div>
+      <div class="extra reveal"><svg class="ico"><use href="#i-mic"/></svg><div><strong>Transcrição de áudio</strong><span>Leia o áudio do cliente sem precisar ouvir.</span></div></div>
+      <div class="extra reveal"><svg class="ico"><use href="#i-star"/></svg><div><strong>Pesquisa NPS</strong><span>Meça a satisfação ao final do atendimento.</span></div></div>
+      <div class="extra reveal"><svg class="ico"><use href="#i-layers"/></svg><div><strong>Biblioteca de mídias</strong><span>Imagens, vídeos e documentos sempre à mão.</span></div></div>
+      <div class="extra reveal"><svg class="ico"><use href="#i-code"/></svg><div><strong>API e webhooks</strong><span>Integre o DoveChat aos sistemas que você já usa.</span></div></div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ AUTOMAÇÃO + IA / RELATÓRIOS ============ -->
+<section id="ia">
+  <div class="wrap">
+    <div class="split">
+      <div class="reveal">
+        <p class="eyebrow">Automação e IA</p>
+        <h2>A IA resolve o que é simples. Sua equipe cuida do que importa.</h2>
+        <p class="lead">Coloque um agente de IA dentro do seu fluxo de atendimento. Ele responde com base no seu conteúdo, executa ações e sabe a hora de chamar uma pessoa.</p>
+        <ul class="ticks">
+          <li><span class="n"><svg class="ico"><use href="#i-book"/></svg></span><div><strong>Aprende com o seu negócio</strong><span>Cadastre uma base de conhecimento e o agente responde com as suas informações, no seu tom.</span></div></li>
+          <li><span class="n"><svg class="ico"><use href="#i-bolt"/></svg></span><div><strong>Faz, não só conversa</strong><span>Adiciona etiquetas, atualiza o contato, agenda mensagens e consulta seus sistemas por API.</span></div></li>
+          <li><span class="n"><svg class="ico"><use href="#i-hand"/></svg></span><div><strong>Passa para um humano sem atrito</strong><span>Quando o assunto pede, transfere para o setor certo com todo o contexto da conversa.</span></div></li>
+        </ul>
+        <p class="providers">Use o provedor de IA que preferir: <b>OpenAI</b><b>Gemini</b><b>Groq</b><b>DeepSeek</b></p>
+      </div>
+      <div class="split-art reveal" aria-hidden="true">
+        <!-- Simulação do Flow Builder, no layout real do editor -->
+        <div class="shot"><div class="shot-in fb-canvas">
+          <svg viewBox="0 0 640 388" role="img" aria-label="Exemplo de fluxo no Flow Builder"><path class="fe" d="M170 191h40"/><path class="fe" d="M390 198C425 198 410 87 445 87"/><path class="fe" d="M390 222C425 222 410 291 445 291"/><g transform="translate(10,156)"><rect width="160" height="70" rx="11" fill="#fff" stroke="#e7e5e4"/><path d="M0 11a11 11 0 0 1 11-11h138a11 11 0 0 1 11 11v19H0z" fill="#22c55e" fill-opacity=".08"/><path d="M0 30h160" stroke="#f5f5f4"/><rect x="10" y="6" width="19" height="19" rx="6" fill="#22c55e" fill-opacity=".14"/><use href="#i-play" x="14" y="10" width="11" height="11" class="fi" style="color:#22c55e"/><text x="36" y="19" class="ft">Início</text><text x="12" y="50" class="fd">Mensagem recebida</text><circle cx="160" cy="35" r="6" class="fh"/></g><g transform="translate(210,150)"><rect width="180" height="90" rx="11" fill="#fff" stroke="#e7e5e4"/><path d="M0 11a11 11 0 0 1 11-11h158a11 11 0 0 1 11 11v19H0z" fill="#f59e0b" fill-opacity=".08"/><path d="M0 30h180" stroke="#f5f5f4"/><rect x="10" y="6" width="19" height="19" rx="6" fill="#f59e0b" fill-opacity=".14"/><use href="#i-cal" x="14" y="10" width="11" height="11" class="fi" style="color:#f59e0b"/><text x="36" y="19" class="ft">Horário Comercial</text><circle cx="0" cy="45" r="6" class="fh"/><text x="166" y="51" class="fl">Dentro do horário</text><circle cx="180" cy="48" r="6" class="fh"/><text x="166" y="75" class="fl">Fora do horário</text><circle cx="180" cy="72" r="6" class="fh"/></g><g transform="translate(445,52)"><rect width="185" height="70" rx="11" fill="#fff" stroke="#e7e5e4"/><path d="M0 11a11 11 0 0 1 11-11h163a11 11 0 0 1 11 11v19H0z" fill="#8b5cf6" fill-opacity=".08"/><path d="M0 30h185" stroke="#f5f5f4"/><rect x="10" y="6" width="19" height="19" rx="6" fill="#8b5cf6" fill-opacity=".14"/><use href="#i-team" x="14" y="10" width="11" height="11" class="fi" style="color:#8b5cf6"/><text x="36" y="19" class="ft">Distribuição Inteligente</text><text x="12" y="50" class="fd">Setor Comercial</text><circle cx="0" cy="35" r="6" class="fh"/><circle cx="185" cy="35" r="6" class="fh"/></g><g transform="translate(445,256)"><rect width="185" height="70" rx="11" fill="#fff" stroke="#6123cc" stroke-width="2"/><path d="M0 11a11 11 0 0 1 11-11h163a11 11 0 0 1 11 11v19H0z" fill="#7c3aed" fill-opacity=".08"/><path d="M0 30h185" stroke="#f5f5f4"/><rect x="10" y="6" width="19" height="19" rx="6" fill="#7c3aed" fill-opacity=".14"/><use href="#i-robot" x="14" y="10" width="11" height="11" class="fi" style="color:#7c3aed"/><text x="36" y="19" class="ft">Transferir para Agente IA</text><text x="12" y="50" class="fd">Assistente de vendas</text><circle cx="0" cy="35" r="6" class="fh"/><circle cx="185" cy="35" r="6" class="fh"/></g><g transform="translate(488,326)"><path d="M0 0v10" stroke="#c4b5fd" stroke-width="1.5"/><rect x="-5" y="-5" width="10" height="10" transform="rotate(45)" fill="#fff" stroke="#7c3aed" stroke-width="1.5"/><rect x="-32.0" y="11" width="64" height="16" rx="8" fill="#f5f3ff" stroke="#c4b5fd"/><text x="0" y="22" class="fp">Ações da IA</text></g><g transform="translate(578,326)"><path d="M0 0v10" stroke="#c4b5fd" stroke-width="1.5"/><rect x="-5" y="-5" width="10" height="10" transform="rotate(45)" fill="#fff" stroke="#7c3aed" stroke-width="1.5"/><rect x="-50.0" y="11" width="100" height="16" rx="8" fill="#f5f3ff" stroke="#c4b5fd"/><text x="0" y="22" class="fp">Base de conhecimento</text></g></svg>
+          <div class="fb-zoom"><span>−</span><span>100%</span><span>+</span></div>
+        </div></div>
+      </div>
+    </div>
+
+    <div class="split rev">
+      <div class="reveal">
+        <p class="eyebrow">Gestão</p>
+        <h2>Pare de adivinhar. Enxergue a operação inteira.</h2>
+        <p class="lead">Acompanhe o trabalho da equipe com relatórios objetivos e descubra onde estão os gargalos antes que virem reclamação.</p>
+        <ul class="ticks">
+          <li><span class="n"><svg class="ico"><use href="#i-chart"/></svg></span><div><strong>Volume e evolução das mensagens</strong><span>Entenda os picos do dia e da semana para dimensionar a equipe.</span></div></li>
+          <li><span class="n"><svg class="ico"><use href="#i-inbox"/></svg></span><div><strong>Conversas recebidas e não atendidas</strong><span>Veja o que ficou para trás e aja antes de perder o cliente.</span></div></li>
+          <li><span class="n"><svg class="ico"><use href="#i-team"/></svg></span><div><strong>Detalhe por conexão, fila e agente</strong><span>Compare números, setores e pessoas no período que você escolher.</span></div></li>
+        </ul>
+      </div>
+      <div class="split-art reveal" aria-hidden="true">
+        <!-- Simulação da tela de Relatórios, no layout real do app (dados fictícios) -->
+        <div class="shot"><div class="shot-in rp">
+          <header><div><small>Estatísticas de atendimento</small><strong>Relatórios</strong><span>Últimos 7 dias</span></div><em><svg class="ico"><use href="#i-file"/></svg>Exportar PDF</em></header>
+          <div class="rp-kpis"><article><p>Mensagens enviadas<svg class="ico"><use href="#i-up"/></svg></p><strong>1412</strong></article><article><p>Mensagens recebidas<svg class="ico"><use href="#i-down"/></svg></p><strong>1284</strong></article><article><p>Conversas não atendidas<svg class="ico"><use href="#i-clock"/></svg></p><strong>23</strong></article><article><p>Conversas distintas<svg class="ico"><use href="#i-chats"/></svg></p><strong>318</strong></article></div>
+          <section class="rp-card"><h4>Evolução das mensagens<span><span><i></i>Enviadas</span><span><i class="g"></i>Recebidas</span></span></h4><div class="tr"><div><u><i style="--h:58%"></i><i style="--h:52%"></i></u><small>05/11</small></div><div><u><i style="--h:74%"></i><i style="--h:66%"></i></u><small>06/11</small></div><div><u><i style="--h:66%"></i><i style="--h:61%"></i></u><small>07/11</small></div><div><u><i style="--h:88%"></i><i style="--h:79%"></i></u><small>08/11</small></div><div><u><i style="--h:100%"></i><i style="--h:92%"></i></u><small>09/11</small></div><div><u><i style="--h:46%"></i><i style="--h:40%"></i></u><small>10/11</small></div><div><u><i style="--h:30%"></i><i style="--h:27%"></i></u><small>11/11</small></div></div></section>
+          <section class="rp-card"><h4>Conversas por fila</h4><div class="rb"><p>Comercial<b>142</b></p><u style="--w:100%"></u></div><div class="rb"><p>Suporte<b>108</b></p><u style="--w:76%"></u></div><div class="rb"><p>Financeiro<b>68</b></p><u style="--w:48%"></u></div></section>
+          <p class="demo-label">Dados ilustrativos</p>
+        </div></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ COMO FUNCIONA ============ -->
+<section class="light" id="como-funciona">
+  <div class="wrap">
+    <div class="head center reveal">
+      <p class="eyebrow">Como funciona</p>
+      <h2>Do cadastro ao primeiro atendimento em minutos.</h2>
+      <p class="lead">Sem instalação, sem projeto de implantação. Você cria a conta e já começa a atender.</p>
+    </div>
+    <ol class="steps">
+      <li class="step reveal"><h3>Conecte seu WhatsApp</h3><p>Crie a conta da empresa e leia o QR Code com o número que você já usa.</p><small>≈ 2 minutos</small></li>
+      <li class="step reveal"><h3>Monte sua equipe</h3><p>Convide os agentes, crie os setores e defina quem pode ver e fazer o quê.</p><small>Agentes e setores</small></li>
+      <li class="step reveal"><h3>Automatize a recepção</h3><p>Comece por um modelo de flow e adicione um agente de IA quando quiser.</p><small>Flows e IA</small></li>
+      <li class="step reveal"><h3>Acompanhe e melhore</h3><p>Use os relatórios para ajustar filas, horários e respostas com base em dados.</p><small>Relatórios</small></li>
+    </ol>
+  </div>
+</section>
+
+<!-- ============ DIFERENCIAIS ============ -->
+<section id="diferenciais">
+  <div class="wrap">
+    <div class="head reveal">
+      <p class="eyebrow">Diferenciais</p>
+      <h2>Por que as equipes escolhem o <span class="grad">DoveChat</span>.</h2>
+      <p class="lead">Mais do que uma caixa de entrada: uma plataforma pensada para o atendimento ser leve para quem atende e rápido para quem é atendido.</p>
+    </div>
+    <div class="diffs">
+      <article class="diff reveal"><span class="badge"><svg class="ico"><use href="#i-spark"/></svg></span><div><h3>IA que age com contexto</h3><p>Os agentes lembram das ações já executadas em cada atendimento, evitam repetir perguntas e seguem as regras que você define.</p></div></article>
+      <article class="diff reveal"><span class="badge"><svg class="ico"><use href="#i-hand"/></svg></span><div><h3>Humano sempre no controle</h3><p>Você decide onde a automação entra e onde ela para. A transferência para a equipe acontece com histórico e notas preservados.</p></div></article>
+      <article class="diff reveal"><span class="badge"><svg class="ico"><use href="#i-layers"/></svg></span><div><h3>Cresce do seu tamanho</h3><p>Precisa de mais um número, mais usuários ou mais espaço? Adicione apenas o que falta, sem ser obrigado a trocar de plano.</p></div></article>
+      <article class="diff reveal"><span class="badge"><svg class="ico"><use href="#i-shield"/></svg></span><div><h3>Organização e segurança</h3><p>Permissões por perfil, registro de auditoria das ações da empresa e exportação de conversas quando você precisar.</p></div></article>
+      <article class="diff reveal"><span class="badge"><svg class="ico"><use href="#i-flow"/></svg></span><div><h3>Automação sem programar</h3><p>Um editor visual com blocos prontos para menus, condições, horários, variáveis e integrações. Quem conhece o processo monta o fluxo.</p></div></article>
+      <article class="diff reveal"><span class="badge"><svg class="ico"><use href="#i-code"/></svg></span><div><h3>Aberto para integrar</h3><p>API documentada e webhooks para conectar CRM, ERP, loja virtual e o que mais fizer parte da sua rotina.</p></div></article>
+    </div>
+  </div>
+</section>
+
+<!-- ============ PLANOS ============ -->
+<!-- Planos e valores FICTÍCIOS, apenas para demonstração do layout. Substitua pelos planos reais (GET /billing/api/catalog). -->
+<section class="light" id="planos">
+  <div class="wrap">
+    <div class="head center reveal">
+      <p class="eyebrow">Planos</p>
+      <h2>Um plano para cada momento da sua operação.</h2>
+      <p class="lead">Comece com 10 dias grátis em qualquer plano. Mude ou cancele quando quiser.</p>
+    </div>
+
+    <div class="cycle reveal">
+      <span id="lbl-m">Mensal</span>
+      <button class="switch" id="cycle" role="switch" aria-checked="true" aria-label="Cobrança anual"></button>
+      <span id="lbl-a" class="on">Anual</span>
+      <span class="save">Economize 17%</span>
+    </div>
+
+    <div class="plans">
+      <article class="plan reveal">
+        <h3>Essencial</h3>
+        <p class="for">Para organizar o primeiro atendimento em equipe.</p>
+        <p class="price"><sup>R$</sup><b data-m="119" data-a="99">99</b><span>/mês</span></p>
+        <p class="billed" data-m="Cobrado mensalmente" data-a="R$ 1.188 cobrados por ano">R$ 1.188 cobrados por ano</p>
+        <div class="caps"><div><b>3</b><span>agentes</span></div><div><b>1</b><span>conexão</span></div><div><b>5 GB</b><span>de mídia</span></div></div>
+        <ul>
+          <li><svg class="ico"><use href="#i-check"/></svg>Caixa de entrada compartilhada</li>
+          <li><svg class="ico"><use href="#i-check"/></svg>Setores e transferências</li>
+          <li><svg class="ico"><use href="#i-check"/></svg>Respostas rápidas e notas internas</li>
+          <li><svg class="ico"><use href="#i-check"/></svg>Contatos, etiquetas e histórico</li>
+          <li><svg class="ico"><use href="#i-check"/></svg>Relatórios de atendimento</li>
+        </ul>
+        <a href="/billing" class="btn btn-ghost btn-block">Começar teste grátis</a>
+      </article>
+
+      <article class="plan hot reveal">
+        <span class="flag">Recomendado</span>
+        <h3>Profissional</h3>
+        <p class="for">Para equipes que querem automatizar e escalar o atendimento.</p>
+        <p class="price"><sup>R$</sup><b data-m="299" data-a="249">249</b><span>/mês</span></p>
+        <p class="billed" data-m="Cobrado mensalmente" data-a="R$ 2.988 cobrados por ano">R$ 2.988 cobrados por ano</p>
+        <div class="caps"><div><b>10</b><span>agentes</span></div><div><b>3</b><span>conexões</span></div><div><b>25 GB</b><span>de mídia</span></div></div>
+        <ul>
+          <li><svg class="ico"><use href="#i-check"/></svg>Tudo do Essencial</li>
+          <li><svg class="ico"><use href="#i-check"/></svg>Flow Builder com modelos prontos</li>
+          <li><svg class="ico"><use href="#i-check"/></svg>Agentes de IA com base de conhecimento</li>
+          <li><svg class="ico"><use href="#i-check"/></svg>Mensagens agendadas e pesquisa NPS</li>
+          <li><svg class="ico"><use href="#i-check"/></svg>Adicionais sob demanda</li>
+        </ul>
+        <a href="/billing" class="btn btn-primary btn-block">Testar grátis por 10 dias <svg class="ico"><use href="#i-arrow"/></svg></a>
+      </article>
+
+      <article class="plan reveal">
+        <h3>Escala</h3>
+        <p class="for">Para operações com vários números, filas e integrações.</p>
+        <p class="price"><sup>R$</sup><b data-m="719" data-a="599">599</b><span>/mês</span></p>
+        <p class="billed" data-m="Cobrado mensalmente" data-a="R$ 7.188 cobrados por ano">R$ 7.188 cobrados por ano</p>
+        <div class="caps"><div><b>30</b><span>agentes</span></div><div><b>10</b><span>conexões</span></div><div><b>100 GB</b><span>de mídia</span></div></div>
+        <ul>
+          <li><svg class="ico"><use href="#i-check"/></svg>Tudo do Profissional</li>
+          <li><svg class="ico"><use href="#i-check"/></svg>API e webhooks</li>
+          <li><svg class="ico"><use href="#i-check"/></svg>Transcrição de áudio incluída</li>
+          <li><svg class="ico"><use href="#i-check"/></svg>Auditoria e exportação de conversas</li>
+          <li><svg class="ico"><use href="#i-check"/></svg>Suporte prioritário</li>
+        </ul>
+        <a href="/billing" class="btn btn-ghost btn-block">Começar teste grátis</a>
+      </article>
+    </div>
+
+    <div class="addons reveal">
+      <strong>Precisa de um pouco mais?</strong>
+      <p>Inclua adicionais no seu plano e pague só pelo que usar a mais.</p>
+      <div class="chips"><b>+ Conexões</b><b>+ Usuários</b><b>+ Armazenamento</b><b>Transcrição de áudio</b></div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ FAQ ============ -->
+<section class="light faq" id="faq">
+  <div class="wrap faq-grid">
+    <div class="head reveal">
+      <p class="eyebrow">Dúvidas frequentes</p>
+      <h2>Antes de começar.</h2>
+      <p class="lead">Ainda com dúvida? Crie a conta e explore a plataforma inteira durante o teste.</p>
+      <p style="margin-top:26px"><a href="/billing" class="btn btn-primary">Criar conta grátis <svg class="ico"><use href="#i-arrow"/></svg></a></p>
+    </div>
+    <div class="reveal">
+      <details open>
+        <summary>Preciso pagar ou cadastrar cartão para testar?</summary>
+        <p>Não. Você cria a conta da empresa, escolhe um plano e usa a plataforma por 10 dias. Nenhum pagamento é exigido durante a avaliação.</p>
+      </details>
+      <details>
+        <summary>Funciona com o número de WhatsApp que eu já uso?</summary>
+        <p>Sim. Você conecta o número lendo um QR Code, como no WhatsApp Web, e passa a atender pelo DoveChat com toda a equipe.</p>
+      </details>
+      <details>
+        <summary>Quantas pessoas podem atender no mesmo número?</summary>
+        <p>Quantas o seu plano permitir. Cada agente entra com o próprio acesso, e as conversas são distribuídas por setor e responsável.</p>
+      </details>
+      <details>
+        <summary>A IA responde sozinha aos meus clientes?</summary>
+        <p>Só onde você quiser. O agente de IA é um bloco do seu fluxo: você define o que ele sabe, o que pode fazer e quando deve transferir para uma pessoa.</p>
+      </details>
+      <details>
+        <summary>Posso mudar de plano depois?</summary>
+        <p>Pode, a qualquer momento. Também é possível contratar adicionais de conexões, usuários, armazenamento e transcrição de áudio sem trocar de plano.</p>
+      </details>
+      <details>
+        <summary>Preciso saber programar para criar automações?</summary>
+        <p>Não. O Flow Builder é visual: você arrasta blocos e liga os caminhos. Para quem quer ir além, há API e webhooks.</p>
+      </details>
+    </div>
+  </div>
+</section>
+
+<!-- ============ CTA FINAL ============ -->
+<section class="final">
+  <div class="wrap">
+    <div class="cta reveal">
+      <svg class="mark" aria-hidden="true"><use href="#dove"/></svg>
+      <h2>Deixe seu atendimento levantar voo.</h2>
+      <p>Crie sua conta, conecte o WhatsApp e atenda com a equipe inteira ainda hoje. Os primeiros 10 dias são por nossa conta.</p>
+      <div class="hero-actions">
+        <a href="/billing" class="btn btn-white">Testar grátis por 10 dias <svg class="ico"><use href="#i-arrow"/></svg></a>
+        <a href="#planos" class="btn btn-ghost">Comparar planos</a>
+      </div>
+    </div>
+  </div>
+</section>
+
+</main>
+
+<footer>
+  <div class="wrap">
+    <a href="#topo" class="brand" aria-label="DoveChat — início">
+      <svg aria-hidden="true"><use href="#dove"/></svg>
+      <span>Dove<b>Chat</b></span>
+    </a>
+    <nav aria-label="Rodapé">
+      <a href="#recursos">Recursos</a>
+      <a href="#planos">Planos</a>
+      <a href="#faq">Dúvidas</a>
+      <a href="/login">Entrar</a>
+    </nav>
+    <span>© <span id="ano">2026</span> DoveChat. Todos os direitos reservados.</span>
+  </div>
+</footer>
+
+<script>
+(function () {
+  // Menu mobile
+  var burger = document.getElementById('burger'), menu = document.getElementById('menu');
+  burger.addEventListener('click', function () {
+    var open = menu.classList.toggle('open');
+    burger.setAttribute('aria-expanded', open);
+  });
+  menu.addEventListener('click', function (e) {
+    if (e.target.tagName === 'A') { menu.classList.remove('open'); burger.setAttribute('aria-expanded', 'false'); }
+  });
+
+  // Alternância mensal / anual
+  var sw = document.getElementById('cycle'), lblM = document.getElementById('lbl-m'), lblA = document.getElementById('lbl-a');
+  sw.addEventListener('click', function () {
+    var annual = sw.getAttribute('aria-checked') !== 'true';
+    sw.setAttribute('aria-checked', annual);
+    lblA.classList.toggle('on', annual);
+    lblM.classList.toggle('on', !annual);
+    document.querySelectorAll('#planos [data-m]').forEach(function (el) {
+      el.textContent = annual ? el.dataset.a : el.dataset.m;
+    });
+  });
+
+  // Entrada suave ao rolar
+  var items = document.querySelectorAll('.reveal');
+  if (!('IntersectionObserver' in window)) { items.forEach(function (el) { el.classList.add('in'); }); }
+  else {
+    var io = new IntersectionObserver(function (entries) {
+      entries.forEach(function (en) {
+        if (en.isIntersecting) { en.target.classList.add('in'); io.unobserve(en.target); }
+      });
+    }, { rootMargin: '0px 0px -8% 0px', threshold: 0.08 });
+    items.forEach(function (el, i) { el.style.transitionDelay = (i % 4) * 60 + 'ms'; io.observe(el); });
+  }
+
+  document.getElementById('ano').textContent = new Date().getFullYear();
+})();
+</script>
+</body>
+</html>

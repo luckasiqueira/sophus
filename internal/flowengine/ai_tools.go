@@ -11,6 +11,7 @@ import (
 	"net/url"
 	"regexp"
 	"strings"
+	"time"
 	"unicode"
 
 	"github.com/google/uuid"
@@ -381,6 +382,8 @@ type aiToolRunner struct {
 	actions      map[string]AIAction
 	messenger    *Messenger
 	pending      *pendingAIAction
+	// remembered holds this answer's API results, saved for later messages.
+	remembered []aiActionMemoryEntry
 }
 
 type pendingAIAction struct {
@@ -416,6 +419,9 @@ func (runner *aiToolRunner) Execute(_ context.Context, call llm.ToolCall) string
 		return "Erro ao executar a ação: " + err.Error()
 	}
 	log.Printf("ai agent action executed: conversation=%d company=%d agent=%d action=%s type=%s", runner.conversation.Id, companyID, runner.session.Agent.Id, action.ID, action.Type)
+	if action.Type == "http" {
+		runner.remembered = append(runner.remembered, newAIActionMemoryEntry(action, call.Arguments, result, time.Now()))
+	}
 	return result
 }
 

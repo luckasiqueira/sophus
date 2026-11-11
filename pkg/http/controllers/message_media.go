@@ -162,7 +162,7 @@ func loadOperatorMediaContext(ctx iris.Context) (operatorMediaContext, bool) {
 		return operatorMediaContext{}, false
 	}
 	assigned := conversation.AgentID != nil && *conversation.AgentID == agent.Id
-	if conversation.AgentID == nil || (!assigned && !agent.IsAdmin()) || conversation.Status == repo.ConversationStatusClosed || conversation.Status == repo.ConversationStatusRunning {
+	if conversation.AgentID == nil || (!assigned && !agent.CanSupervise()) || conversation.Status == repo.ConversationStatusClosed || conversation.Status == repo.ConversationStatusRunning {
 		ctx.StopWithStatus(iris.StatusForbidden)
 		return operatorMediaContext{}, false
 	}

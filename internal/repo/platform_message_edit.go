@@ -35,7 +35,7 @@ func AgentCanEditMessages(policy string, agent Agent, conversation Conversation)
 	if conversation.ConnectionID <= 0 || conversation.Status != ConversationStatusOpen {
 		return false
 	}
-	if !agent.IsAdmin() && (conversation.AgentID == nil || *conversation.AgentID != agent.Id) {
+	if !agent.CanSupervise() && (conversation.AgentID == nil || *conversation.AgentID != agent.Id) {
 		return false
 	}
 	return policy == MessageEditingEveryone || policy == MessageEditingAdmins && agent.IsAdmin()

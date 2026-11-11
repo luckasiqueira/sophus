@@ -27,7 +27,7 @@ func download(url string) []byte {
 	if err != nil {
 		panic(err)
 	}
-	request.Header.Set("User-Agent", "Sophus-emoji-catalog-generator")
+	request.Header.Set("User-Agent", "DoveChat-emoji-catalog-generator")
 	response, err := client.Do(request)
 	if err != nil {
 		panic(err)

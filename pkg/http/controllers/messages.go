@@ -362,7 +362,7 @@ func CloseConversation(ctx iris.Context) {
 		ctx.StopWithStatus(iris.StatusBadRequest)
 		return
 	}
-	if err := repo.CloseConversationByURL(conversationURL, agent.CompanyId, agent.Id, agent.IsAdmin()); err != nil {
+	if err := repo.CloseConversationByURL(conversationURL, agent.CompanyId, agent.Id, agent.CanSupervise()); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			ctx.StopWithStatus(iris.StatusNotFound)
 			return
@@ -424,7 +424,7 @@ func TransferConversation(ctx iris.Context) {
 		writeJSONError(ctx, iris.StatusBadRequest, "dados de transferência inválidos")
 		return
 	}
-	if err := repo.TransferConversationByURL(conversationURL, agent.CompanyId, agent.Id, agent.IsAdmin(), input.AgentID, input.DepartmentID); err != nil {
+	if err := repo.TransferConversationByURL(conversationURL, agent.CompanyId, agent.Id, agent.CanSupervise(), input.AgentID, input.DepartmentID); err != nil {
 		switch {
 		case errors.Is(err, sql.ErrNoRows):
 			writeJSONError(ctx, iris.StatusNotFound, "conversa não encontrada ou indisponível para transferência")
@@ -539,7 +539,7 @@ func ReactToMessage(ctx iris.Context) {
 		return
 	}
 	assignedToAgent := conversation.AgentID != nil && *conversation.AgentID == agent.Id
-	if (!assignedToAgent && !agent.IsAdmin()) || conversation.Status == repo.ConversationStatusClosed || conversation.Status == repo.ConversationStatusRunning {
+	if (!assignedToAgent && !agent.CanSupervise()) || conversation.Status == repo.ConversationStatusClosed || conversation.Status == repo.ConversationStatusRunning {
 		ctx.StopWithStatus(iris.StatusForbidden)
 		return
 	}
@@ -659,7 +659,7 @@ func sendMessageJWT(ctx iris.Context) (chatTextContext, repo.TextMessageEVO, err
 		return chatTextContext{}, repo.TextMessageEVO{}, err
 	}
 	assignedToAgent := conversation.AgentID != nil && *conversation.AgentID == agent.Id
-	if !assignedToAgent && !agent.IsAdmin() {
+	if !assignedToAgent && !agent.CanSupervise() {
 		return chatTextContext{}, repo.TextMessageEVO{}, errors.New("agent not authorized in this conversation")
 	}
 	// wait for the allowedConnections slice on agents table to check if agent has permission to that connection

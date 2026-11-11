@@ -26,7 +26,7 @@ func AuthAPI(ctx iris.Context) {
 			ctx.StopWithStatus(iris.StatusPaymentRequired)
 			return
 		}
-		ctx.Values().Set(agentContextKey, agent)
+		setAuthenticatedAgent(ctx, agent)
 		ctx.Values().Set(authMethodContextKey, authMethodCookie)
 		ctx.Next()
 		return

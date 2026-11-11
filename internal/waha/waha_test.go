@@ -83,7 +83,7 @@ func (f *fakeWAHA) find(method, path string) (recorded, bool) {
 	return recorded{}, false
 }
 
-// setup routes Sophus' real Evolution helpers through a bridge backed by a
+// setup routes DoveChat' real Evolution helpers through a bridge backed by a
 // fake WAHA server.
 func setup(t *testing.T, handle func(w http.ResponseWriter, r *http.Request, body map[string]any)) (*Bridge, *fakeWAHA) {
 	t.Helper()
@@ -146,7 +146,7 @@ func TestIDs(t *testing.T) {
 	}
 }
 
-func TestStatusThroughSophusGetStatus(t *testing.T) {
+func TestStatusThroughDoveChatGetStatus(t *testing.T) {
 	sessionStatus := "WORKING"
 	setup(t, func(w http.ResponseWriter, r *http.Request, _ map[string]any) {
 		if r.URL.Path != sessionPath() {
@@ -204,7 +204,7 @@ func TestSendTextResponseMatchesEvolution(t *testing.T) {
 	}
 }
 
-func TestQRCodeThroughSophusGetQRCode(t *testing.T) {
+func TestQRCodeThroughDoveChatGetQRCode(t *testing.T) {
 	png := base64.StdEncoding.EncodeToString([]byte("\x89PNG fake"))
 	setup(t, func(w http.ResponseWriter, r *http.Request, _ map[string]any) {
 		switch {
@@ -279,7 +279,7 @@ func TestButtonsAreSentAsList(t *testing.T) {
 		write(w, 201, map[string]any{"id": "true_5511988887777@c.us_LIST1"})
 	})
 	payload, _ := json.Marshal(map[string]any{
-		"number": "5511988887777", "title": "Atendimento", "description": "Escolha", "footer": "Sophus",
+		"number": "5511988887777", "title": "Atendimento", "description": "Escolha", "footer": "DoveChat",
 		"buttons": []map[string]string{{"type": "reply", "displayText": "Suporte", "id": "suporte"}},
 	})
 	res := b.route(context.Background(), http.MethodPost, "/send/button", testToken, payload)
@@ -298,7 +298,7 @@ func TestMenuIsSentAsList(t *testing.T) {
 		write(w, 201, map[string]any{"id": "true_5511988887777@c.us_MENU1"})
 	})
 	payload, _ := json.Marshal(map[string]any{
-		"number": "5511988887777", "title": "Menu", "description": "Escolha", "buttonText": "Ver Menu", "footerText": "Sophus",
+		"number": "5511988887777", "title": "Menu", "description": "Escolha", "buttonText": "Ver Menu", "footerText": "DoveChat",
 		"sections": []map[string]any{
 			{"title": "Opções", "rows": []map[string]string{{"title": "Opção 1", "description": "Teste 1", "rowId": "op1"}, {"title": "Opção 2", "rowId": "op2"}}},
 			{"title": "Navegação", "rows": []map[string]string{{"title": "Menu principal", "rowId": "menu_principal"}}},
@@ -312,7 +312,7 @@ func TestMenuIsSentAsList(t *testing.T) {
 	message := sent.Body["message"].(map[string]any)
 	sections := message["sections"].([]any)
 	first := sections[0].(map[string]any)["rows"].([]any)
-	if message["button"] != "Ver Menu" || message["footer"] != "Sophus" || len(sections) != 2 {
+	if message["button"] != "Ver Menu" || message["footer"] != "DoveChat" || len(sections) != 2 {
 		t.Fatalf("list message: %+v", message)
 	}
 	if row := first[0].(map[string]any); row["rowId"] != "op1" || row["description"] != "Teste 1" {
@@ -444,7 +444,7 @@ func TestTranslateWebhookReceiptAndConnection(t *testing.T) {
 	}
 	ids, status, err := repo.ParseMessageReceipt(translated)
 	if err != nil || len(ids) != 2 || status != 3 || !strings.Contains(string(translated), `"state":"Read"`) {
-		t.Fatalf("receipt not understood by Sophus: %v %d %v %s", ids, status, err, translated)
+		t.Fatalf("receipt not understood by DoveChat: %v %d %v %s", ids, status, err, translated)
 	}
 
 	working, _ := json.Marshal(map[string]any{"event": "session.status", "session": testSession, "payload": map[string]string{"status": "WORKING"}})
@@ -454,7 +454,7 @@ func TestTranslateWebhookReceiptAndConnection(t *testing.T) {
 	}
 	scanning, _ := json.Marshal(map[string]any{"event": "session.status", "session": testSession, "payload": map[string]string{"status": "SCAN_QR_CODE"}})
 	if _, ignored, err := b.TranslateWebhook(testConnection, sign(scanning), scanning); err != nil || !ignored {
-		t.Fatalf("SCAN_QR_CODE must be ignored (Sophus polls the QR): %v %v", ignored, err)
+		t.Fatalf("SCAN_QR_CODE must be ignored (DoveChat polls the QR): %v %v", ignored, err)
 	}
 	loggedOut := engineEnvelope(t, testSession, "events.LoggedOut", map[string]any{"Reason": 401})
 	translated, _, _ = b.TranslateWebhook(testConnection, sign(loggedOut), loggedOut)
@@ -590,7 +590,7 @@ func TestReconnectAppliesGOWSStorageConfig(t *testing.T) {
 			write(w, 201, map[string]any{"name": testSession})
 		}
 	})
-	// A distinct instance ID avoids Sophus' 30s per-instance reconnect cooldown
+	// A distinct instance ID avoids DoveChat' 30s per-instance reconnect cooldown
 	// left by other tests; the bridge resolves the session from the token.
 	if err := (&instances.InstanceEVO{InstanceID: uuid.New(), APIToken: testToken}).Reconnect(); err != nil {
 		t.Fatal(err)

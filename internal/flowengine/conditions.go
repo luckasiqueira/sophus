@@ -197,7 +197,7 @@ func (e *Engine) EvaluateCondition(condition string, ctx ExecutionContext) bool 
 		return true
 	}
 	if strings.HasPrefix(condition, "__hasLabel:") || strings.HasPrefix(condition, "__notHasLabel:") {
-		// Labels não implementadas no Sophus ainda
+		// Labels não implementadas no DoveChat ainda
 		return false
 	}
 	if isStringCondition(condition) {

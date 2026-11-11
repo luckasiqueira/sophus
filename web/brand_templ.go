@@ -8,7 +8,7 @@ package web
 import "github.com/a-h/templ"
 import templruntime "github.com/a-h/templ/runtime"
 
-// BrandLogo uses outlined lettering so the logo never depends on a web font.
+// BrandLogo renders the horizontal DoveChat logo for dark or light backgrounds.
 func BrandLogo(darkBackground bool, className string) templ.Component {
 	return templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
 		templ_7745c5c3_W, ctx := templ_7745c5c3_Input.Writer, templ_7745c5c3_Input.Context
@@ -36,7 +36,7 @@ func BrandLogo(darkBackground bool, className string) templ.Component {
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 1, "<img src=\"/logos/Sophus_logo_horizontal_colorido_branco.svg\" alt=\"Sophus\" width=\"1120\" height=\"256\" class=\"")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 1, "<img src=\"/logos/DoveChat_logo_horizontal_transparente.svg\" alt=\"DoveChat\" width=\"1310\" height=\"360\" class=\"")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
@@ -59,7 +59,7 @@ func BrandLogo(darkBackground bool, className string) templ.Component {
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 3, "<img src=\"/logos/Sophus_logo_horizontal.svg\" alt=\"Sophus\" width=\"1120\" height=\"256\" class=\"")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 3, "<img src=\"/logos/DoveChat_logo_horizontal_fundo_claro.svg\" alt=\"DoveChat\" width=\"1310\" height=\"360\" class=\"")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
@@ -108,7 +108,7 @@ func BrandSymbol(white bool, className string) templ.Component {
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 5, "<img src=\"/logos/Sophus_simbolo_branco.svg\" alt=\"Sophus\" width=\"256\" height=\"256\" class=\"")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 5, "<img src=\"/logos/DoveChat_simbolo_branco.svg\" alt=\"DoveChat\" width=\"256\" height=\"256\" class=\"")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
@@ -131,7 +131,7 @@ func BrandSymbol(white bool, className string) templ.Component {
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 7, "<img src=\"/logos/Sophus_simbolo_colorido.svg\" alt=\"Sophus\" width=\"256\" height=\"256\" class=\"")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 7, "<img src=\"/logos/DoveChat_simbolo_colorido.svg\" alt=\"DoveChat\" width=\"256\" height=\"256\" class=\"")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
@@ -174,7 +174,7 @@ func BrandIcons() templ.Component {
 			templ_7745c5c3_Var11 = templ.NopComponent
 		}
 		ctx = templ.ClearChildren(ctx)
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 9, "<link rel=\"icon\" type=\"image/svg+xml\" href=\"/logos/Sophus_simbolo_colorido.svg\">")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 9, "<link rel=\"icon\" type=\"image/svg+xml\" href=\"/logos/DoveChat_icone_aplicativo.svg\">")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}

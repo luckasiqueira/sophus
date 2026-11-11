@@ -129,7 +129,7 @@ templ StressTestPanel() {
 				const payload = await stressAPI('GET', API + '/companies/' + companyId + '/agents');
 				if (stress.agentsCompany !== companyId) return;
 				const list = (payload.data || []).filter(a => !(a.email || '').endsWith('@stress.invalid'));
-				agents.replaceChildren(new Option(list.length ? 'Selecione o usuário' : 'Empresa sem usuários', ''), ...list.map(a => new Option(a.name + ' · ' + a.email + ' · ' + (a.role === 'admin' ? 'Administrador' : 'Agente') + (a.isActive ? '' : ' · inativo'), String(a.id))));
+				agents.replaceChildren(new Option(list.length ? 'Selecione o usuário' : 'Empresa sem usuários', ''), ...list.map(a => new Option(a.name + ' · ' + a.email + ' · ' + ((a.role === 'admin' ? 'Administrador' : a.role === 'supervisor' ? 'Supervisor' : 'Agente')) + (a.isActive ? '' : ' · inativo'), String(a.id))));
 				agents.disabled = list.length === 0;
 			} catch (error) { agents.replaceChildren(new Option('Falha ao carregar usuários', '')); showStressError(error); }
 		}
@@ -225,8 +225,8 @@ templ StressTestPanel() {
 		];
 		const trafficSeries = { 'stress-requests': s => s.requestsPerSecond, 'stress-latency': s => s.p95LatencyMs };
 		function renderMetrics() {
-			window.SophusCharts.renderTiles($('stress-tiles'), stress.samples, trafficTiles);
-			document.querySelectorAll('[data-chart^="stress-"]').forEach(container => window.SophusCharts.render(container, stress.samples, trafficSeries[container.dataset.chart]));
+			window.DoveChatCharts.renderTiles($('stress-tiles'), stress.samples, trafficTiles);
+			document.querySelectorAll('[data-chart^="stress-"]').forEach(container => window.DoveChatCharts.render(container, stress.samples, trafficSeries[container.dataset.chart]));
 		}
 		function panelVisible() { return !$('stress-panel').classList.contains('hidden') && document.visibilityState !== 'hidden'; }
 		async function poll() {

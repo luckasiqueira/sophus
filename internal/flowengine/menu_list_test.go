@@ -33,7 +33,7 @@ func TestMenuFooterCanBeRemoved(t *testing.T) {
 	if footer := menuFooter(map[string]interface{}{"footerText": ""}, nil); footer != "" {
 		t.Fatalf("a cleared footer must stay empty, got %q", footer)
 	}
-	if footer := menuFooter(map[string]interface{}{}, nil); footer != "Sophus" {
+	if footer := menuFooter(map[string]interface{}{}, nil); footer != "DoveChat" {
 		t.Fatalf("menus saved without the field keep the old default, got %q", footer)
 	}
 	if footer := menuFooter(map[string]interface{}{"footerText": " Loja {{cidade}} "}, ExecutionContext{"cidade": "Centro"}); footer != "Loja Centro" {

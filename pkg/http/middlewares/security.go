@@ -40,6 +40,19 @@ func RequireCookieSameOrigin(ctx iris.Context) {
 	RequireSameOrigin(ctx)
 }
 
+// RequireCompanySupervisor allows supervisors and admins.
+func RequireCompanySupervisor(ctx iris.Context) {
+	agent, err := AgentIdentifier(ctx)
+	if err != nil {
+		return
+	}
+	if !agent.CanSupervise() {
+		ctx.StopWithStatus(iris.StatusForbidden)
+		return
+	}
+	ctx.Next()
+}
+
 func RequireCompanyAdmin(ctx iris.Context) {
 	agent, err := AgentIdentifier(ctx)
 	if err != nil {

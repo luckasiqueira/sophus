@@ -93,14 +93,14 @@ func validAvatarURL(value string) bool {
 }
 
 func ContactsPage(ctx iris.Context) {
-	if _, ok := requireAdmin(ctx); !ok {
+	if _, ok := requireCompanyAgent(ctx); !ok {
 		return
 	}
 	ctx.RenderComponent(web.Contacts())
 }
 
 func ListContactTags(ctx iris.Context) {
-	agent, ok := requireAdmin(ctx)
+	agent, ok := requireCompanyAgent(ctx)
 	if !ok {
 		return
 	}
@@ -113,7 +113,7 @@ func ListContactTags(ctx iris.Context) {
 }
 
 func CreateContactTag(ctx iris.Context) {
-	agent, ok := requireAdmin(ctx)
+	agent, ok := requireSupervisor(ctx)
 	if !ok {
 		return
 	}
@@ -149,7 +149,7 @@ func CreateContactTag(ctx iris.Context) {
 }
 
 func RenameContactTag(ctx iris.Context) {
-	agent, ok := requireAdmin(ctx)
+	agent, ok := requireSupervisor(ctx)
 	if !ok {
 		return
 	}
@@ -194,7 +194,7 @@ func RenameContactTag(ctx iris.Context) {
 }
 
 func DeleteContactTag(ctx iris.Context) {
-	agent, ok := requireAdmin(ctx)
+	agent, ok := requireSupervisor(ctx)
 	if !ok {
 		return
 	}
@@ -219,7 +219,7 @@ func DeleteContactTag(ctx iris.Context) {
 }
 
 func SetCompanyContactTags(ctx iris.Context) {
-	agent, ok := requireAdmin(ctx)
+	agent, ok := requireCompanyAgent(ctx)
 	if !ok {
 		return
 	}
@@ -297,7 +297,7 @@ func readContactInput(ctx iris.Context) (repo.ContactUpdateInput, bool) {
 }
 
 func CreateCompanyContact(ctx iris.Context) {
-	agent, ok := requireAdmin(ctx)
+	agent, ok := requireCompanyAgent(ctx)
 	if !ok {
 		return
 	}
@@ -321,7 +321,7 @@ func CreateCompanyContact(ctx iris.Context) {
 }
 
 func UpdateCompanyContact(ctx iris.Context) {
-	agent, ok := requireAdmin(ctx)
+	agent, ok := requireCompanyAgent(ctx)
 	if !ok {
 		return
 	}
@@ -353,7 +353,7 @@ func validContactTagName(name string) bool {
 }
 
 func DeleteCompanyContact(ctx iris.Context) {
-	agent, ok := requireAdmin(ctx)
+	agent, ok := requireSupervisor(ctx)
 	if !ok {
 		return
 	}

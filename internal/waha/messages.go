@@ -11,7 +11,7 @@ import (
 	"time"
 )
 
-// sendResponse returns the Evolution GO send response Sophus parses:
+// sendResponse returns the Evolution GO send response DoveChat parses:
 // data.Info.ID / data.key.id plus the sent protobuf message.
 func (b *Bridge) sendResponse(chatID string, response apiResponse) result {
 	var sent struct {
@@ -42,7 +42,7 @@ func (b *Bridge) sendResponse(chatID string, response apiResponse) result {
 
 // sentMessageContent returns only the protobuf message of a WAHA send
 // response. GOWS may return the whole whatsmeow event ({"Info", "Message"});
-// passing it through would make Sophus see an unknown "Message" content type.
+// passing it through would make DoveChat see an unknown "Message" content type.
 func sentMessageContent(raw json.RawMessage) json.RawMessage {
 	if len(raw) == 0 || string(raw) == "null" {
 		return json.RawMessage("{}")
@@ -214,7 +214,7 @@ func (b *Bridge) sendMedia(ctx context.Context, session string, payload []byte) 
 }
 
 // POST /send/button. GOWS has no reply buttons, so they are sent as a single
-// section list: the selected row ID equals the button ID, which Sophus' flow
+// section list: the selected row ID equals the button ID, which DoveChat' flow
 // engine already reads from listResponseMessage.
 func (b *Bridge) sendButtons(ctx context.Context, session string, payload []byte) result {
 	var request struct {
@@ -262,7 +262,7 @@ func (b *Bridge) sendButtons(ctx context.Context, session string, payload []byte
 }
 
 // POST /send/list {number, title, description, buttonText, footerText,
-// sections: [{title, rows: [{title, description, rowId}]}], delay}. Sophus'
+// sections: [{title, rows: [{title, description, rowId}]}], delay}. DoveChat'
 // own route (Evolution GO has no list messages): the flow Menu block uses it
 // only with WAHA. The chosen row comes back as its rowId.
 func (b *Bridge) sendList(ctx context.Context, session string, payload []byte) result {

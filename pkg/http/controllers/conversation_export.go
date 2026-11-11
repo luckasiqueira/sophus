@@ -23,7 +23,7 @@ func ExportCurrentConversation(ctx iris.Context)  { exportConversationPDF(ctx, f
 func ExportContactConversations(ctx iris.Context) { exportConversationPDF(ctx, true) }
 
 func exportConversationPDF(ctx iris.Context, all bool) {
-	agent, ok := requireAdmin(ctx)
+	agent, ok := requireSupervisor(ctx)
 	if !ok {
 		return
 	}
@@ -156,12 +156,12 @@ func buildConversationExportPDFWithEmojis(export repo.ConversationExport, load c
 		title = "Histórico completo do contato"
 	}
 	pdf.SetTitle(title, true)
-	pdf.SetAuthor("Sophus", true)
+	pdf.SetAuthor("DoveChat", true)
 	pdf.SetFooterFunc(func() {
 		pdf.SetY(-12)
 		pdf.SetFont("Go", "", 8)
 		pdf.SetTextColor(110, 110, 120)
-		pdf.CellFormat(180, 5, fmt.Sprintf("Sophus · %s · Página %d", title, pdf.PageNo()), "", 0, "R", false, 0, "")
+		pdf.CellFormat(180, 5, fmt.Sprintf("DoveChat · %s · Página %d", title, pdf.PageNo()), "", 0, "R", false, 0, "")
 		if len(writer.images) > 0 {
 			pdf.SetY(-7)
 			pdf.SetFont("Go", "", 6)

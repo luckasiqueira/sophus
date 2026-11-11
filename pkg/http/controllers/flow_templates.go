@@ -18,7 +18,7 @@ type flowTemplateRequest struct {
 }
 
 func ListFlowTemplates(ctx iris.Context) {
-	agent, ok := requireAdmin(ctx)
+	agent, ok := requireSupervisor(ctx)
 	if !ok {
 		return
 	}
@@ -31,7 +31,7 @@ func ListFlowTemplates(ctx iris.Context) {
 }
 
 func CreateFlowTemplate(ctx iris.Context) {
-	agent, ok := requireAdmin(ctx)
+	agent, ok := requireSupervisor(ctx)
 	if !ok {
 		return
 	}
@@ -55,7 +55,7 @@ func CreateFlowTemplate(ctx iris.Context) {
 }
 
 func UpdateFlowTemplate(ctx iris.Context) {
-	agent, ok := requireAdmin(ctx)
+	agent, ok := requireSupervisor(ctx)
 	if !ok {
 		return
 	}
@@ -87,7 +87,7 @@ func UpdateFlowTemplate(ctx iris.Context) {
 }
 
 func DeleteFlowTemplate(ctx iris.Context) {
-	agent, ok := requireAdmin(ctx)
+	agent, ok := requireSupervisor(ctx)
 	if !ok {
 		return
 	}

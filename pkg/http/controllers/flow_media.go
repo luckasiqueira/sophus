@@ -11,7 +11,7 @@ import (
 )
 
 func UploadFlowMedia(ctx iris.Context) {
-	agent, ok := requireAdmin(ctx)
+	agent, ok := requireSupervisor(ctx)
 	if !ok {
 		return
 	}

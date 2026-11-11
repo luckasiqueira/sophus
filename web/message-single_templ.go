@@ -118,7 +118,7 @@ func messageConversationTab(conversation repo.Conversation) string {
 }
 
 func canReplyToConversation(conversation repo.Conversation, agent repo.Agent) bool {
-	return agent.IsAdmin() || (conversation.AgentID != nil && *conversation.AgentID == agent.Id)
+	return agent.CanSupervise() || (conversation.AgentID != nil && *conversation.AgentID == agent.Id)
 }
 
 func messageConversationScope(conversation repo.Conversation) string {
@@ -466,7 +466,7 @@ func ConversationPanel(activeConversation repo.Conversation, agent repo.Agent, m
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			if agent.IsAdmin() {
+			if agent.CanSupervise() {
 				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 27, "<button type=\"button\" onclick=\"window.openTransferConversationModal()\" class=\"flex items-center gap-2 rounded-xl bg-purple-700 px-2 py-2 text-xs font-semibold text-white shadow-sm transition-colors hover:bg-purple-800 sm:px-4 sm:text-sm\" title=\"Transferir conversa\"><i class=\"fas fa-arrow-right-arrow-left\"></i><span>Transferir</span></button> ")
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
@@ -483,7 +483,7 @@ func ConversationPanel(activeConversation repo.Conversation, agent repo.Agent, m
 				return templ_7745c5c3_Err
 			}
 		}
-		if agent.IsAdmin() {
+		if agent.CanSupervise() {
 			templ_7745c5c3_Err = ConversationExportControls(activeConversation.URL.String(), activeConversation.Contact.Id).Render(ctx, templ_7745c5c3_Buffer)
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
@@ -602,7 +602,7 @@ func ConversationPanel(activeConversation repo.Conversation, agent repo.Agent, m
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		if agent.IsAdmin() && !activeConversation.Contact.IsGroup {
+		if !activeConversation.Contact.IsGroup {
 			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 40, "<div id=\"conversation-contact-edit-modal\" class=\"fixed inset-0 z-[60] hidden items-end justify-center bg-stone-950/65 p-0 backdrop-blur-sm sm:items-center sm:p-5\" role=\"dialog\" aria-modal=\"true\" aria-labelledby=\"conversation-contact-edit-title\"><div class=\"max-h-[100dvh] w-full max-w-xl overflow-y-auto rounded-t-3xl bg-white shadow-2xl sm:max-h-[calc(100dvh-2.5rem)] sm:rounded-3xl\"><header class=\"flex items-center justify-between border-b border-stone-200 px-5 py-4 sm:px-6\"><div><p class=\"text-[10px] font-bold uppercase tracking-[.2em] text-purple-600\">Cadastro do contato</p><h2 id=\"conversation-contact-edit-title\" class=\"mt-1 text-xl font-black text-gray-950\">Editar contato</h2></div><button id=\"conversation-contact-edit-close\" type=\"button\" class=\"grid h-10 w-10 place-items-center rounded-xl bg-stone-100 text-gray-500 hover:bg-stone-200\" aria-label=\"Fechar\"><i class=\"fas fa-xmark\"></i></button></header><form id=\"conversation-contact-edit-form\" class=\"p-5 sm:p-6\"><input id=\"conversation-contact-edit-id\" type=\"hidden\" value=\"")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
@@ -994,7 +994,7 @@ func ConversationPanel(activeConversation repo.Conversation, agent repo.Agent, m
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		if agent.IsAdmin() && !activeConversation.Contact.IsGroup {
+		if !activeConversation.Contact.IsGroup {
 			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 80, "<button id=\"conversation-contact-edit-button\" type=\"button\" class=\"w-full px-4 py-3 bg-purple-100 text-purple-700 rounded-xl font-medium hover:bg-purple-200 transition-colors flex items-center justify-center gap-2\"><i class=\"fas fa-pen\"></i>Editar contato</button> ")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
@@ -1004,7 +1004,7 @@ func ConversationPanel(activeConversation repo.Conversation, agent repo.Agent, m
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		if agent.IsAdmin() && !activeConversation.Contact.IsGroup {
+		if !activeConversation.Contact.IsGroup {
 			templ_7745c5c3_Err = ContactAPIRuntime().Render(ctx, templ_7745c5c3_Buffer)
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err

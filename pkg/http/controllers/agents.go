@@ -165,8 +165,8 @@ func normalizeAndValidateAgent(body *companyAgentRequest, passwordRequired bool)
 	if !validEmail(body.Email) {
 		return "email inválido"
 	}
-	if body.Role != repo.RoleAdmin && body.Role != repo.RoleAgent {
-		return "papel deve ser admin ou agent"
+	if body.Role != repo.RoleAdmin && body.Role != repo.RoleSupervisor && body.Role != repo.RoleAgent {
+		return "papel deve ser admin, supervisor ou agent"
 	}
 	if passwordRequired && body.Password == "" {
 		return "senha é obrigatória"

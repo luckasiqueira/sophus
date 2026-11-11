@@ -25,7 +25,7 @@ func runControlDOMTest(t *testing.T, component templ.Component, script string) {
 		t.Fatal(err)
 	}
 	var html strings.Builder
-	if err := component.Render(context.Background(), &html); err != nil {
+	if err := component.Render(adminRenderContext(), &html); err != nil {
 		t.Fatal(err)
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)

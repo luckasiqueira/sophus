@@ -47,7 +47,7 @@ func TestBrandAssetsArePublicAndBundled(t *testing.T) {
 			}
 		})
 	}
-	for _, path := range []string{"/logos/assets.go", "/logos/Sophus_prancha_vetorial.svg", "/logos/missing.svg"} {
+	for _, path := range []string{"/logos/assets.go", "/logos/DoveChat_prancha_vetorial.svg", "/logos/missing.svg"} {
 		response := httptest.NewRecorder()
 		app.ServeHTTP(response, httptest.NewRequest("GET", path, nil))
 		if response.Code != 404 {

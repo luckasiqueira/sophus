@@ -17,7 +17,7 @@ type flowConnectionDTO struct {
 // JSON list of this company's WhatsApp connections, used by the flow
 // builder's "which connection does this flow run on" dropdown.
 func ListConnectionsForFlows(ctx iris.Context) {
-	agent, ok := requireAdmin(ctx)
+	agent, ok := requireSupervisor(ctx)
 	if !ok {
 		return
 	}

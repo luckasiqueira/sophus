@@ -192,7 +192,7 @@ func ActivateAIAgentSession(conversationID, agentID, companyID int, safeMode boo
 		JOIN ai_agents a ON a.id = $2 AND a."companyId" = $3 AND a."isActive" = true
 		WHERE cv.id = $1
 		ON CONFLICT ("conversationId") DO UPDATE SET "aiAgentId" = EXCLUDED."aiAgentId", "safeMode" = EXCLUDED."safeMode",
-			extensions = EXCLUDED.extensions, status = 'active', "startedAt" = now(), "updatedAt" = now(), "endedAt" = NULL
+			extensions = EXCLUDED.extensions, "actionMemory" = '[]'::jsonb, status = 'active', "startedAt" = now(), "updatedAt" = now(), "endedAt" = NULL
 		RETURNING id, "companyId", "conversationId", "aiAgentId", "safeMode", extensions`, conversationID, agentID, companyID, safeMode, string(extensions)).
 		Scan(&session.Id, &session.CompanyId, &session.ConversationId, &session.AIAgentId, &session.SafeMode, &stored)
 	session.Extensions = stored
@@ -211,7 +211,7 @@ func ActivateDirectAIAgentSession(conversationID, agentID, companyID int) (AIAge
 	) INSERT INTO ai_agent_sessions ("companyId", "conversationId", "aiAgentId", "safeMode", status)
 		SELECT $3, released.id, $2, NULL, 'active' FROM released
 		ON CONFLICT ("conversationId") DO UPDATE SET "aiAgentId" = EXCLUDED."aiAgentId", "safeMode" = NULL, extensions = '{}'::jsonb,
-			status = 'active', "startedAt" = now(), "updatedAt" = now(), "endedAt" = NULL
+			"actionMemory" = '[]'::jsonb, status = 'active', "startedAt" = now(), "updatedAt" = now(), "endedAt" = NULL
 		RETURNING id, "companyId", "conversationId", "aiAgentId"`, conversationID, agentID, companyID).
 		Scan(&session.Id, &session.CompanyId, &session.ConversationId, &session.AIAgentId)
 	return session, err
@@ -234,6 +234,20 @@ func GetActiveAIAgentSession(conversationID, companyID int) (AIAgentSession, err
 	session.Agent.HasAPIKey = session.Agent.APIKeyCiphertext != ""
 	session.Extensions = extensions
 	return session, err
+}
+
+// GetAIAgentActionMemory returns the session's recent action results ([] when
+// none). Read under the conversation lock, after the previous answer saved.
+func GetAIAgentActionMemory(sessionID int64) (json.RawMessage, error) {
+	var memory []byte
+	err := db.QueryRow(`SELECT "actionMemory" FROM ai_agent_sessions WHERE id = $1`, sessionID).Scan(&memory)
+	return memory, err
+}
+
+// SaveAIAgentActionMemory replaces the session's recent action results.
+func SaveAIAgentActionMemory(sessionID int64, memory json.RawMessage) error {
+	_, err := db.Exec(`UPDATE ai_agent_sessions SET "actionMemory" = $2::jsonb, "updatedAt" = now() WHERE id = $1`, sessionID, string(memory))
+	return err
 }
 
 func EndAIAgentSession(conversationID int) error {

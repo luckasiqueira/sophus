@@ -8,6 +8,7 @@ templ AvatarMenu() {
 			<a href="/profile" class="mt-1 flex items-center gap-3 rounded-xl px-3 py-3 text-sm font-semibold hover:bg-purple-50 hover:text-purple-700"><i class="fas fa-user-circle"></i>Meu perfil</a>
 			<a href="/preferences" class="flex items-center gap-3 rounded-xl px-3 py-3 text-sm font-semibold hover:bg-purple-50 hover:text-purple-700"><i class="fas fa-sliders"></i>Preferências</a>
 			<button id="app-onboarding-replay" type="button" class="flex w-full items-center gap-3 rounded-xl px-3 py-3 text-left text-sm font-semibold hover:bg-purple-50 hover:text-purple-700"><i class="fas fa-compass"></i>Rever guia da plataforma</button>
+			@ThemeToggleButton("flex w-full items-center gap-3 rounded-xl px-3 py-3 text-left text-sm font-semibold hover:bg-purple-50 hover:text-purple-700")
 			<form action="/logout" method="post"><button type="submit" class="flex w-full items-center gap-3 rounded-xl px-3 py-3 text-left text-sm font-semibold text-red-600 hover:bg-red-50"><i class="fas fa-arrow-right-from-bracket"></i>Sair da conta</button></form>
 		</div>
 	</details>

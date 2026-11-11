@@ -20,12 +20,12 @@ const (
 	maxTypingDelay     = 15 * time.Second
 )
 
-// Bridge implements the Evolution GO endpoints Sophus uses on top of WAHA.
+// Bridge implements the Evolution GO endpoints DoveChat uses on top of WAHA.
 type Bridge struct {
 	Client *Client
 	// Resolve maps the Evolution "apikey" to its connection.
 	Resolve func(key string) (repo.ConnectionEVO, error)
-	// PublicURL is Sophus' public base URL, used to build webhook URLs for
+	// PublicURL is DoveChat' public base URL, used to build webhook URLs for
 	// sessions that must be (re)created from stored connection data.
 	PublicURL func() (string, error)
 	Now       func() time.Time
@@ -184,7 +184,7 @@ func (b *Bridge) route(ctx context.Context, method, path, apiKey string, payload
 	case method == http.MethodPost && path == "/message/downloadmedia":
 		return downloadMediaEndpoint(ctx, payload)
 	case method == http.MethodPost && path == "/message/status":
-		// WAHA needs the chat to look up a stored message; Sophus only uses
+		// WAHA needs the chat to look up a stored message; DoveChat only uses
 		// this legacy lookup as a best-effort fallback.
 		return failure(http.StatusNotFound, "message status lookup is not available with WAHA")
 	}

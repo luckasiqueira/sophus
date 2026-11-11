@@ -103,7 +103,7 @@ func AddAgentConversationNote(conversationURL string, agent Agent, content strin
 			OR cv."departmentId" IN (SELECT "departmentId" FROM agent_departments WHERE "agentId" = $6)
 			OR (cv."agentId" IS NULL AND cv."departmentId" IS NULL AND cv.status <> 'closed'))
 		RETURNING id, "companyId", "conversationId", "executionId", "nodeId", "eventType", content, metadata, "createdAt"`,
-		conversationURL, agent.CompanyId, agent.IsAdmin(), content, string(metadata), agent.Id).Scan(
+		conversationURL, agent.CompanyId, agent.CanSupervise(), content, string(metadata), agent.Id).Scan(
 		&event.ID, &event.CompanyID, &event.ConversationID, &event.ExecutionID, &event.NodeID,
 		&event.EventType, &event.Content, &event.Metadata, &event.CreatedAt)
 	if err == nil {

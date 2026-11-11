@@ -19,7 +19,7 @@ func TestOperationalPagesUseEnhancedFormControls(t *testing.T) {
 		{name: "agents", component: AgentSettings(), expected: []string{"enhanceAdminSelect", `id="agent-role"`, `h-[46px]`, "refreshAdminSelects(form)"}, unexpected: "appearance-none"},
 		{name: "conversation picker", component: ConversationPicker(), expected: []string{"enhanceAdminSelect", `id="conversation-picker-connection"`}, unexpected: `id="conversation-picker-connection" data-native`},
 		{name: "contacts", component: Contacts(), expected: []string{`label for="contacts-connection"`, "refreshAdminSelects(document.getElementById('contacts-panel'))", "refreshAdminSelects(document.getElementById('contact-import-modal'))"}, unexpected: `id="contacts-connection" data-native`},
-		{name: "departments", component: DepartmentSettings(), expected: []string{"peer sr-only", "peer-checked:bg-purple-600"}},
+		{name: "agents and sectors", component: AgentSettings(), expected: []string{"peer sr-only", "peer-checked:bg-purple-600", `data-team-tab="setores"`, "sector-members-modal", "/api/departments/agents/"}},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {

@@ -22,7 +22,7 @@ var ErrWebhookUnauthorized = errors.New("WAHA webhook signature or session misma
 const groupLookupTimeout = 5 * time.Second
 
 // TranslateWebhook verifies a WAHA webhook and converts it into the Evolution
-// GO event Sophus' webhook handler already processes. ignored=true means the
+// GO event DoveChat' webhook handler already processes. ignored=true means the
 // event has no Evolution GO equivalent (or Evolution GO would drop it).
 func TranslateWebhook(connection repo.ConnectionEVO, headers http.Header, body []byte) ([]byte, bool, error) {
 	return bridge().TranslateWebhook(connection, headers, body)

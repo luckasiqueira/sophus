@@ -48,7 +48,7 @@ type Config struct {
 //	SMTP_USERNAME    usuário (opcional, exige TLS)
 //	SMTP_PASSWORD    senha (opcional, exige TLS)
 //	SMTP_FROM_EMAIL  remetente, obrigatório
-//	SMTP_FROM_NAME   nome do remetente (default "Sophus")
+//	SMTP_FROM_NAME   nome do remetente (default "DoveChat")
 //	SMTP_ENCRYPTION  starttls | tls | none (default starttls)
 //	SMTP_TIMEOUT     tempo máximo por envio, ex.: 15s (default 15s)
 func ConfigFromEnv(values map[string]string) (Config, error) {
@@ -65,7 +65,7 @@ func ConfigFromEnv(values map[string]string) (Config, error) {
 		Timeout:    15 * time.Second,
 	}
 	if cfg.FromName == "" {
-		cfg.FromName = "Sophus"
+		cfg.FromName = "DoveChat"
 	}
 	if cfg.Encryption == "" {
 		cfg.Encryption = EncryptionSTARTTLS

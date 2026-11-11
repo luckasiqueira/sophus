@@ -70,7 +70,7 @@ func (b *Bridge) contacts(ctx context.Context, session string) result {
 		name := strings.TrimSpace(contact.Name)
 		push := strings.TrimSpace(contact.PushName)
 		// GOWS may echo the push name as "name" for numbers that are not in
-		// the address book; Sophus only imports address-book names.
+		// the address book; DoveChat only imports address-book names.
 		if name == push {
 			name = ""
 		}
@@ -144,7 +144,7 @@ func (b *Bridge) contact(ctx context.Context, session, chatID string) (wahaConta
 
 // POST /user/avatar {number, preview} -> {data:{url}}. A contact without a
 // photo answers like Evolution GO (500 "no profile picture found"), which
-// Sophus classifies as "no avatar" instead of a temporary failure.
+// DoveChat classifies as "no avatar" instead of a temporary failure.
 func (b *Bridge) avatar(ctx context.Context, session string, payload []byte) result {
 	var request struct {
 		Number string `json:"number"`

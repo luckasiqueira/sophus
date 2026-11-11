@@ -1,6 +1,6 @@
-// Package waha serves Sophus' Evolution GO contract on top of WAHA (GOWS
+// Package waha serves DoveChat' Evolution GO contract on top of WAHA (GOWS
 // engine). Outbound calls arrive through the requests interceptor with the
-// same paths and payloads Sophus already sends to Evolution GO; inbound WAHA
+// same paths and payloads DoveChat already sends to Evolution GO; inbound WAHA
 // webhooks are translated back into Evolution GO events. Business logic in
 // repo/controllers/flowengine therefore runs unchanged with either engine.
 package waha

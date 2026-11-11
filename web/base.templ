@@ -1,5 +1,34 @@
 package web
 
+import "sophus/internal/repo"
+
+// pageTitles names each workspace page in the browser tab, keyed by the
+// active menu passed to base.
+var pageTitles = map[string]string{
+	"messages":      "Conversas",
+	"contacts":      "Contatos",
+	"schedules":     "Agendamentos",
+	"flows":         "Flows",
+	"ai-agents":     "Agentes de IA",
+	"agents":        "Agentes e setores",
+	"instances":     "Instâncias",
+	"quick-replies": "Respostas rápidas",
+	"media":         "Biblioteca de mídia",
+	"reports":       "Relatórios",
+	"settings":      "Configurações da empresa",
+	"preferences":   "Preferências",
+	"profile":       "Meu perfil",
+}
+
+func pageTitle(activeMenus []string) string {
+	if len(activeMenus) > 0 {
+		if title, ok := pageTitles[activeMenus[0]]; ok {
+			return title + " | DoveChat"
+		}
+	}
+	return "DoveChat | Workspace de atendimento"
+}
+
 func menuIsActive(activeMenus []string, menu string) bool {
     return len(activeMenus) > 0 && activeMenus[0] == menu
 }
@@ -7,22 +36,31 @@ func menuIsActive(activeMenus []string, menu string) bool {
 templ appSidebar(activeMenus ...string) {
 	<nav id="app-navigation" aria-label="Navegação principal" class="relative z-40 flex w-full shrink-0 items-center gap-2 rounded-xl px-2 py-1.5 shadow-sm lg:z-auto lg:w-16 lg:flex-col lg:gap-4 lg:overflow-y-auto lg:rounded-2xl lg:px-0 lg:py-4" style="background: #6123cc;">
 		<button id="app-menu-button" type="button" aria-label="Abrir menu" aria-controls="app-menu-links" aria-expanded="false" class="grid h-10 w-10 shrink-0 place-items-center rounded-full border border-white/20 bg-white/15 text-white shadow-sm transition hover:bg-white/25 active:scale-95 lg:hidden"><i class="fas fa-bars"></i></button>
-		<a href="/messages" aria-label="Sophus, início" class="absolute left-1/2 flex -translate-x-1/2 items-center px-1 lg:hidden"><img src="/logos/Sophus_logo_horizontal_branco.svg" alt="Sophus" width="1120" height="256" class="h-7 w-auto"/></a>
-		<div id="app-sidebar-header" class="hidden w-full shrink-0 flex-col items-center gap-2 lg:flex"><a href="/messages" aria-label="Início" class="flex shrink-0 items-center rounded-xl p-2 text-white transition-colors hover:bg-purple-700">@BrandSymbol(true, "app-sidebar-collapsed-only h-8 w-8")<img src="/logos/Sophus_logo_horizontal_branco.svg" alt="Sophus" width="1120" height="256" class="app-sidebar-expanded-only hidden h-7 w-auto"/></a><button id="app-sidebar-toggle" type="button" aria-label="Expandir menu lateral" title="Expandir menu lateral" aria-controls="app-menu-links" aria-expanded="false" class="grid h-9 w-9 shrink-0 place-items-center rounded-xl border border-white/20 bg-white/10 text-white transition hover:bg-white/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white"><i class="fas fa-angles-right" aria-hidden="true"></i></button></div>
+		<a href="/messages" aria-label="DoveChat, início" class="absolute left-1/2 flex -translate-x-1/2 items-center px-1 lg:hidden"><img src="/logos/DoveChat_logo_horizontal_transparente.svg" alt="DoveChat" width="1310" height="360" class="h-9 w-auto"/></a>
+		<div id="app-sidebar-header" class="hidden w-full shrink-0 flex-col items-center gap-2 lg:flex"><a href="/messages" aria-label="Início" class="flex shrink-0 items-center rounded-xl p-2 text-white transition-colors hover:bg-purple-700">@BrandSymbol(true, "app-sidebar-collapsed-only h-8 w-8")<img src="/logos/DoveChat_logo_horizontal_transparente.svg" alt="DoveChat" width="1310" height="360" class="app-sidebar-expanded-only hidden h-9 w-auto"/></a><button id="app-sidebar-toggle" type="button" aria-label="Expandir menu lateral" title="Expandir menu lateral" aria-controls="app-menu-links" aria-expanded="false" class="grid h-9 w-9 shrink-0 place-items-center rounded-xl border border-white/20 bg-white/10 text-white transition hover:bg-white/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white"><i class="fas fa-angles-right" aria-hidden="true"></i></button></div>
 		<div id="app-menu-links" class="absolute left-0 right-0 top-[calc(100%+0.5rem)] hidden max-h-[calc(100dvh-5rem)] flex flex-col gap-1 overflow-y-auto rounded-2xl border border-white/20 bg-[#4c1d95] p-2 shadow-2xl ring-1 ring-black/10 lg:static lg:flex lg:max-h-none lg:w-full lg:gap-3 lg:overflow-visible lg:rounded-none lg:border-0 lg:bg-transparent lg:p-0 lg:shadow-none lg:ring-0">
 			<div class="flex items-center justify-between px-3 py-2 text-[10px] font-black uppercase tracking-[.18em] text-white/60 lg:hidden"><span>Navegação</span><i class="fas fa-compass text-white/70"></i></div>
 			<a id="app-conversations-link" href="/messages" title="Conversas" class={ "relative flex items-center gap-3 rounded-xl p-3 text-white transition-all hover:bg-white/20 lg:justify-center lg:rounded-2xl", templ.KV("bg-white/20 shadow-md", menuIsActive(activeMenus, "messages")) }><i class="fas fa-comment-dots w-5 text-center"></i><span class="lg:hidden">Conversas</span><span id="app-conversations-badge" class="absolute right-2 top-1/2 hidden min-w-5 -translate-y-1/2 rounded-full bg-[#25D366] px-1.5 py-0.5 text-center text-[9px] font-black text-white ring-2 ring-purple-800 lg:-right-1 lg:-top-1 lg:translate-y-0"></span></a>
 			<a href="/contacts" title="Contatos" class={ "flex items-center gap-3 rounded-xl p-3 text-white transition-all hover:bg-white/20 lg:justify-center lg:rounded-2xl", templ.KV("bg-white/20 shadow-md", menuIsActive(activeMenus, "contacts")) }><i class="fas fa-address-book w-5 text-center"></i><span class="lg:hidden">Contatos</span></a>
 			<a href="/schedules" title="Agendamentos" class={ "flex items-center gap-3 rounded-xl p-3 text-white transition-all hover:bg-white/20 lg:justify-center lg:rounded-2xl", templ.KV("bg-white/20 shadow-md", menuIsActive(activeMenus, "schedules")) }><i class="fas fa-calendar-check w-5 text-center"></i><span class="lg:hidden">Agendamentos</span></a>
-			<a href="/flows/" title="Flows" class={ "flex items-center gap-3 rounded-xl p-3 text-white transition-all hover:bg-white/20 lg:justify-center lg:rounded-2xl", templ.KV("bg-white/20 shadow-md", menuIsActive(activeMenus, "flows")) }><i class="fas fa-diagram-project w-5 text-center"></i><span class="lg:hidden">Flows</span></a>
-			<a href="/ai-agents" title="Agentes de IA" class={ "flex items-center gap-3 rounded-xl p-3 text-white transition-all hover:bg-white/20 lg:justify-center lg:rounded-2xl", templ.KV("bg-white/20 shadow-md", menuIsActive(activeMenus, "ai-agents")) }><i class="fas fa-brain w-5 text-center"></i><span class="lg:hidden">Agentes de IA</span></a>
-			<a href="/departments" title="Setores" class={ "flex items-center gap-3 rounded-xl p-3 text-white transition-all hover:bg-white/20 lg:justify-center lg:rounded-2xl", templ.KV("bg-white/20 shadow-md", menuIsActive(activeMenus, "departments")) }><i class="fas fa-layer-group w-5 text-center"></i><span class="lg:hidden">Setores</span></a>
-			<a href="/agents" title="Agentes" class={ "flex items-center gap-3 rounded-xl p-3 text-white transition-all hover:bg-white/20 lg:justify-center lg:rounded-2xl", templ.KV("bg-white/20 shadow-md", menuIsActive(activeMenus, "agents")) }><i class="fas fa-user w-5 text-center"></i><span class="lg:hidden">Agentes</span></a>
+			if repo.CanSuperviseCompany(ctx) {
+				<a href="/flows/" title="Flows" class={ "flex items-center gap-3 rounded-xl p-3 text-white transition-all hover:bg-white/20 lg:justify-center lg:rounded-2xl", templ.KV("bg-white/20 shadow-md", menuIsActive(activeMenus, "flows")) }><i class="fas fa-diagram-project w-5 text-center"></i><span class="lg:hidden">Flows</span></a>
+			}
+			if repo.CanSuperviseCompany(ctx) {
+				<a href="/ai-agents" title="Agentes de IA" class={ "flex items-center gap-3 rounded-xl p-3 text-white transition-all hover:bg-white/20 lg:justify-center lg:rounded-2xl", templ.KV("bg-white/20 shadow-md", menuIsActive(activeMenus, "ai-agents")) }><i class="fas fa-brain w-5 text-center"></i><span class="lg:hidden">Agentes de IA</span></a>
+			}
+			if repo.CanManageCompany(ctx) {
+				<a href="/agents" title="Agentes e setores" class={ "flex items-center gap-3 rounded-xl p-3 text-white transition-all hover:bg-white/20 lg:justify-center lg:rounded-2xl", templ.KV("bg-white/20 shadow-md", menuIsActive(activeMenus, "agents")) }><i class="fas fa-users w-5 text-center"></i><span class="lg:hidden">Agentes e setores</span></a>
+			}
 			<a href="/instances/" title="Instâncias" class={ "relative flex items-center gap-3 rounded-xl p-3 text-white transition-all hover:bg-white/20 lg:justify-center lg:rounded-2xl", templ.KV("bg-white/20 shadow-md", menuIsActive(activeMenus, "instances")) }><i class="fas fa-circle-notch w-5 text-center"></i><span class="lg:hidden">Instâncias</span><span class="absolute right-2 top-2 h-2 w-2 rounded-full border-2 bg-blue-400 lg:right-2 lg:top-2" style="border-color: #6123cc;"></span></a>
 			<a href="/quick-replies" title="Respostas rápidas" class={ "flex items-center gap-3 rounded-xl p-3 text-white transition-all hover:bg-white/20 lg:justify-center lg:rounded-2xl", templ.KV("bg-white/20 shadow-md", menuIsActive(activeMenus, "quick-replies")) }><i class="fas fa-bolt w-5 text-center"></i><span class="lg:hidden">Respostas rápidas</span></a>
 			<a href="/media" title="Biblioteca de mídia" class={ "flex items-center gap-3 rounded-xl p-3 text-white transition-all hover:bg-white/20 lg:justify-center lg:rounded-2xl", templ.KV("bg-white/20 shadow-md", menuIsActive(activeMenus, "media")) }><i class="fas fa-photo-film w-5 text-center"></i><span class="lg:hidden">Biblioteca de mídia</span></a>
-			<a href="/reports" title="Relatórios" class={ "flex items-center gap-3 rounded-xl p-3 text-white transition-all hover:bg-white/20 lg:justify-center lg:rounded-2xl", templ.KV("bg-white/20 shadow-md", menuIsActive(activeMenus, "reports")) }><i class="fas fa-chart-column w-5 text-center"></i><span class="lg:hidden">Relatórios</span></a>
-			<a href="/settings" title="Configurações da empresa" class={ "flex items-center gap-3 rounded-xl p-3 text-white transition-all hover:bg-white/20 lg:justify-center lg:rounded-2xl", templ.KV("bg-white/20 shadow-md", menuIsActive(activeMenus, "settings")) }><i class="fas fa-gear w-5 text-center"></i><span class="lg:hidden">Configurações</span></a>
+			if repo.CanSuperviseCompany(ctx) {
+				<a href="/reports" title="Relatórios" class={ "flex items-center gap-3 rounded-xl p-3 text-white transition-all hover:bg-white/20 lg:justify-center lg:rounded-2xl", templ.KV("bg-white/20 shadow-md", menuIsActive(activeMenus, "reports")) }><i class="fas fa-chart-column w-5 text-center"></i><span class="lg:hidden">Relatórios</span></a>
+			}
+			if repo.CanManageCompany(ctx) {
+				<a href="/settings" title="Configurações da empresa" class={ "flex items-center gap-3 rounded-xl p-3 text-white transition-all hover:bg-white/20 lg:justify-center lg:rounded-2xl", templ.KV("bg-white/20 shadow-md", menuIsActive(activeMenus, "settings")) }><i class="fas fa-gear w-5 text-center"></i><span class="lg:hidden">Configurações</span></a>
+			}
 		</div>
 		<div class="hidden flex-1 lg:block"></div>
 		<div id="app-sidebar-footer" class="ml-auto flex shrink-0 items-center lg:ml-0 lg:flex-col lg:gap-3"><button id="app-notification-center-button" type="button" title="Central de notificações" aria-label="Abrir central de notificações" aria-expanded="false" class="relative flex items-center gap-3 rounded-xl p-3 transition-colors hover:bg-white hover:bg-opacity-20 lg:rounded-2xl"><i class="fas fa-bell text-white"></i><span class="app-sidebar-expanded-only hidden text-sm text-white">Notificações</span><span id="app-notification-center-badge" class="absolute -right-1 -top-1 hidden min-w-5 rounded-full bg-[#25D366] px-1.5 py-0.5 text-center text-[9px] font-black text-white ring-2 ring-purple-800"></span></button>@AvatarMenu()</div>
@@ -33,6 +71,8 @@ templ base(activeMenus ...string) {
 <!DOCTYPE html>
 <html lang="pt-BR">
 <head>
+	@ThemeRuntime()
+
 	@AgentPreferencesRuntime()
 	@MessagePreferences()
 	<script>
@@ -41,7 +81,7 @@ templ base(activeMenus ...string) {
 	</script>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Sophus | Workspace de atendimento</title>
+    <title>{ pageTitle(activeMenus) }</title>
 	@BrandIcons()
 	@MobileActionStyles()
     <script src="https://cdn.tailwindcss.com"></script>
@@ -49,6 +89,14 @@ templ base(activeMenus ...string) {
     <script src="https://cdn.jsdelivr.net/npm/htmx.org@2.0.10/dist/htmx.min.js" integrity="sha384-H5SrcfygHmAuTDZphMHqBJLc3FhssKjG7w/CeCpFReSfwBWDTKpkzPP8c+cLsK+V" crossorigin="anonymous"></script>
     <script src="https://cdn.jsdelivr.net/npm/htmx-ext-sse@2.2.4" integrity="sha384-A986SAtodyH8eg8x8irJnYUk7i9inVQqYigD6qZ9evobksGNIXfeFvDwLSHcp31N" crossorigin="anonymous"></script>
 	<style>
+		/* Modal panels scroll with rounded corners; sticky headers and tinted
+		   footers paint over that clip in some browsers (notably under the
+		   overlay's backdrop-filter), leaving a square corner. Let the first
+		   and last children reuse the panel radius. :where keeps specificity 0,
+		   so an explicit rounded-* class on a child still wins. */
+		:where([role="dialog"], [role="alertdialog"]) > * { isolation: isolate; }
+		:where([role="dialog"], [role="alertdialog"]) > * > :where(:first-child) { border-top-left-radius: inherit; border-top-right-radius: inherit; }
+		:where([role="dialog"], [role="alertdialog"]) > * > :where(:last-child) { border-bottom-left-radius: inherit; border-bottom-right-radius: inherit; }
 		@media (min-width: 1024px) {
 			html { --app-sidebar-width: 4rem; }
 			html[data-sidebar-expanded="true"] { --app-sidebar-width: 15rem; }

@@ -1,4 +1,4 @@
-// Package waprovider selects the WhatsApp engine used by Sophus.
+// Package waprovider selects the WhatsApp engine used by DoveChat.
 //
 // WHATSAPP_PROVIDER=evolution (default) keeps the Evolution GO integration.
 // WHATSAPP_PROVIDER=waha routes the same Evolution-shaped calls through the
