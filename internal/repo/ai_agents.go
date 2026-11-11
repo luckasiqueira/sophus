@@ -13,45 +13,49 @@ var ErrAIAgentConflict = errors.New("ai agent revision conflict")
 const aiConversationLockNamespace = 0x4149
 
 type AIAgent struct {
-	Id               int       `json:"id"`
-	CompanyId        int       `json:"companyId"`
-	ConnectionId     *int      `json:"connectionId"`
-	ConnectionName   string    `json:"connectionName"`
-	Name             string    `json:"name"`
-	CredentialId     int       `json:"credentialId"`
-	CredentialName   string    `json:"credentialName"`
-	Provider         string    `json:"provider"`
-	Model            string    `json:"model"`
-	APIKeyCiphertext string    `json:"-"`
-	HasAPIKey        bool      `json:"hasApiKey"`
-	SystemPrompt     string    `json:"systemPrompt"`
-	KnowledgeBase    string    `json:"knowledgeBase"`
-	Tone             string    `json:"tone"`
-	MaxOutputTokens  int       `json:"maxOutputTokens"`
-	Temperature      float64   `json:"temperature"`
-	HistoryLimit     int       `json:"historyLimit"`
-	WelcomeMessage   string    `json:"welcomeMessage"`
-	SafeMode         bool      `json:"safeMode"`
-	IsActive         bool      `json:"isActive"`
-	Revision         int       `json:"revision"`
-	CreatedAt        time.Time `json:"createdAt"`
-	UpdatedAt        time.Time `json:"updatedAt"`
+	Id               int     `json:"id"`
+	CompanyId        int     `json:"companyId"`
+	ConnectionId     *int    `json:"connectionId"`
+	ConnectionName   string  `json:"connectionName"`
+	Name             string  `json:"name"`
+	CredentialId     int     `json:"credentialId"`
+	CredentialName   string  `json:"credentialName"`
+	Provider         string  `json:"provider"`
+	Model            string  `json:"model"`
+	APIKeyCiphertext string  `json:"-"`
+	HasAPIKey        bool    `json:"hasApiKey"`
+	SystemPrompt     string  `json:"systemPrompt"`
+	KnowledgeBase    string  `json:"knowledgeBase"`
+	Tone             string  `json:"tone"`
+	MaxOutputTokens  int     `json:"maxOutputTokens"`
+	Temperature      float64 `json:"temperature"`
+	HistoryLimit     int     `json:"historyLimit"`
+	// HistoryImageLimit is how many of the customer's latest images in the
+	// history go to the model as pictures (0 sends none).
+	HistoryImageLimit int       `json:"historyImageLimit"`
+	WelcomeMessage    string    `json:"welcomeMessage"`
+	SafeMode          bool      `json:"safeMode"`
+	IsActive          bool      `json:"isActive"`
+	Revision          int       `json:"revision"`
+	CreatedAt         time.Time `json:"createdAt"`
+	UpdatedAt         time.Time `json:"updatedAt"`
 }
 
 type AIAgentInput struct {
-	ConnectionId    *int
-	Name            string
-	CredentialId    int
-	SystemPrompt    string
-	KnowledgeBase   string
-	Tone            string
-	MaxOutputTokens int
-	Temperature     float64
-	HistoryLimit    int
-	WelcomeMessage  string
-	SafeMode        bool
-	IsActive        bool
-	Revision        int
+	ConnectionId      *int
+	Name              string
+	CredentialId      int
+	SystemPrompt      string
+	KnowledgeBase     string
+	Tone              string
+	MaxOutputTokens   int
+	Temperature       float64
+	HistoryLimit      int
+	HistoryImageLimit int
+	WelcomeMessage    string
+	SafeMode          bool
+	IsActive          bool
+	Revision          int
 }
 
 type AIAgentSession struct {
@@ -69,6 +73,11 @@ type AIAgentSession struct {
 type AIHistoryMessage struct {
 	Role    string
 	Content string
+	// MediaType is text, image, audio, video, document or sticker; MediaPath
+	// is empty while an attachment is still downloading.
+	MediaType string
+	MediaPath string
+	MessageID string
 }
 
 func AcquireAIConversationLock(ctx context.Context, conversationID int) (func(), error) {
@@ -91,7 +100,7 @@ func AcquireAIConversationLock(ctx context.Context, conversationID int) (func(),
 const aiAgentColumns = `a.id, a."companyId", a."connectionId", COALESCE(c.name, ''), a.name,
 	a."credentialId", credential.name, credential.provider, credential.model, credential."apiKeyCiphertext",
 	a."systemPrompt", a."knowledgeBase", a.tone, a."maxOutputTokens", a.temperature,
-	a."historyLimit", a."welcomeMessage", a."safeMode", a."isActive", a.revision, a."createdAt", a."updatedAt"`
+	a."historyLimit", a."historyImageLimit", a."welcomeMessage", a."safeMode", a."isActive", a.revision, a."createdAt", a."updatedAt"`
 
 const aiAgentJoins = ` LEFT JOIN connections c ON c.id = a."connectionId"
 	JOIN ai_credentials credential ON credential.id = a."credentialId" AND credential."companyId" = a."companyId"`
@@ -127,14 +136,14 @@ func GetDirectAIAgent(connectionID, companyID int) (AIAgent, error) {
 func CreateAIAgent(companyID int, input AIAgentInput) (AIAgent, error) {
 	return scanAIAgent(db.QueryRow(`WITH inserted AS (
 		INSERT INTO ai_agents ("companyId", "connectionId", name, "credentialId", "systemPrompt",
-			"knowledgeBase", tone, "maxOutputTokens", temperature, "historyLimit", "welcomeMessage", "safeMode", "isActive")
-		SELECT $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13
+			"knowledgeBase", tone, "maxOutputTokens", temperature, "historyLimit", "welcomeMessage", "safeMode", "isActive", "historyImageLimit")
+		SELECT $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14
 		WHERE $2::integer IS NULL OR EXISTS (SELECT 1 FROM connections WHERE id = $2 AND "companyId" = $1)
 		AND EXISTS (SELECT 1 FROM ai_credentials WHERE id = $4 AND "companyId" = $1)
 		RETURNING *)
 		SELECT `+aiAgentColumns+` FROM inserted a`+aiAgentJoins, companyID,
 		input.ConnectionId, input.Name, input.CredentialId, input.SystemPrompt, input.KnowledgeBase, input.Tone,
-		input.MaxOutputTokens, input.Temperature, input.HistoryLimit, input.WelcomeMessage, input.SafeMode, input.IsActive))
+		input.MaxOutputTokens, input.Temperature, input.HistoryLimit, input.WelcomeMessage, input.SafeMode, input.IsActive, input.HistoryImageLimit))
 }
 
 func UpdateAIAgent(id, companyID int, input AIAgentInput) (AIAgent, error) {
@@ -142,14 +151,14 @@ func UpdateAIAgent(id, companyID int, input AIAgentInput) (AIAgent, error) {
 		UPDATE ai_agents SET "connectionId" = $1, name = $2, "credentialId" = $3,
 			"systemPrompt" = $4, "knowledgeBase" = $5, tone = $6, "maxOutputTokens" = $7,
 			temperature = $8, "historyLimit" = $9, "welcomeMessage" = $10, "safeMode" = $11, "isActive" = $12,
-			revision = revision + 1, "updatedAt" = now()
+			"historyImageLimit" = $16, revision = revision + 1, "updatedAt" = now()
 		WHERE id = $13 AND "companyId" = $14 AND revision = $15
 		AND ($1::integer IS NULL OR EXISTS (SELECT 1 FROM connections WHERE id = $1 AND "companyId" = $14))
 		AND EXISTS (SELECT 1 FROM ai_credentials WHERE id = $3 AND "companyId" = $14)
 		RETURNING *)
 		SELECT `+aiAgentColumns+` FROM updated a`+aiAgentJoins, input.ConnectionId, input.Name, input.CredentialId,
 		input.SystemPrompt, input.KnowledgeBase, input.Tone, input.MaxOutputTokens, input.Temperature,
-		input.HistoryLimit, input.WelcomeMessage, input.SafeMode, input.IsActive, id, companyID, input.Revision))
+		input.HistoryLimit, input.WelcomeMessage, input.SafeMode, input.IsActive, id, companyID, input.Revision, input.HistoryImageLimit))
 	if errors.Is(err, sql.ErrNoRows) {
 		var exists bool
 		if existsErr := db.QueryRow(`SELECT EXISTS(SELECT 1 FROM ai_agents WHERE id = $1 AND "companyId" = $2)`, id, companyID).Scan(&exists); existsErr != nil {
@@ -220,7 +229,7 @@ func GetActiveAIAgentSession(conversationID, companyID int) (AIAgentSession, err
 		&session.Agent.Name, &session.Agent.CredentialId, &session.Agent.CredentialName, &session.Agent.Provider,
 		&session.Agent.Model, &session.Agent.APIKeyCiphertext,
 		&session.Agent.SystemPrompt, &session.Agent.KnowledgeBase, &session.Agent.Tone, &session.Agent.MaxOutputTokens,
-		&session.Agent.Temperature, &session.Agent.HistoryLimit, &session.Agent.WelcomeMessage, &session.Agent.SafeMode, &session.Agent.IsActive,
+		&session.Agent.Temperature, &session.Agent.HistoryLimit, &session.Agent.HistoryImageLimit, &session.Agent.WelcomeMessage, &session.Agent.SafeMode, &session.Agent.IsActive,
 		&session.Agent.Revision, &session.Agent.CreatedAt, &session.Agent.UpdatedAt)
 	session.Agent.HasAPIKey = session.Agent.APIKeyCiphertext != ""
 	session.Extensions = extensions
@@ -229,7 +238,7 @@ func GetActiveAIAgentSession(conversationID, companyID int) (AIAgentSession, err
 
 func EndAIAgentSession(conversationID int) error {
 	_, err := db.Exec(`UPDATE ai_agent_sessions SET status = 'ended', "endedAt" = now(), "updatedAt" = now()
-		WHERE "conversationId" = $1 AND status = 'active'`, conversationID)
+		WHERE "conversationId" = $1 AND status IN ('active', 'paused')`, conversationID)
 	return err
 }
 
@@ -260,13 +269,17 @@ func FinishAIAgentRun(id int64, responseErr error, promptTokens, completionToken
 	return err
 }
 
+// GetAIConversationHistory returns the latest messages of the conversation,
+// oldest first: text and attachments (with their caption, when any).
 func GetAIConversationHistory(conversationID, companyID, limit int) ([]AIHistoryMessage, error) {
-	rows, err := db.Query(`SELECT "isFromMe", text FROM (
-		SELECT m.id, m."isFromMe", m.text FROM messages m
+	rows, err := db.Query(`SELECT "isFromMe", text, "mediaType", "mediaPath", "messageId" FROM (
+		SELECT m.id, m."isFromMe", COALESCE(m.text, '') AS text, m."mediaType", COALESCE(m."mediaPath", '') AS "mediaPath",
+			COALESCE(m."messageId", '') AS "messageId" FROM messages m
 		JOIN conversations cv ON cv.id = m."conversationId"
 		JOIN connections c ON c.id = cv."connectionId"
 		WHERE cv.id = $1 AND c."companyId" = $2 AND m."isDeleted" = false AND m."isGroup" = false
-		AND NULLIF(BTRIM(m.text), '') IS NOT NULL ORDER BY m.id DESC LIMIT $3
+		AND (NULLIF(BTRIM(m.text), '') IS NOT NULL OR m."mediaType" IN ('image', 'audio', 'video', 'document', 'sticker'))
+		ORDER BY m.id DESC LIMIT $3
 	) history ORDER BY id`, conversationID, companyID, limit)
 	if err != nil {
 		return nil, err
@@ -275,15 +288,15 @@ func GetAIConversationHistory(conversationID, companyID, limit int) ([]AIHistory
 	history := []AIHistoryMessage{}
 	for rows.Next() {
 		var fromMe bool
-		var text string
-		if err := rows.Scan(&fromMe, &text); err != nil {
+		var item AIHistoryMessage
+		if err := rows.Scan(&fromMe, &item.Content, &item.MediaType, &item.MediaPath, &item.MessageID); err != nil {
 			return nil, err
 		}
-		role := "user"
+		item.Role = "user"
 		if fromMe {
-			role = "assistant"
+			item.Role = "assistant"
 		}
-		history = append(history, AIHistoryMessage{Role: role, Content: text})
+		history = append(history, item)
 	}
 	return history, rows.Err()
 }
@@ -302,7 +315,7 @@ func scanAIAgent(scanner rowScanner) (AIAgent, error) {
 	err := scanner.Scan(&agent.Id, &agent.CompanyId, &agent.ConnectionId, &agent.ConnectionName, &agent.Name,
 		&agent.CredentialId, &agent.CredentialName, &agent.Provider, &agent.Model, &agent.APIKeyCiphertext,
 		&agent.SystemPrompt, &agent.KnowledgeBase,
-		&agent.Tone, &agent.MaxOutputTokens, &agent.Temperature, &agent.HistoryLimit, &agent.WelcomeMessage,
+		&agent.Tone, &agent.MaxOutputTokens, &agent.Temperature, &agent.HistoryLimit, &agent.HistoryImageLimit, &agent.WelcomeMessage,
 		&agent.SafeMode, &agent.IsActive, &agent.Revision, &agent.CreatedAt, &agent.UpdatedAt)
 	agent.HasAPIKey = agent.APIKeyCiphertext != ""
 	return agent, err

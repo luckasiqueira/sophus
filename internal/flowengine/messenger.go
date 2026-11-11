@@ -15,6 +15,7 @@ import (
 	"net/url"
 	"path"
 	"sophus/internal/repo"
+	"sophus/internal/waprovider"
 	"sophus/pkg/http/requests"
 	"strings"
 	"time"
@@ -53,6 +54,7 @@ type menuPayload struct {
 	ButtonText  string        `json:"buttonText"`
 	FooterText  string        `json:"footerText"`
 	Sections    []menuSection `json:"sections"`
+	Delay       int           `json:"delay,omitempty"`
 }
 
 type replyButton struct {
@@ -144,17 +146,17 @@ func (m *Messenger) SendText(conversation repo.Conversation, message string) err
 }
 
 func (m *Messenger) SendMedia(conversation repo.Conversation, mediaType, mediaURL, caption string) error {
-	_, err := m.sendMedia(conversation, mediaType, mediaURL, caption, "", "", "")
+	_, err := m.sendMedia(conversation, repo.QuotedEVO{}, mediaType, mediaURL, caption, "", "", "")
 	return err
 }
 
 func (m *Messenger) SendAudio(conversation repo.Conversation, mediaURL string) error {
-	_, err := m.sendMedia(conversation, "audio", mediaURL, "", "", "", "")
+	_, err := m.sendMedia(conversation, repo.QuotedEVO{}, "audio", mediaURL, "", "", "", "")
 	return err
 }
 
 func (m *Messenger) SendDocument(conversation repo.Conversation, mediaURL, caption, fileName string) error {
-	_, err := m.sendMedia(conversation, "document", mediaURL, caption, fileName, "", "")
+	_, err := m.sendMedia(conversation, repo.QuotedEVO{}, "document", mediaURL, caption, fileName, "", "")
 	return err
 }
 
@@ -164,10 +166,15 @@ func (m *Messenger) SendStoredMedia(conversation repo.Conversation, mediaType, m
 }
 
 func (m *Messenger) SendStoredMediaMessage(conversation repo.Conversation, mediaType, mediaURL, caption, fileName, mediaScope, mediaPath string) (string, error) {
-	return m.sendMedia(conversation, mediaType, mediaURL, caption, fileName, mediaScope, mediaPath)
+	return m.sendMedia(conversation, repo.QuotedEVO{}, mediaType, mediaURL, caption, fileName, mediaScope, mediaPath)
 }
 
-func (m *Messenger) sendMedia(conversation repo.Conversation, mediaType, mediaURL, caption, fileName, mediaScope, mediaPath string) (string, error) {
+// SendStoredMediaReply sends a stored file as a WhatsApp reply to quote.
+func (m *Messenger) SendStoredMediaReply(conversation repo.Conversation, quote repo.QuotedEVO, mediaType, mediaURL, caption, fileName, mediaScope, mediaPath string) (string, error) {
+	return m.sendMedia(conversation, quote, mediaType, mediaURL, caption, fileName, mediaScope, mediaPath)
+}
+
+func (m *Messenger) sendMedia(conversation repo.Conversation, quote repo.QuotedEVO, mediaType, mediaURL, caption, fileName, mediaScope, mediaPath string) (string, error) {
 	var settings repo.CompanyOperationSettings
 	var err error
 	if m.chatSettings != nil {
@@ -203,6 +210,9 @@ func (m *Messenger) sendMedia(conversation repo.Conversation, mediaType, mediaUR
 	}
 	payload := buildMediaPayload(number, mediaType, mediaURL, caption, fileName)
 	payload["delay"] = m.typingDelay(caption)
+	if quote.MessageID != "" {
+		payload["quoted"] = quote
+	}
 	timeout := 2 * time.Minute
 	if mediaType == "audio" && mediaPath != "" {
 		timeout = 60 * time.Second
@@ -226,7 +236,7 @@ func (m *Messenger) sendMedia(conversation repo.Conversation, mediaType, mediaUR
 		text = fmt.Sprintf("%s enviado pelo fluxo", mediaType)
 	}
 	if mediaPath != "" {
-		return repo.SaveOutgoingMediaMessage(conversation.Id, evolutionMessageID(r.Response.Body), text, mediaType, mediaScope, mediaPath, m.Connection.CompanyID)
+		return repo.SaveOutgoingMediaMessage(conversation.Id, evolutionMessageID(r.Response.Body), text, mediaType, mediaScope, mediaPath, quote.MessageID, m.Connection.CompanyID)
 	}
 	messageID := evolutionMessageID(r.Response.Body)
 	return messageID, repo.SaveFlowMessage(conversation.Id, messageID, text, m.Connection.CompanyID)
@@ -294,7 +304,7 @@ func (m *Messenger) SendMenu(conversation repo.Conversation, data map[string]int
 		Title:       ReplaceVariables(stringVal(data, "title"), ctx),
 		Description: ReplaceVariables(stringVal(data, "description"), ctx),
 		ButtonText:  ReplaceVariables(stringVal(data, "buttonText"), ctx),
-		FooterText:  ReplaceVariables(stringVal(data, "footerText"), ctx),
+		FooterText:  menuFooter(data, ctx),
 		Sections:    sections,
 	}
 	if strings.TrimSpace(payload.Description) == "" {
@@ -302,9 +312,6 @@ func (m *Messenger) SendMenu(conversation repo.Conversation, data map[string]int
 	}
 	if strings.TrimSpace(payload.Title) == "" {
 		payload.Title = "Menu"
-	}
-	if strings.TrimSpace(payload.FooterText) == "" {
-		payload.FooterText = "Sophus"
 	}
 	if strings.TrimSpace(payload.ButtonText) == "" {
 		payload.ButtonText = "Ver Menu"
@@ -344,6 +351,16 @@ func (m *Messenger) SendMenu(conversation repo.Conversation, data map[string]int
 		payload.Sections = append(payload.Sections, menuSection{Title: "Navegação", Rows: rows})
 	}
 
+	if waprovider.IsWAHA() {
+		if reason := menuListLimitReason(payload); reason != "" {
+			log.Printf("flow menu sent as text: conversation=%d connection=%d reason=%s", conversation.Id, m.Connection.Id, reason)
+		} else if sent, err := m.sendMenuList(conversation, contact.Number, payload); sent {
+			// Already delivered: a failure to store it must not send it twice.
+			return err
+		} else {
+			log.Printf("flow list menu failed, sending as text: conversation=%d connection=%d error=%v", conversation.Id, m.Connection.Id, err)
+		}
+	}
 	startedAt := time.Now()
 	log.Printf("sending flow text menu: conversation=%d connection=%d sections=%d", conversation.Id, m.Connection.Id, len(payload.Sections))
 	if err := m.SendText(conversation, formatMenuAsText(payload)); err != nil {
@@ -352,6 +369,68 @@ func (m *Messenger) SendMenu(conversation repo.Conversation, data map[string]int
 	}
 	log.Printf("flow text menu sent: conversation=%d connection=%d duration=%s", conversation.Id, m.Connection.Id, time.Since(startedAt).Round(time.Millisecond))
 	return nil
+}
+
+// menuFooter returns the menu's footer. An empty footer means none; only
+// menus saved before the field existed keep the old "Sophus" default.
+func menuFooter(data map[string]interface{}, ctx ExecutionContext) string {
+	if _, configured := data["footerText"]; !configured {
+		return "Sophus"
+	}
+	return strings.TrimSpace(ReplaceVariables(stringVal(data, "footerText"), ctx))
+}
+
+// WhatsApp list messages accept up to 10 options, with short titles; a menu
+// beyond these limits keeps the numbered text, which has none.
+const (
+	maxMenuListRows        = 10
+	maxMenuListButtonText  = 20
+	maxMenuListRowTitle    = 24
+	maxMenuListSectionName = 24
+	maxMenuListRowDetails  = 72
+)
+
+// menuListLimitReason says why a menu cannot go as a WhatsApp list, or "".
+func menuListLimitReason(payload menuPayload) string {
+	length := func(text string) int { return len([]rune(strings.TrimSpace(text))) }
+	if length(payload.ButtonText) > maxMenuListButtonText {
+		return fmt.Sprintf("texto do botão com mais de %d caracteres", maxMenuListButtonText)
+	}
+	rows := 0
+	for _, section := range payload.Sections {
+		if length(section.Title) > maxMenuListSectionName {
+			return fmt.Sprintf("título de seção com mais de %d caracteres", maxMenuListSectionName)
+		}
+		for _, row := range section.Rows {
+			rows++
+			if length(row.Title) > maxMenuListRowTitle {
+				return fmt.Sprintf("opção com mais de %d caracteres", maxMenuListRowTitle)
+			}
+			if length(row.Description) > maxMenuListRowDetails {
+				return fmt.Sprintf("descrição de opção com mais de %d caracteres", maxMenuListRowDetails)
+			}
+		}
+	}
+	if rows > maxMenuListRows {
+		return fmt.Sprintf("%d opções (a lista aceita até %d)", rows, maxMenuListRows)
+	}
+	return ""
+}
+
+// sendMenuList sends the menu as a WhatsApp list through the WAHA bridge.
+// The chat keeps the numbered text, which shows every option. sent reports
+// whether WhatsApp accepted the list.
+func (m *Messenger) sendMenuList(conversation repo.Conversation, number string, payload menuPayload) (sent bool, err error) {
+	payload.Number = number
+	payload.Delay = m.typingDelay(payload.Description)
+	r := requests.Request{
+		URL: repo.ApiBaseURL + "/send/list", Method: "POST", Payload: payload,
+		Headers: map[string]string{"Content-Type": "application/json", "apikey": m.Connection.EvolutionAPIKey()},
+	}
+	if err := r.Do(); err != nil {
+		return false, evolutionRequestError("envio de menu em lista", r, err)
+	}
+	return true, repo.SaveFlowMessage(conversation.Id, evolutionMessageID(r.Response.Body), formatMenuAsText(payload), m.Connection.CompanyID)
 }
 
 func buildButtonsPayload(number string, data map[string]interface{}, ctx ExecutionContext) (buttonsPayload, error) {

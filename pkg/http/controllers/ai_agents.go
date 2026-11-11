@@ -1,15 +1,16 @@
 package controllers
 
 import (
-	"bytes"
 	"context"
 	"database/sql"
 	"errors"
 	"io"
+	"log"
 	"net/http"
-	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
+	"time"
 
 	"sophus/internal/llm"
 	"sophus/internal/repo"
@@ -20,19 +21,20 @@ import (
 )
 
 type aiAgentRequest struct {
-	ConnectionId    *int    `json:"connectionId"`
-	Name            string  `json:"name"`
-	CredentialId    int     `json:"credentialId"`
-	SystemPrompt    string  `json:"systemPrompt"`
-	KnowledgeBase   string  `json:"knowledgeBase"`
-	Tone            string  `json:"tone"`
-	MaxOutputTokens int     `json:"maxOutputTokens"`
-	Temperature     float64 `json:"temperature"`
-	HistoryLimit    int     `json:"historyLimit"`
-	WelcomeMessage  string  `json:"welcomeMessage"`
-	SafeMode        *bool   `json:"safeMode"`
-	IsActive        bool    `json:"isActive"`
-	Revision        int     `json:"revision"`
+	ConnectionId      *int    `json:"connectionId"`
+	Name              string  `json:"name"`
+	CredentialId      int     `json:"credentialId"`
+	SystemPrompt      string  `json:"systemPrompt"`
+	KnowledgeBase     string  `json:"knowledgeBase"`
+	Tone              string  `json:"tone"`
+	MaxOutputTokens   int     `json:"maxOutputTokens"`
+	Temperature       float64 `json:"temperature"`
+	HistoryLimit      int     `json:"historyLimit"`
+	HistoryImageLimit int     `json:"historyImageLimit"`
+	WelcomeMessage    string  `json:"welcomeMessage"`
+	SafeMode          *bool   `json:"safeMode"`
+	IsActive          bool    `json:"isActive"`
+	Revision          int     `json:"revision"`
 }
 
 func AIAgentSettingsPage(ctx iris.Context) {
@@ -79,50 +81,85 @@ func ListAIAgentModels(ctx iris.Context) {
 	ctx.JSON(iris.Map{"data": llm.ProviderModels()})
 }
 
-func ExtractAIAgentKnowledgePDF(ctx iris.Context) {
-	if _, ok := requireAdmin(ctx); !ok {
+// ExtractAIAgentKnowledgeFile returns the text of an uploaded document,
+// spreadsheet or image for the operator to review in the knowledge base. The
+// file is not stored. Images are read by the vision model of the credential
+// chosen in the form.
+func ExtractAIAgentKnowledgeFile(ctx iris.Context) {
+	current, ok := requireAdmin(ctx)
+	if !ok {
 		return
 	}
-	const maxPDFBytes = 10 << 20
-	ctx.Request().Body = http.MaxBytesReader(ctx.ResponseWriter(), ctx.Request().Body, maxPDFBytes+(1<<20))
+	const maxBytes = llm.MaxKnowledgeFileBytes
+	ctx.Request().Body = http.MaxBytesReader(ctx.ResponseWriter(), ctx.Request().Body, maxBytes+(1<<20))
 	file, header, err := ctx.FormFile("file")
 	if err != nil {
-		writeJSONError(ctx, iris.StatusBadRequest, "envie um arquivo PDF")
+		writeJSONError(ctx, iris.StatusBadRequest, "envie um arquivo de até 10 MB")
 		return
 	}
 	defer file.Close()
-	if header.Size <= 0 || header.Size > maxPDFBytes {
-		writeJSONError(ctx, iris.StatusBadRequest, "o PDF deve possuir no máximo 10 MB")
+	if header.Size <= 0 || header.Size > maxBytes {
+		writeJSONError(ctx, iris.StatusBadRequest, "o arquivo deve possuir no máximo 10 MB")
 		return
 	}
-	prefix := make([]byte, 5)
-	if _, err := io.ReadFull(file, prefix); err != nil || !bytes.Equal(prefix, []byte("%PDF-")) {
-		writeJSONError(ctx, iris.StatusBadRequest, "o arquivo enviado não é um PDF válido")
+	data, err := io.ReadAll(io.LimitReader(file, maxBytes+1))
+	if err != nil || len(data) == 0 || len(data) > maxBytes {
+		writeJSONError(ctx, iris.StatusBadRequest, "não foi possível receber o arquivo")
 		return
 	}
-	temporary, err := os.CreateTemp("", "sophus-ai-knowledge-*.pdf")
-	if err != nil {
-		writeJSONError(ctx, iris.StatusInternalServerError, "não foi possível processar o PDF")
-		return
+	name := filepath.Base(strings.TrimSpace(header.Filename))
+	if name == "." || name == "" || name == string(filepath.Separator) {
+		name = "documento"
 	}
-	path := temporary.Name()
-	defer os.Remove(path)
-	written, copyErr := io.Copy(temporary, io.MultiReader(bytes.NewReader(prefix), io.LimitReader(file, maxPDFBytes+1)))
-	closeErr := temporary.Close()
-	if copyErr != nil || closeErr != nil || written > maxPDFBytes {
-		writeJSONError(ctx, iris.StatusBadRequest, "não foi possível receber o PDF")
-		return
-	}
-	text, err := llm.ExtractPDFText(path)
+	kind, err := llm.KnowledgeFileKind(name, data)
 	if err != nil {
 		writeJSONError(ctx, iris.StatusUnprocessableEntity, err.Error())
 		return
 	}
-	name := filepath.Base(strings.TrimSpace(header.Filename))
-	if name == "." || name == "" {
-		name = "documento.pdf"
+	var text string
+	if kind == "image" {
+		text, err = describeKnowledgeImage(ctx, current.CompanyId, data)
+	} else {
+		text, err = llm.ExtractKnowledgeFile(kind, data)
 	}
-	ctx.JSON(iris.Map{"data": iris.Map{"fileName": name, "text": text, "characters": len(text)}})
+	if err != nil {
+		writeJSONError(ctx, iris.StatusUnprocessableEntity, err.Error())
+		return
+	}
+	ctx.JSON(iris.Map{"data": iris.Map{"fileName": name, "kind": kind, "text": text, "characters": len(text)}})
+}
+
+func describeKnowledgeImage(ctx iris.Context, companyID int, data []byte) (string, error) {
+	credentialID, err := strconv.Atoi(strings.TrimSpace(ctx.FormValue("credentialId")))
+	if err != nil || credentialID <= 0 {
+		return "", errors.New("selecione a credencial de IA do agente para ler imagens")
+	}
+	credential, err := repo.GetAICredential(credentialID, companyID)
+	if err != nil {
+		return "", errors.New("credencial de IA não encontrada")
+	}
+	if !llm.SupportsMediaAnalysis(credential.Provider, "image") {
+		return "", errors.New("a credencial selecionada não lê imagens; use OpenAI, Gemini, Claude ou Groq")
+	}
+	apiKey, err := llm.DecryptAPIKey(credential.APIKeyCiphertext)
+	if err != nil {
+		return "", errors.New("não foi possível usar a chave da credencial")
+	}
+	requestContext, cancel := context.WithTimeout(ctx.Request().Context(), 2*time.Minute)
+	defer cancel()
+	response, err := llm.AnalyzeMedia(requestContext, credential.Provider, credential.Model, apiKey, "image", llm.KnowledgeImageMIME(data), data, llm.KnowledgeImagePrompt(), true)
+	if err != nil {
+		log.Printf("ai knowledge image failed: company=%d credential=%d provider=%s error=%v", companyID, credential.Id, credential.Provider, err)
+		return "", errors.New(llm.MediaErrorMessage(err))
+	}
+	text := strings.TrimSpace(response.Text)
+	if text == "" {
+		return "", errors.New("a IA não encontrou conteúdo na imagem")
+	}
+	if len(text) > llm.MaxKnowledgePDFText {
+		text = strings.ToValidUTF8(text[:llm.MaxKnowledgePDFText], "")
+	}
+	return text, nil
 }
 
 func CreateAIAgent(ctx iris.Context) {
@@ -279,6 +316,9 @@ func normalizeAIAgentRequest(body *aiAgentRequest) (repo.AIAgentInput, string) {
 	if body.MaxOutputTokens < 1 || body.MaxOutputTokens > 32768 || body.Temperature < 0 || body.Temperature > 2 || body.HistoryLimit < 2 || body.HistoryLimit > 100 {
 		return repo.AIAgentInput{}, "limites de geração inválidos"
 	}
+	if body.HistoryImageLimit < 0 || body.HistoryImageLimit > llm.MaxChatImages || body.HistoryImageLimit > body.HistoryLimit {
+		return repo.AIAgentInput{}, "o número de imagens do histórico deve estar entre 0 e 10 e não pode passar do número de mensagens"
+	}
 	safeMode := true
 	if body.SafeMode != nil {
 		safeMode = *body.SafeMode
@@ -287,7 +327,7 @@ func normalizeAIAgentRequest(body *aiAgentRequest) (repo.AIAgentInput, string) {
 		ConnectionId: body.ConnectionId, Name: body.Name, CredentialId: body.CredentialId,
 		SystemPrompt: body.SystemPrompt, KnowledgeBase: body.KnowledgeBase,
 		Tone: body.Tone, MaxOutputTokens: body.MaxOutputTokens, Temperature: body.Temperature,
-		HistoryLimit: body.HistoryLimit, WelcomeMessage: body.WelcomeMessage, SafeMode: safeMode, IsActive: body.IsActive, Revision: body.Revision,
+		HistoryLimit: body.HistoryLimit, HistoryImageLimit: body.HistoryImageLimit, WelcomeMessage: body.WelcomeMessage, SafeMode: safeMode, IsActive: body.IsActive, Revision: body.Revision,
 	}, ""
 }
 

@@ -77,3 +77,32 @@ func TestBuildDocumentPayloadPreservesOriginalName(t *testing.T) {
 		t.Fatalf("filename = %#v", payload["filename"])
 	}
 }
+
+func TestSendStoredMediaReplyIncludesQuote(t *testing.T) {
+	previousURL := repo.ApiBaseURL
+	t.Cleanup(func() { repo.ApiBaseURL = previousURL })
+	var quoted repo.QuotedEVO
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		var payload struct {
+			Quoted repo.QuotedEVO `json:"quoted"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
+			t.Error(err)
+		}
+		quoted = payload.Quoted
+		// Stop before persistence; only the provider payload is under test.
+		w.WriteHeader(http.StatusBadGateway)
+	}))
+	defer server.Close()
+	repo.ApiBaseURL = server.URL
+	settings := repo.CompanyOperationSettings{AllowedAttachmentTypes: []string{"audio"}}
+	connection := repo.ConnectionEVO{Id: 11, CompanyID: 3}
+	conversation := repo.Conversation{Id: 8, ConnectionID: 11, Contact: repo.Contact{Id: 5, CompanyId: 3, Number: "5511999999999"}}
+	quote := repo.QuotedEVO{MessageID: "QUOTED1", Participant: "5511999999999@s.whatsapp.net"}
+	if _, err := NewChatMessenger(connection, settings).SendStoredMediaReply(conversation, quote, "audio", "https://example.test/a.ogg", "", "a.ogg", "messages", "a.ogg"); err == nil {
+		t.Fatal("expected provider error")
+	}
+	if quoted != quote {
+		t.Fatalf("quoted payload = %+v, want %+v", quoted, quote)
+	}
+}

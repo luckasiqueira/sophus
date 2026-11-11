@@ -114,7 +114,7 @@ func RequireStructuredContentType(ctx iris.Context) {
 		ctx.StopWithStatus(iris.StatusUnsupportedMediaType)
 		return
 	}
-	if path == "/management/api/ai-agents/knowledge/pdf" || path == "/flows/api/media" {
+	if path == "/management/api/ai-agents/knowledge/file" || path == "/management/api/ai-agents/knowledge/pdf" || path == "/flows/api/media" {
 		if mediaType != "multipart/form-data" {
 			ctx.StopWithStatus(iris.StatusUnsupportedMediaType)
 			return

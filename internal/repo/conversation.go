@@ -462,7 +462,7 @@ func CloseConversationByURL(url uuid.UUID, companyID, agentID int, isAdmin bool)
 		return err
 	}
 	if _, err = tx.Exec(`UPDATE ai_agent_sessions SET status = 'ended', "endedAt" = now(), "updatedAt" = now()
-		WHERE "conversationId" = $1 AND status = 'active'`, conversationID); err != nil {
+		WHERE "conversationId" = $1 AND status IN ('active', 'paused')`, conversationID); err != nil {
 		return err
 	}
 	_, err = tx.Exec(`UPDATE conversations
@@ -516,7 +516,7 @@ func TransferConversationByURL(url uuid.UUID, companyID, actorID int, isAdmin bo
 		return err
 	}
 	if _, err = tx.Exec(`UPDATE ai_agent_sessions SET status = 'ended', "endedAt" = now(), "updatedAt" = now()
-		WHERE "conversationId" = $1 AND status = 'active'`, conversationID); err != nil {
+		WHERE "conversationId" = $1 AND status IN ('active', 'paused')`, conversationID); err != nil {
 		return err
 	}
 	if _, err = tx.Exec(`UPDATE conversations SET "agentId" = $1, "departmentId" = $2,
@@ -579,7 +579,7 @@ func AcceptConversation(url uuid.UUID, agent Agent) (bool, error) {
 		return false, err
 	}
 	if _, err := tx.Exec(`UPDATE ai_agent_sessions SET status = 'ended', "endedAt" = now(), "updatedAt" = now()
-		WHERE "conversationId" = $1 AND status = 'active'`, conversationID); err != nil {
+		WHERE "conversationId" = $1 AND status IN ('active', 'paused')`, conversationID); err != nil {
 		return false, err
 	}
 	if _, err := tx.Exec(`UPDATE conversations SET "agentId" = $1, status = $2, "updatedAt" = now() WHERE id = $3`,
@@ -622,7 +622,7 @@ func IgnoreConversation(url uuid.UUID, agent Agent) (bool, error) {
 		return false, err
 	}
 	if _, err := tx.Exec(`UPDATE ai_agent_sessions SET status = 'ended', "endedAt" = now(), "updatedAt" = now()
-		WHERE "conversationId" = $1 AND status = 'active'`, conversationID); err != nil {
+		WHERE "conversationId" = $1 AND status IN ('active', 'paused')`, conversationID); err != nil {
 		return false, err
 	}
 	if _, err := tx.Exec(`UPDATE conversations SET status = $1, "updatedAt" = now() WHERE id = $2`, ConversationStatusClosed, conversationID); err != nil {

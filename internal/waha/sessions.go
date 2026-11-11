@@ -340,6 +340,19 @@ func (b *Bridge) status(ctx context.Context, session string) result {
 	return success(map[string]any{"data": data, "message": "success"})
 }
 
+// DELETE /instance/logout: unlink the device and drop its stored auth keys,
+// keeping the session so a new QR Code can pair it again.
+func (b *Bridge) logout(ctx context.Context, session string) result {
+	response, err := b.Client.Do(ctx, http.MethodPost, "/api/sessions/"+url.PathEscape(session)+"/logout", nil, nil, "")
+	if err != nil {
+		return result{err: err}
+	}
+	if !response.OK() && response.Status != http.StatusNotFound {
+		return fromWAHA(response, nil)
+	}
+	return success(map[string]any{"message": "success"})
+}
+
 // DELETE /instance/delete/{instanceId}: unlink the device, then remove it.
 func (b *Bridge) deleteInstance(ctx context.Context, rawInstanceID string) result {
 	instanceID, err := uuid.Parse(strings.TrimSpace(rawInstanceID))

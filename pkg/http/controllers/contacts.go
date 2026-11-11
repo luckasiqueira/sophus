@@ -255,6 +255,71 @@ func SetCompanyContactTags(ctx iris.Context) {
 	ctx.StatusCode(iris.StatusNoContent)
 }
 
+type contactInputBody struct {
+	Name    string `json:"name"`
+	Number  string `json:"number"`
+	Email   string `json:"email"`
+	Company string `json:"company"`
+}
+
+// readContactInput decodes and validates the agent-typed contact fields,
+// writing the 400 response itself when the payload is invalid.
+func readContactInput(ctx iris.Context) (repo.ContactUpdateInput, bool) {
+	var body contactInputBody
+	if err := ctx.ReadJSON(&body); err != nil {
+		writeJSONError(ctx, iris.StatusBadRequest, "JSON inválido")
+		return repo.ContactUpdateInput{}, false
+	}
+	body.Name = strings.TrimSpace(body.Name)
+	body.Number = nonPhoneDigits.ReplaceAllString(body.Number, "")
+	body.Email = strings.ToLower(strings.TrimSpace(body.Email))
+	body.Company = strings.TrimSpace(body.Company)
+	if !utf8.ValidString(body.Name) || body.Name == "" || utf8.RuneCountInString(body.Name) > 160 || strings.ContainsRune(body.Name, 0) {
+		writeJSONError(ctx, iris.StatusBadRequest, "informe um nome de até 160 caracteres")
+		return repo.ContactUpdateInput{}, false
+	}
+	if len(body.Number) < 8 || len(body.Number) > 20 {
+		writeJSONError(ctx, iris.StatusBadRequest, "informe um telefone válido com DDI e DDD")
+		return repo.ContactUpdateInput{}, false
+	}
+	if !utf8.ValidString(body.Company) || utf8.RuneCountInString(body.Company) > 160 || strings.ContainsRune(body.Company, 0) {
+		writeJSONError(ctx, iris.StatusBadRequest, "a empresa deve possuir até 160 caracteres")
+		return repo.ContactUpdateInput{}, false
+	}
+	if body.Email != "" {
+		address, err := mail.ParseAddress(body.Email)
+		if err != nil || !strings.EqualFold(address.Address, body.Email) || len(body.Email) > 320 {
+			writeJSONError(ctx, iris.StatusBadRequest, "informe um email válido")
+			return repo.ContactUpdateInput{}, false
+		}
+	}
+	return repo.ContactUpdateInput{Name: body.Name, Number: body.Number, Email: body.Email, Company: body.Company}, true
+}
+
+func CreateCompanyContact(ctx iris.Context) {
+	agent, ok := requireAdmin(ctx)
+	if !ok {
+		return
+	}
+	input, ok := readContactInput(ctx)
+	if !ok {
+		return
+	}
+	id, err := repo.CreateCompanyContact(agent.CompanyId, input)
+	if err != nil {
+		log.Printf("contact create failed: company=%d error=%v", agent.CompanyId, err)
+		if isUniqueViolation(err) {
+			writeJSONError(ctx, iris.StatusConflict, "já existe um contato com este telefone nesta empresa")
+		} else {
+			writeJSONError(ctx, iris.StatusInternalServerError, "não foi possível criar o contato")
+		}
+		return
+	}
+	recordCompanyAction(ctx, agent, "create", "contact", strconv.Itoa(id))
+	ctx.StatusCode(iris.StatusCreated)
+	ctx.JSON(iris.Map{"data": iris.Map{"id": id, "name": input.Name, "number": input.Number}})
+}
+
 func UpdateCompanyContact(ctx iris.Context) {
 	agent, ok := requireAdmin(ctx)
 	if !ok {
@@ -264,42 +329,11 @@ func UpdateCompanyContact(ctx iris.Context) {
 	if !ok {
 		return
 	}
-	var body struct {
-		Name    string `json:"name"`
-		Number  string `json:"number"`
-		Email   string `json:"email"`
-		Company string `json:"company"`
-	}
-	if err := ctx.ReadJSON(&body); err != nil {
-		writeJSONError(ctx, iris.StatusBadRequest, "JSON inválido")
+	input, ok := readContactInput(ctx)
+	if !ok {
 		return
 	}
-	body.Name = strings.TrimSpace(body.Name)
-	body.Number = nonPhoneDigits.ReplaceAllString(body.Number, "")
-	body.Email = strings.ToLower(strings.TrimSpace(body.Email))
-	body.Company = strings.TrimSpace(body.Company)
-	if !utf8.ValidString(body.Name) || body.Name == "" || utf8.RuneCountInString(body.Name) > 160 || strings.ContainsRune(body.Name, 0) {
-		writeJSONError(ctx, iris.StatusBadRequest, "informe um nome de até 160 caracteres")
-		return
-	}
-	if len(body.Number) < 8 || len(body.Number) > 20 {
-		writeJSONError(ctx, iris.StatusBadRequest, "informe um telefone válido com DDI e DDD")
-		return
-	}
-	if !utf8.ValidString(body.Company) || utf8.RuneCountInString(body.Company) > 160 || strings.ContainsRune(body.Company, 0) {
-		writeJSONError(ctx, iris.StatusBadRequest, "a empresa deve possuir até 160 caracteres")
-		return
-	}
-	if body.Email != "" {
-		address, err := mail.ParseAddress(body.Email)
-		if err != nil || !strings.EqualFold(address.Address, body.Email) || len(body.Email) > 320 {
-			writeJSONError(ctx, iris.StatusBadRequest, "informe um email válido")
-			return
-		}
-	}
-	err := repo.UpdateCompanyContact(id, agent.CompanyId, repo.ContactUpdateInput{
-		Name: body.Name, Number: body.Number, Email: body.Email, Company: body.Company,
-	})
+	err := repo.UpdateCompanyContact(id, agent.CompanyId, input)
 	if err != nil {
 		log.Printf("contact update failed: company=%d contact=%d error=%v", agent.CompanyId, id, err)
 		if errors.Is(err, sql.ErrNoRows) {

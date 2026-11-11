@@ -79,13 +79,7 @@ func toolArguments(raw string) map[string]interface{} {
 }
 
 func completeOpenAITools(ctx context.Context, client *http.Client, endpoint string, request Request, tools []ToolDefinition, execute ToolExecutor) (Response, error) {
-	messages := make([]map[string]interface{}, 0, len(request.Messages)+4)
-	if request.System != "" {
-		messages = append(messages, map[string]interface{}{"role": "system", "content": request.System})
-	}
-	for _, message := range request.Messages {
-		messages = append(messages, map[string]interface{}{"role": message.Role, "content": message.Content})
-	}
+	messages := openAIMessages(request.System, request.Messages)
 	specs := make([]map[string]interface{}, 0, len(tools))
 	for _, tool := range tools {
 		specs = append(specs, map[string]interface{}{"type": "function", "function": map[string]interface{}{
@@ -154,10 +148,7 @@ func completeOpenAITools(ctx context.Context, client *http.Client, endpoint stri
 }
 
 func completeClaudeTools(ctx context.Context, client *http.Client, request Request, tools []ToolDefinition, execute ToolExecutor) (Response, error) {
-	messages := make([]interface{}, 0, len(request.Messages)+4)
-	for _, message := range request.Messages {
-		messages = append(messages, map[string]interface{}{"role": message.Role, "content": message.Content})
-	}
+	messages := claudeMessages(request.Messages)
 	specs := make([]map[string]interface{}, 0, len(tools))
 	for _, tool := range tools {
 		specs = append(specs, map[string]interface{}{"name": tool.Name, "description": tool.Description, "input_schema": toolSchema(tool)})
@@ -226,14 +217,7 @@ func completeClaudeTools(ctx context.Context, client *http.Client, request Reque
 }
 
 func completeGeminiTools(ctx context.Context, client *http.Client, request Request, tools []ToolDefinition, execute ToolExecutor) (Response, error) {
-	contents := make([]interface{}, 0, len(request.Messages)+4)
-	for _, message := range request.Messages {
-		role := "user"
-		if message.Role == "assistant" {
-			role = "model"
-		}
-		contents = append(contents, map[string]interface{}{"role": role, "parts": []map[string]string{{"text": message.Content}}})
-	}
+	contents := geminiContents(request.Messages)
 	declarations := make([]map[string]interface{}, 0, len(tools))
 	for _, tool := range tools {
 		declaration := map[string]interface{}{"name": tool.Name, "description": tool.Description}

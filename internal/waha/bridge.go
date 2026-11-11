@@ -153,6 +153,8 @@ func (b *Bridge) route(ctx context.Context, method, path, apiKey string, payload
 		return b.connect(ctx, connection, payload)
 	case method == http.MethodPost && path == "/instance/reconnect":
 		return b.reconnect(ctx, connection)
+	case method == http.MethodDelete && path == "/instance/logout":
+		return b.logout(ctx, session)
 	case method == http.MethodGet && path == "/instance/qr":
 		return b.qrCode(ctx, connection)
 	case method == http.MethodGet && path == "/instance/status":
@@ -171,6 +173,8 @@ func (b *Bridge) route(ctx context.Context, method, path, apiKey string, payload
 		return b.sendMedia(ctx, session, payload)
 	case method == http.MethodPost && path == "/send/button":
 		return b.sendButtons(ctx, session, payload)
+	case method == http.MethodPost && path == "/send/list":
+		return b.sendList(ctx, session, payload)
 	case method == http.MethodPost && path == "/message/react":
 		return b.react(ctx, session, payload)
 	case method == http.MethodPost && path == "/message/edit":

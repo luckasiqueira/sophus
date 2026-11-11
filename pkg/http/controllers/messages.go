@@ -607,7 +607,8 @@ func ReactToMessage(ctx iris.Context) {
 	}
 	ctx.RenderComponent(components.MessageReactions(updated, conversation.URL.String(), false))
 	if html, renderErr := renderComponent(components.MessageReactions(updated, conversation.URL.String(), true)); renderErr == nil {
-		sse.Global.Send(conversation.URL.String(), html)
+		// Reactions are in-place updates: "message-update" keeps the chat scroll.
+		sse.Global.SendEvent(conversation.URL.String(), "message-update", html)
 	}
 }
 

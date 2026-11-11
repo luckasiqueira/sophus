@@ -1,6 +1,7 @@
 package flowengine
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -12,17 +13,20 @@ import (
 	"strings"
 	"unicode"
 
+	"github.com/google/uuid"
 	"golang.org/x/text/unicode/norm"
 
 	"sophus/internal/llm"
 	"sophus/internal/repo"
 	"sophus/pkg/http/middlewares/sse"
+	"sophus/web/components"
 )
 
-// The AI agent block accepts two sub-blocks on its bottom handles: a
-// knowledge base that extends the agent's own, and a list of actions the
-// model can call as tools. Both are captured into the session when the flow
-// hands the conversation over.
+// The AI agent block accepts an "Ações da IA" sub-block on its tools handle:
+// a list of actions the model can call as tools, captured into the session
+// when the flow hands the conversation over. The knowledge base lives only on
+// the agent (/ai-agents); the knowledge handle is kept for flows saved while a
+// flow-level knowledge block existed, whose content is no longer used.
 
 const (
 	aiKnowledgeHandle      = "knowledge"
@@ -34,17 +38,18 @@ const (
 	maxAIToolResultBytes   = 8000
 	defaultAIActionTimeout = 15000
 	maxAIActionTimeout     = 60000
+	maxAIPauseMinutes      = 43200
 )
 
 var aiActionParameterPattern = regexp.MustCompile(`^[A-Za-z][A-Za-z0-9_]{0,63}$`)
 
 type AIAgentExtensions struct {
-	KnowledgeBase string     `json:"knowledgeBase,omitempty"`
-	Actions       []AIAction `json:"actions,omitempty"`
+	Actions []AIAction `json:"actions,omitempty"`
 }
 
 // AIAction is one action of the "Ações da IA" block. Type is transfer, close,
-// tag, contactField or http; the other fields apply to the matching type.
+// pause, summary, tag, contactField or http; the other fields apply to the
+// matching type.
 type AIAction struct {
 	ID          string              `json:"id"`
 	Type        string              `json:"type"`
@@ -61,6 +66,8 @@ type AIAction struct {
 	Headers     []AIActionHeader    `json:"headers,omitempty"`
 	Parameters  []AIActionParameter `json:"parameters,omitempty"`
 	Timeout     int                 `json:"timeout,omitempty"`
+	// PauseMinutes is how long a pause lasts; 0 waits for a person.
+	PauseMinutes int `json:"pauseMinutes,omitempty"`
 }
 
 type AIActionHeader struct {
@@ -90,10 +97,11 @@ func decodeAIActions(data map[string]interface{}) ([]AIAction, error) {
 	return actions, nil
 }
 
+// validateAIKnowledgeNode accepts the legacy flow knowledge block so flows
+// saved with it still load; its content is ignored.
 func validateAIKnowledgeNode(data map[string]interface{}) error {
-	content := strings.TrimSpace(stringVal(data, "content"))
-	if content == "" || len(content) > maxAIKnowledgeBytes {
-		return fmt.Errorf("base de conhecimento deve possuir entre 1 e %d caracteres", maxAIKnowledgeBytes)
+	if len(stringVal(data, "content")) > maxAIKnowledgeBytes {
+		return fmt.Errorf("base de conhecimento excede %d caracteres", maxAIKnowledgeBytes)
 	}
 	return nil
 }
@@ -133,7 +141,11 @@ func validateAIAction(action AIAction) error {
 		if action.AssignID <= 0 {
 			return errors.New("destino da transferência é obrigatório")
 		}
-	case "close":
+	case "close", "summary":
+	case "pause":
+		if action.PauseMinutes < 0 || action.PauseMinutes > maxAIPauseMinutes {
+			return fmt.Errorf("pausa deve durar até %d minutos (0 aguarda um atendente)", maxAIPauseMinutes)
+		}
 	case "tag":
 		if tag := strings.TrimSpace(action.Tag); tag == "" || len(tag) > 80 {
 			return errors.New("tag deve possuir entre 1 e 80 caracteres")
@@ -218,8 +230,8 @@ func validateAIAgentEdge(edge FlowEdge, source, target FlowNode) error {
 	return nil
 }
 
-// collectAIAgentExtensions reads the sub-blocks connected to an AI agent
-// block, resolving flow variables now: the session outlives the execution.
+// collectAIAgentExtensions reads the actions connected to an AI agent block,
+// resolving flow variables now: the session outlives the execution.
 // Action parameters keep their {{placeholders}} for the model to fill.
 func collectAIAgentExtensions(node FlowNode, flowData FlowData, ctx ExecutionContext) AIAgentExtensions {
 	var extensions AIAgentExtensions
@@ -231,10 +243,7 @@ func collectAIAgentExtensions(node FlowNode, flowData FlowData, ctx ExecutionCon
 		if target == nil {
 			continue
 		}
-		switch {
-		case edge.SourceHandle == aiKnowledgeHandle && target.Type == NodeAIKnowledge:
-			extensions.KnowledgeBase = strings.TrimSpace(ReplaceVariables(stringVal(target.Data, "content"), ctx))
-		case edge.SourceHandle == aiToolsHandle && target.Type == NodeAITools:
+		if edge.SourceHandle == aiToolsHandle && target.Type == NodeAITools {
 			actions, err := decodeAIActions(target.Data)
 			if err != nil {
 				log.Printf("ai agent actions skipped: node=%s error=%v", target.ID, err)
@@ -321,6 +330,16 @@ func aiActionTools(actions []AIAction) ([]llm.ToolDefinition, map[string]AIActio
 		case "close":
 			description += "\nEncerra o atendimento. Use apenas quando o cliente não precisar de mais nada. Depois de usar, escreva somente uma despedida curta."
 			parameters = objectSchema(map[string]interface{}{"resumo": stringProperty("Resumo objetivo do atendimento.")}, nil)
+		case "pause":
+			duration := "até um atendente assumir"
+			if action.PauseMinutes > 0 {
+				duration = fmt.Sprintf("por %d minutos", action.PauseMinutes)
+			}
+			description += "\nPausa suas respostas " + duration + ", sem transferir nem encerrar o atendimento; a equipe continua a conversa. Depois de usar, escreva somente uma mensagem curta avisando o cliente."
+			parameters = objectSchema(map[string]interface{}{"motivo": stringProperty("Motivo da pausa, para a equipe.")}, nil)
+		case "summary":
+			description += "\nEnvia à equipe um resumo da conversa como nota interna no chat. O cliente não vê a nota; continue o atendimento normalmente."
+			parameters = objectSchema(map[string]interface{}{"resumo": stringProperty("Resumo objetivo da conversa até agora: o que o cliente quer, dados informados e o que falta resolver.")}, []string{"resumo"})
 		case "tag":
 			description += "\nAdiciona a etiqueta \"" + strings.TrimSpace(action.Tag) + "\" ao cliente."
 			parameters = objectSchema(map[string]interface{}{}, nil)
@@ -352,8 +371,8 @@ func aiActionTools(actions []AIAction) ([]llm.ToolDefinition, map[string]AIActio
 	return tools, byName
 }
 
-// aiToolRunner executes the tools of one AI agent answer. Transfers and
-// closings are only validated here and run after the reply is sent, so the
+// aiToolRunner executes the tools of one AI agent answer. Transfers, pauses
+// and closings are only validated here and run after the reply is sent, so the
 // customer reads the AI's last message before the conversation changes hands.
 type aiToolRunner struct {
 	session      repo.AIAgentSession
@@ -403,20 +422,38 @@ func (runner *aiToolRunner) Execute(_ context.Context, call llm.ToolCall) string
 func (runner *aiToolRunner) run(action AIAction, arguments map[string]interface{}) (string, error) {
 	companyID := runner.connection.CompanyID
 	switch action.Type {
-	case "transfer", "close":
+	case "transfer", "close", "pause":
 		if runner.pending != nil {
-			return "", errors.New("já existe uma transferência ou encerramento programado para esta resposta")
+			return "", errors.New("já existe uma transferência, pausa ou encerramento programado para esta resposta")
 		}
 		if action.Type == "transfer" {
 			if err := repo.ValidateAIAgentTransferTarget(companyID, action.AssignType, action.AssignID); err != nil {
 				return "", err
 			}
 		}
-		runner.pending = &pendingAIAction{action: action, summary: argumentText(arguments, "resumo")}
-		if action.Type == "transfer" {
+		summary := argumentText(arguments, "resumo")
+		if action.Type == "pause" {
+			summary = argumentText(arguments, "motivo")
+		}
+		runner.pending = &pendingAIAction{action: action, summary: summary}
+		switch action.Type {
+		case "transfer":
 			return "Transferência confirmada; será concluída após sua resposta. Escreva agora somente uma mensagem curta avisando o cliente.", nil
+		case "pause":
+			return "Pausa confirmada; começa após sua resposta. Escreva agora somente uma mensagem curta avisando o cliente que a equipe vai continuar.", nil
 		}
 		return "Encerramento confirmado; será concluído após sua resposta. Escreva agora somente uma despedida curta.", nil
+	case "summary":
+		summary := argumentText(arguments, "resumo")
+		if summary == "" {
+			return "", errors.New("informe o resumo da conversa")
+		}
+		event, err := repo.AddAIAgentNote(runner.session.Id, runner.conversation.Id, companyID, runner.session.Agent.Name, "Resumo da conversa:\n"+summary)
+		if err != nil {
+			return "", err
+		}
+		runner.publishNote(event)
+		return "Resumo enviado à equipe como nota interna. Não mencione a nota ao cliente.", nil
 	case "tag":
 		if _, err := repo.AddAIAgentConversationTag(runner.session.Id, runner.conversation.Id, companyID, action.Tag); err != nil {
 			return "", err
@@ -536,7 +573,25 @@ func (runner *aiToolRunner) runHTTP(action AIAction, arguments map[string]interf
 	return text, nil
 }
 
-// finish runs the transfer or closing the model requested, after its reply.
+// publishNote shows a note the AI wrote in the open chats right away.
+func (runner *aiToolRunner) publishNote(event repo.ConversationEvent) {
+	if runner.conversation.URL == uuid.Nil {
+		return
+	}
+	timezone := ""
+	if settings, err := repo.GetCompanyOperationSettings(runner.connection.CompanyID); err == nil {
+		timezone = settings.Timezone
+	}
+	var html bytes.Buffer
+	if err := components.InternalNote(event, timezone).Render(context.Background(), &html); err != nil {
+		log.Printf("ai agent note could not be rendered: conversation=%d error=%v", runner.conversation.Id, err)
+		return
+	}
+	sse.Global.SendEvent(runner.conversation.URL.String(), "internal-note", html.String())
+}
+
+// finish runs the transfer, pause or closing the model requested, after its
+// reply.
 func (runner *aiToolRunner) finish() error {
 	if runner.pending == nil {
 		return nil
@@ -548,9 +603,12 @@ func (runner *aiToolRunner) finish() error {
 		}
 	}
 	var err error
-	if action.Type == "transfer" {
+	switch action.Type {
+	case "transfer":
 		err = repo.TransferAIAgentConversation(runner.session.Id, runner.conversation.Id, companyID, action.AssignType, action.AssignID, runner.pending.summary)
-	} else {
+	case "pause":
+		err = repo.PauseAIAgentConversation(runner.session.Id, runner.conversation.Id, companyID, action.PauseMinutes, runner.pending.summary)
+	default:
 		err = repo.CloseAIAgentConversation(runner.session.Id, runner.conversation.Id, companyID, runner.pending.summary)
 	}
 	if err != nil {

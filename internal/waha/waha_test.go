@@ -293,6 +293,40 @@ func TestButtonsAreSentAsList(t *testing.T) {
 	}
 }
 
+func TestMenuIsSentAsList(t *testing.T) {
+	b, fake := setup(t, func(w http.ResponseWriter, r *http.Request, _ map[string]any) {
+		write(w, 201, map[string]any{"id": "true_5511988887777@c.us_MENU1"})
+	})
+	payload, _ := json.Marshal(map[string]any{
+		"number": "5511988887777", "title": "Menu", "description": "Escolha", "buttonText": "Ver Menu", "footerText": "Sophus",
+		"sections": []map[string]any{
+			{"title": "Opções", "rows": []map[string]string{{"title": "Opção 1", "description": "Teste 1", "rowId": "op1"}, {"title": "Opção 2", "rowId": "op2"}}},
+			{"title": "Navegação", "rows": []map[string]string{{"title": "Menu principal", "rowId": "menu_principal"}}},
+		},
+	})
+	res := b.route(context.Background(), http.MethodPost, "/send/list", testToken, payload)
+	if res.status != 200 || !strings.Contains(string(res.body), `"ID":"MENU1"`) {
+		t.Fatalf("unexpected response: %d %s", res.status, res.body)
+	}
+	sent, _ := fake.find(http.MethodPost, "/api/sendList")
+	message := sent.Body["message"].(map[string]any)
+	sections := message["sections"].([]any)
+	first := sections[0].(map[string]any)["rows"].([]any)
+	if message["button"] != "Ver Menu" || message["footer"] != "Sophus" || len(sections) != 2 {
+		t.Fatalf("list message: %+v", message)
+	}
+	if row := first[0].(map[string]any); row["rowId"] != "op1" || row["description"] != "Teste 1" {
+		t.Fatalf("row must keep its ID and description: %+v", row)
+	}
+	if _, ok := first[1].(map[string]any)["description"]; ok {
+		t.Fatal("an empty description must be omitted")
+	}
+	bad, _ := json.Marshal(map[string]any{"number": "5511988887777", "description": "x", "sections": []map[string]any{{"title": "S", "rows": []map[string]string{{"title": "", "rowId": "a"}}}}})
+	if res := b.route(context.Background(), http.MethodPost, "/send/list", testToken, bad); res.status != http.StatusBadRequest {
+		t.Fatalf("row without title must be rejected, got %d", res.status)
+	}
+}
+
 func sign(body []byte) http.Header {
 	signer := hmac.New(sha512.New, []byte(testToken))
 	signer.Write(body)
@@ -486,5 +520,52 @@ func TestDownloadMediaDecryptsLikeWhatsApp(t *testing.T) {
 	encrypted[0] ^= 0xff
 	if _, err := DownloadMedia(context.Background(), "WhatsApp Document Keys", media); err == nil {
 		t.Fatal("tampered media must be rejected")
+	}
+}
+
+func TestSendResponseUnwrapsGOWSEvent(t *testing.T) {
+	_, _ = setup(t, func(w http.ResponseWriter, r *http.Request, _ map[string]any) {
+		write(w, 201, map[string]any{
+			"id": "true_5511988887777@c.us_3EB0WRAP",
+			"_data": map[string]any{
+				"Info":    map[string]any{"ID": "3EB0WRAP", "Chat": "5511988887777@s.whatsapp.net"},
+				"Message": map[string]any{"extendedTextMessage": map[string]any{"text": "Olá"}, "messageContextInfo": map[string]any{}},
+			},
+		})
+	})
+	message := repo.TextMessageEVO{Text: "Olá"}
+	message.Number = "5511988887777"
+	_, body, err := message.Send(testToken)
+	if err != nil {
+		t.Fatal(err)
+	}
+	event := repo.EventMessageEVO{FullJSON: body}
+	if err := json.Unmarshal(body, &event); err != nil {
+		t.Fatal(err)
+	}
+	if kind := repo.CheckMessageType(event); kind != "text" {
+		t.Fatalf("sent text must be stored as text, got %q (%s)", kind, body)
+	}
+	if event.Data.Message.TXT.Text != "Olá" {
+		t.Fatalf("message content not unwrapped: %s", body)
+	}
+}
+
+func TestSendMediaForwardsQuotedReply(t *testing.T) {
+	_, fake := setup(t, func(w http.ResponseWriter, r *http.Request, _ map[string]any) {
+		write(w, 201, map[string]any{"id": "true_5511988887777@c.us_3EBAUDIO"})
+	})
+	request := requests.Request{
+		URL: repo.ApiBaseURL + "/send/media", Method: http.MethodPost,
+		Headers: map[string]string{"Content-Type": "application/json", "apikey": testToken},
+		Payload: map[string]any{"number": "5511988887777", "type": "audio", "url": "https://app.example/file.ogg",
+			"quoted": repo.QuotedEVO{MessageID: "QUOTED1", Participant: "5511988887777@s.whatsapp.net"}},
+	}
+	if err := request.Do(); err != nil {
+		t.Fatal(err)
+	}
+	sent, ok := fake.find(http.MethodPost, "/api/sendVoice")
+	if !ok || sent.Body["reply_to"] != "QUOTED1" {
+		t.Fatalf("audio reply must carry reply_to: %+v", sent.Body)
 	}
 }

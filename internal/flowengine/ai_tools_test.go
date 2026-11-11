@@ -57,8 +57,7 @@ func TestValidateFlowDataRejectsMisplacedAIAgentSubBlocks(t *testing.T) {
 			"edges":[{"id":"e","source":"text","target":"kb"}]}`,
 		"output from sub-block": `{"nodes":[{"id":"kb","type":"aiKnowledge","data":{"content":"x"}},{"id":"end","type":"end","data":{}}],
 			"edges":[{"id":"e","source":"kb","target":"end"}]}`,
-		"empty knowledge": `{"nodes":[{"id":"kb","type":"aiKnowledge","data":{"content":"  "}}],"edges":[]}`,
-		"no actions":      `{"nodes":[{"id":"tools","type":"aiTools","data":{"actions":[]}}],"edges":[]}`,
+		"no actions": `{"nodes":[{"id":"tools","type":"aiTools","data":{"actions":[]}}],"edges":[]}`,
 		"transfer without target": `{"nodes":[{"id":"tools","type":"aiTools","data":{"actions":[
 			{"type":"transfer","name":"T","description":"d","assignType":"agent"}]}}],"edges":[]}`,
 		"bad parameter name": `{"nodes":[{"id":"tools","type":"aiTools","data":{"actions":[
@@ -113,7 +112,7 @@ func TestAIActionToolsDescribeParameters(t *testing.T) {
 	}
 }
 
-func TestCollectAIAgentExtensionsResolvesFlowVariablesButKeepsParameters(t *testing.T) {
+func TestCollectAIAgentExtensionsResolvesFlowVariablesAndIgnoresFlowKnowledge(t *testing.T) {
 	raw := `{"nodes":[
 		{"id":"agent","type":"aiAgent","data":{"aiAgentId":7}},
 		{"id":"kb","type":"aiKnowledge","data":{"content":"Pedido: {{pedido}}"}},
@@ -131,22 +130,26 @@ func TestCollectAIAgentExtensionsResolvesFlowVariablesButKeepsParameters(t *test
 	extensions := collectAIAgentExtensions(*findNode(data.Nodes, "agent"), data, ExecutionContext{
 		"pedido": "123", "loja": "centro", "token": "abc", "data": "valor do fluxo",
 	})
-	if extensions.KnowledgeBase != "Pedido: 123" {
-		t.Fatalf("knowledge = %q", extensions.KnowledgeBase)
-	}
 	if len(extensions.Actions) != 1 || extensions.Actions[0].URL != "https://example.com/centro/{{data}}" || extensions.Actions[0].Headers[0].Value != "Bearer abc" {
 		t.Fatalf("actions = %#v", extensions.Actions)
 	}
 	encoded, _ := json.Marshal(extensions)
-	if parsed := parseAIAgentExtensions(encoded); len(parsed.Actions) != 1 || parsed.KnowledgeBase != "Pedido: 123" {
+	if strings.Contains(string(encoded), "Pedido") {
+		t.Fatalf("the flow knowledge block is legacy and must not reach the session: %s", encoded)
+	}
+	if parsed := parseAIAgentExtensions(encoded); len(parsed.Actions) != 1 {
 		t.Fatalf("round trip lost data: %#v", parsed)
+	}
+	// Sessions captured while flow knowledge existed still parse.
+	if parsed := parseAIAgentExtensions(json.RawMessage(`{"knowledgeBase":"antigo","actions":[{"type":"close","name":"F"}]}`)); len(parsed.Actions) != 1 {
+		t.Fatalf("legacy session lost its actions: %#v", parsed)
 	}
 }
 
-func TestAIAgentPromptMergesFlowKnowledgeAndMentionsActions(t *testing.T) {
+func TestAIAgentPromptUsesAgentKnowledgeAndMentionsActions(t *testing.T) {
 	prompt := buildAIAgentSystemPrompt(repo.AIAgent{Name: "Luna", KnowledgeBase: "Trocas em 30 dias."},
-		AIAgentExtensions{KnowledgeBase: "Frete grátis acima de R$ 200.", Actions: []AIAction{{Type: "close"}}}, "frete")
-	for _, expected := range []string{"Trocas em 30 dias.", "Frete grátis acima de R$ 200.", "AÇÕES DISPONÍVEIS"} {
+		AIAgentExtensions{Actions: []AIAction{{Type: "close"}}}, "frete")
+	for _, expected := range []string{"Trocas em 30 dias.", "AÇÕES DISPONÍVEIS"} {
 		if !strings.Contains(prompt, expected) {
 			t.Fatalf("prompt misses %q:\n%s", expected, prompt)
 		}
@@ -164,5 +167,44 @@ func TestAIToolRunnerDefersTransferUntilReplyIsSent(t *testing.T) {
 	}
 	if _, err := runner.run(runner.actions["fechar"], nil); err == nil {
 		t.Fatal("a second transfer or closing in the same answer must be refused")
+	}
+}
+
+func TestValidateFlowDataAcceptsLegacyKnowledgeBlock(t *testing.T) {
+	// Flows saved while the flow-level knowledge block existed must still load.
+	raw := `{"nodes":[{"id":"agent","type":"aiAgent","data":{"aiAgentId":7}},{"id":"kb","type":"aiKnowledge","data":{"content":""}}],
+		"edges":[{"id":"e","source":"agent","target":"kb","sourceHandle":"knowledge"}]}`
+	if err := ValidateFlowData(json.RawMessage(raw)); err != nil {
+		t.Fatalf("legacy knowledge block was rejected: %v", err)
+	}
+}
+
+func TestPauseAndSummaryActions(t *testing.T) {
+	for _, action := range []AIAction{
+		{Type: "pause", Name: "Pausar", Description: "d"},
+		{Type: "pause", Name: "Pausar", Description: "d", PauseMinutes: 120},
+		{Type: "summary", Name: "Resumo", Description: "d"},
+	} {
+		if err := validateAIAction(action); err != nil {
+			t.Fatalf("%#v rejected: %v", action, err)
+		}
+	}
+	if err := validateAIAction(AIAction{Type: "pause", Name: "P", Description: "d", PauseMinutes: maxAIPauseMinutes + 1}); err == nil {
+		t.Fatal("a pause longer than the limit must be rejected")
+	}
+	tools, _ := aiActionTools([]AIAction{{Type: "summary", Name: "Resumo"}, {Type: "pause", Name: "Pausar", PauseMinutes: 30}})
+	summarySchema, _ := json.Marshal(tools[0].Parameters)
+	if !strings.Contains(string(summarySchema), `"required":["resumo"]`) || !strings.Contains(tools[0].Description, "nota interna") {
+		t.Fatalf("summary tool = %#v %s", tools[0], summarySchema)
+	}
+	if !strings.Contains(tools[1].Description, "por 30 minutos") {
+		t.Fatalf("pause tool must state its duration: %q", tools[1].Description)
+	}
+	runner := &aiToolRunner{}
+	if _, err := runner.run(AIAction{Type: "pause", Name: "Pausar"}, map[string]interface{}{"motivo": "cliente pediu um humano"}); err != nil || runner.pending == nil || runner.pending.summary != "cliente pediu um humano" {
+		t.Fatalf("pause must wait for the reply: pending=%#v err=%v", runner.pending, err)
+	}
+	if _, err := runner.run(AIAction{Type: "close", Name: "Encerrar"}, nil); err == nil {
+		t.Fatal("closing after a pause in the same answer must be refused")
 	}
 }

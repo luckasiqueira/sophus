@@ -23,10 +23,7 @@ func (b *Bridge) sendResponse(chatID string, response apiResponse) result {
 	}
 	messageID := rawMessageID(sent.ID)
 	jid := whatsmeowJID(chatID)
-	message := sent.Data
-	if len(message) == 0 || string(message) == "null" {
-		message = json.RawMessage("{}")
-	}
+	message := sentMessageContent(sent.Data)
 	return success(map[string]any{
 		"message": "success",
 		"data": map[string]any{
@@ -41,6 +38,25 @@ func (b *Bridge) sendResponse(chatID string, response apiResponse) result {
 			"key":     map[string]any{"id": messageID, "remoteJid": jid, "fromMe": true},
 		},
 	})
+}
+
+// sentMessageContent returns only the protobuf message of a WAHA send
+// response. GOWS may return the whole whatsmeow event ({"Info", "Message"});
+// passing it through would make Sophus see an unknown "Message" content type.
+func sentMessageContent(raw json.RawMessage) json.RawMessage {
+	if len(raw) == 0 || string(raw) == "null" {
+		return json.RawMessage("{}")
+	}
+	var event map[string]json.RawMessage
+	if json.Unmarshal(raw, &event) != nil {
+		return json.RawMessage("{}")
+	}
+	for key, value := range event {
+		if strings.EqualFold(key, "Message") && len(value) > 0 && string(value) != "null" && value[0] == '{' {
+			return value
+		}
+	}
+	return raw
 }
 
 func (b *Bridge) post(ctx context.Context, endpoint string, body any) (apiResponse, error) {
@@ -150,6 +166,9 @@ func (b *Bridge) sendMedia(ctx context.Context, session string, payload []byte) 
 		Caption  string `json:"caption"`
 		Filename string `json:"filename"`
 		Delay    int    `json:"delay"`
+		Quoted   struct {
+			MessageID string `json:"messageId"`
+		} `json:"quoted"`
 	}
 	if err := decode(payload, &request); err != nil {
 		return failure(http.StatusBadRequest, err.Error())
@@ -164,6 +183,9 @@ func (b *Bridge) sendMedia(ctx context.Context, session string, payload []byte) 
 		file["filename"] = request.Filename
 	}
 	body := map[string]any{"session": session, "chatId": chatID, "file": file}
+	if quoted := strings.TrimSpace(request.Quoted.MessageID); quoted != "" {
+		body["reply_to"] = quoted
+	}
 	var endpoint string
 	switch kind {
 	case "image":
@@ -231,6 +253,74 @@ func (b *Bridge) sendButtons(ctx context.Context, session string, payload []byte
 			"footer":      request.Footer,
 			"button":      "Ver opções",
 			"sections":    []map[string]any{{"title": title, "rows": rows}},
+		},
+	})
+	if err != nil || !response.OK() {
+		return fromWAHA(response, err)
+	}
+	return b.sendResponse(chatID, response)
+}
+
+// POST /send/list {number, title, description, buttonText, footerText,
+// sections: [{title, rows: [{title, description, rowId}]}], delay}. Sophus'
+// own route (Evolution GO has no list messages): the flow Menu block uses it
+// only with WAHA. The chosen row comes back as its rowId.
+func (b *Bridge) sendList(ctx context.Context, session string, payload []byte) result {
+	var request struct {
+		Number      string `json:"number"`
+		Title       string `json:"title"`
+		Description string `json:"description"`
+		ButtonText  string `json:"buttonText"`
+		FooterText  string `json:"footerText"`
+		Delay       int    `json:"delay"`
+		Sections    []struct {
+			Title string `json:"title"`
+			Rows  []struct {
+				Title       string `json:"title"`
+				Description string `json:"description"`
+				RowID       string `json:"rowId"`
+			} `json:"rows"`
+		} `json:"sections"`
+	}
+	if err := decode(payload, &request); err != nil {
+		return failure(http.StatusBadRequest, err.Error())
+	}
+	chatID := ChatID(request.Number)
+	if chatID == "" || chatID == "@c.us" || len(request.Sections) == 0 || strings.TrimSpace(request.Description) == "" {
+		return failure(http.StatusBadRequest, "number, description and sections are required")
+	}
+	sections := make([]map[string]any, 0, len(request.Sections))
+	for _, section := range request.Sections {
+		rows := make([]map[string]string, 0, len(section.Rows))
+		for _, row := range section.Rows {
+			if strings.TrimSpace(row.Title) == "" || strings.TrimSpace(row.RowID) == "" {
+				return failure(http.StatusBadRequest, "every row needs a title and rowId")
+			}
+			item := map[string]string{"title": row.Title, "rowId": row.RowID}
+			if description := strings.TrimSpace(row.Description); description != "" {
+				item["description"] = description
+			}
+			rows = append(rows, item)
+		}
+		if len(rows) == 0 {
+			return failure(http.StatusBadRequest, "every section needs rows")
+		}
+		sections = append(sections, map[string]any{"title": section.Title, "rows": rows})
+	}
+	button := strings.TrimSpace(request.ButtonText)
+	if button == "" {
+		button = "Ver opções"
+	}
+	b.typing(ctx, session, chatID, request.Delay)
+	response, err := b.post(ctx, "/api/sendList", map[string]any{
+		"session": session,
+		"chatId":  chatID,
+		"message": map[string]any{
+			"title":       request.Title,
+			"description": request.Description,
+			"footer":      request.FooterText,
+			"button":      button,
+			"sections":    sections,
 		},
 	})
 	if err != nil || !response.OK() {

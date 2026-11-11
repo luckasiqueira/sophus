@@ -245,7 +245,7 @@ const NODE_TYPES = {
 	 mediaTranscription: { label: 'Transcrever Mídia', icon: 'fa-file-waveform', color: '#7c3aed', category: 'Sistema' },
 	 conversationSummary: { label: 'Resumir Conversa', icon: 'fa-file-lines', color: '#7c3aed', category: 'Sistema' },
 	 aiAgent:        { label: 'Transferir para Agente IA', icon: 'fa-robot', color: '#7c3aed', category: 'Fluxo' },
-	 aiKnowledge:    { label: 'Base de Conhecimento', icon: 'fa-book-open', color: '#7c3aed', category: 'Fluxo', subNode: true },
+	 aiKnowledge:    { label: 'Base (descontinuada)', icon: 'fa-book-open', color: '#a8a29e', category: 'Fluxo', subNode: true, hidden: true },
 	 aiTools:        { label: 'Ações da IA', icon: 'fa-screwdriver-wrench', color: '#7c3aed', category: 'Fluxo', subNode: true },
   npsEvaluation:   { label: 'Avaliação NPS',          icon: 'fa-star-half-stroke', color: '#ec4899', category: 'Interação' },
   scheduleMessage: { label: 'Agendar Mensagem',      icon: 'fa-calendar-plus',    color: '#8b5cf6', category: 'Sistema' },
@@ -289,17 +289,20 @@ const CONDITION_OUTPUT_LABELS = {
 
 function uid(prefix) { return prefix + '_' + Math.random().toString(36).slice(2, 9); }
 
-// The AI agent block takes sub-blocks on its bottom ports (like the
-// knowledge and tool slots of an agent): each port accepts one block type.
-// Mirrors validateAIAgentEdge in internal/flowengine/ai_tools.go.
+// The AI agent block has two bottom ports. "Ações" takes the AI actions
+// sub-block (mirrors validateAIAgentEdge in internal/flowengine/ai_tools.go).
+// "Base de conhecimento" is a shortcut: the knowledge base lives on the agent
+// and is edited in /ai-agents, where files can be imported.
 const AI_SUB_PORTS = [
-	{ handle: 'knowledge', label: 'Base de conhecimento', accepts: 'aiKnowledge' },
+	{ handle: 'knowledge', label: 'Base de conhecimento', link: true, icon: 'fa-arrow-up-right-from-square' },
 	{ handle: 'tools', label: 'Ações', accepts: 'aiTools' },
 ];
 const VAR_OPEN = '{' + '{', VAR_CLOSE = '}' + '}';
 const AI_ACTION_TYPES = [
 	{ value: 'transfer', label: 'Transferir atendimento' },
 	{ value: 'close', label: 'Encerrar atendimento' },
+	{ value: 'pause', label: 'Pausar a IA' },
+	{ value: 'summary', label: 'Resumo para o operador' },
 	{ value: 'tag', label: 'Adicionar etiqueta' },
 	{ value: 'contactField', label: 'Salvar dado do cliente' },
 	{ value: 'http', label: 'Chamar API / Webhook' },
@@ -314,7 +317,7 @@ function isSubNode(node) { return !!(node && NODE_TYPES[node.type] && NODE_TYPES
 function canConnect(sourceId, handle, target) {
 	if (!target || target.id === sourceId) return false;
 	const port = subPortFor(sourceId, handle);
-	if (port) return target.type === port.accepts;
+	if (port) return !port.link && target.type === port.accepts;
 	const meta = NODE_TYPES[target.type] || {};
 	return !meta.noInput && !meta.subNode;
 }
@@ -324,6 +327,8 @@ function defaultAIAction(type) {
 	switch (type) {
 	case 'transfer': return Object.assign(action, { name: 'Transferir atendimento', description: 'Quando o cliente pedir para falar com uma pessoa ou a dúvida não puder ser resolvida com a base de conhecimento.', assignType: 'department', message: '' });
 	case 'close': return Object.assign(action, { name: 'Encerrar atendimento', description: 'Quando o cliente confirmar que não precisa de mais nada.', message: '' });
+	case 'pause': return Object.assign(action, { name: 'Pausar a IA', description: 'Quando o cliente pedir para falar com uma pessoa e a equipe deve assumir a conversa sem transferir.', pauseMinutes: 0, message: '' });
+	case 'summary': return Object.assign(action, { name: 'Resumo para o operador', description: 'Quando o cliente já tiver explicado o que precisa, ou antes de transferir ou pausar o atendimento.' });
 	case 'tag': return Object.assign(action, { name: 'Marcar interesse', description: 'Quando o cliente demonstrar interesse em contratar.', tag: '' });
 	case 'contactField': return Object.assign(action, { name: 'Salvar email', description: 'Quando o cliente informar o email dele.', field: 'email', fieldKey: '' });
 	case 'http': return Object.assign(action, { name: 'Agendar reunião', description: 'Quando o cliente quiser agendar uma reunião e já tiver informado data e horário.', method: 'POST', url: '', headers: [], parameters: [{ name: 'dataHora', description: 'Data e horário desejados, no formato AAAA-MM-DD HH:MM', required: true }], timeout: 15000 });
@@ -848,7 +853,7 @@ function renderNoResponseTargets() {
 function renderPalette() {
   const el = document.getElementById('palette');
   el.innerHTML = CATEGORIES.map(cat => {
-    const items = Object.entries(NODE_TYPES).filter(([,m]) => m.category === cat);
+    const items = Object.entries(NODE_TYPES).filter(([,m]) => m.category === cat && !m.hidden);
     return `
       <div class="mb-4">
         <div class="palette-category-title text-xs font-bold text-gray-400 uppercase tracking-wide mb-2 px-1">${cat}<\/div>
@@ -1160,6 +1165,18 @@ function renderCanvas() {
       const wrap = document.createElement('div');
       wrap.className = 'sub-port';
       wrap.style.left = subPortX(i, ports.length) + 'px';
+      if (port.link) {
+        const link = document.createElement('button');
+        link.type = 'button';
+        link.className = 'sub-port-label connected';
+        link.dataset.subPortLabel = port.handle;
+        link.title = 'Editar a base de conhecimento do agente em Agentes IA';
+        link.innerHTML = '<i class="fas ' + port.icon + ' text-[8px]"><\/i>' + escapeHtml(port.label);
+        link.onclick = (e) => { e.preventDefault(); e.stopPropagation(); openAgentKnowledge(node); };
+        wrap.appendChild(link);
+        card.appendChild(wrap);
+        return;
+      }
       const handle = document.createElement('div');
       handle.className = 'handle sub-handle' + (state.armedHandle && state.armedHandle.nodeId === node.id && state.armedHandle.handle === port.handle ? ' armed' : '');
       handle.title = port.label;
@@ -1479,6 +1496,7 @@ function openSubPort(nodeId, handle) {
 	const agent = state.flowData.nodes.find(n => n.id === nodeId);
 	const port = subPortFor(nodeId, handle);
 	if (!agent || !port) return;
+	if (port.link) { openAgentKnowledge(agent); return; }
 	state.armedHandle = null;
 	const existing = state.flowData.edges.find(edge => edge.source === nodeId && edge.sourceHandle === handle);
 	if (existing) { selectNode(existing.target); return; }
@@ -1490,6 +1508,13 @@ function openSubPort(nodeId, handle) {
 	state.selectedNodeId = node.id;
 	renderCanvas();
 	renderInspector();
+}
+
+// openAgentKnowledge opens the agent's knowledge base in /ai-agents in a new
+// tab, so unsaved flow changes stay here.
+function openAgentKnowledge(agentNode) {
+	const id = Number(agentNode && agentNode.data && agentNode.data.aiAgentId);
+	window.open(id > 0 ? '/ai-agents#agent-' + id + '-knowledge' : '/ai-agents', '_blank', 'noopener');
 }
 
 function startConnectionDrag(e, nodeId, handle) {
@@ -1978,7 +2003,7 @@ function renderFieldsFor(node) {
       html += field('Título', textInput(d.title || 'Menu', 'title'));
 	  html += field('Mensagem', formattedTextArea(d.description, 'description', 4));
       html += field('Texto do botão', textInput(d.buttonText || 'Ver Menu', 'buttonText'));
-      html += field('Rodapé', textInput(d.footerText || 'Sophus', 'footerText'));
+      html += field('Rodapé', textInput(d.footerText ?? 'Sophus', 'footerText'), 'Deixe vazio para enviar o menu sem rodapé.');
       html += field('Caminho padrão', '<label class="flex items-center gap-2 text-sm text-gray-700"><input type="checkbox" data-field="useFallback" ' + (d.useFallback?'checked':'') + '> Adicionar saída para respostas inválidas<\/label>');
 	  html += field('Navegação entre menus', '<div class="space-y-2 rounded-xl border border-stone-200 bg-stone-50 p-3">' +
 		'<label class="flex items-start gap-2 text-sm text-gray-700"><input type="checkbox" data-field="allowBackPrevious" ' + (d.allowBackPrevious?'checked':'') + '><span><span class="block font-medium">Voltar ao menu anterior<\/span><span class="block text-[11px] text-gray-400">Retoma o menu visitado imediatamente antes deste.<\/span><\/span><\/label>' +
@@ -2226,14 +2251,18 @@ function renderFieldsFor(node) {
 	  html += field('Agente que assumirá a conversa', inspectorSelect('aiAgentId', [{ value: '', label: 'Selecione' }].concat(state.aiAgents.map(agent => ({ value: String(agent.id), label: agent.name + ' · ' + agent.provider }))), d.aiAgentId || '', 'Selecione'));
 	  html += safeModeField(d, 'Aplica as proteções durante toda esta sessão transferida: limita o agente ao escopo, oculta detalhes técnicos e recusa desvios ou conteúdo perigoso.');
 	  html += '<div class="rounded-xl border border-violet-200 bg-violet-50 p-3 text-xs leading-relaxed text-violet-800"><i class="fas fa-circle-info mr-1"><\/i> Este bloco encerra o flow e transfere as próximas mensagens para o agente autônomo.<\/div>';
-	  html += '<div class="rounded-xl border border-stone-200 bg-stone-50 p-3 text-xs leading-relaxed text-gray-600"><p class="font-semibold text-gray-700"><i class="fas fa-plug mr-1 text-violet-600"><\/i> Conectores do agente<\/p><p class="mt-1">Use os conectores abaixo do bloco para adicionar uma <strong>Base de conhecimento<\/strong> extra e <strong>Ações<\/strong> que a IA pode executar sozinha: transferir o atendimento, encerrar, etiquetar, salvar dados do cliente ou chamar uma API (agendamentos, CRM, pedidos).<\/p><div class="mt-2 flex flex-wrap gap-2">' +
-		AI_SUB_PORTS.map(port => '<button type="button" data-open-sub-port="' + port.handle + '" class="rounded-lg border border-violet-200 bg-white px-2.5 py-1.5 font-semibold text-violet-700 hover:bg-violet-50"><i class="fas ' + NODE_TYPES[port.accepts].icon + ' mr-1"><\/i>' + (state.flowData.edges.some(edge => edge.source === node.id && edge.sourceHandle === port.handle) ? 'Abrir ' : 'Adicionar ') + escapeHtml(port.label.toLowerCase()) + '<\/button>').join('') + '<\/div><\/div>';
+	  html += '<div class="rounded-xl border border-stone-200 bg-stone-50 p-3 text-xs leading-relaxed text-gray-600"><p class="font-semibold text-gray-700"><i class="fas fa-plug mr-1 text-violet-600"><\/i> Conectores do agente<\/p><p class="mt-1">Conecte <strong>Ações<\/strong> que a IA pode executar sozinha: transferir, pausar ou encerrar o atendimento, enviar um resumo à equipe, etiquetar, salvar dados do cliente ou chamar uma API (agendamentos, CRM, pedidos).<\/p><p class="mt-1">A <strong>base de conhecimento<\/strong> é a do próprio agente, editada em <em>Agentes IA<\/em>, onde também é possível importar PDF, Word, planilhas, textos e imagens.<\/p><div class="mt-2 flex flex-wrap gap-2">' +
+		AI_SUB_PORTS.map(port => '<button type="button" data-open-sub-port="' + port.handle + '" class="rounded-lg border border-violet-200 bg-white px-2.5 py-1.5 font-semibold text-violet-700 hover:bg-violet-50"><i class="fas ' + (port.link ? 'fa-book-open' : NODE_TYPES[port.accepts].icon) + ' mr-1"><\/i>' + (port.link ? 'Editar base de conhecimento' : (state.flowData.edges.some(edge => edge.source === node.id && edge.sourceHandle === port.handle) ? 'Abrir ' : 'Adicionar ') + escapeHtml(port.label.toLowerCase())) + (port.link ? ' <i class="fas fa-arrow-up-right-from-square ml-1 text-[10px]"><\/i>' : '') + '<\/button>').join('') + '<\/div><\/div>';
 	  break;
-	case 'aiKnowledge':
-	  html += '<div class="rounded-xl border border-violet-200 bg-violet-50 p-3 text-xs leading-relaxed text-violet-800"><i class="fas fa-circle-info mr-1"><\/i> Conecte este bloco ao conector <strong>Base de conhecimento<\/strong> de um Agente IA. O conteúdo complementa a base cadastrada no agente e vale somente para conversas transferidas por este fluxo.<\/div>';
-	  html += field('Conteúdo', textArea(d.content, 'content', 14), 'Use seções curtas e objetivas. Aceita variáveis do fluxo, resolvidas no momento da transferência. Limite de 500.000 caracteres.');
-	  html += '<div class="flex items-center justify-between gap-2"><label class="cursor-pointer rounded-lg bg-violet-100 px-3 py-2 text-xs font-semibold text-violet-700 hover:bg-violet-200"><i class="fas fa-file-pdf mr-1"><\/i> Importar texto de PDF<input type="file" accept="application/pdf,.pdf" class="hidden" data-ai-knowledge-pdf><\/label><a href="/flows/knowledge-base-template.pdf" download class="text-xs font-semibold text-violet-700 hover:underline">Modelo de base<\/a><\/div><p data-ai-knowledge-status class="text-[11px] text-gray-500"><\/p>';
+	case 'aiKnowledge': {
+	  // Legacy block: the flow no longer sends this content to the agent.
+	  const parent = state.flowData.edges.map(edge => edge.target === node.id && state.flowData.nodes.find(n => n.id === edge.source && n.type === 'aiAgent')).find(Boolean);
+	  html += '<div class="rounded-xl border border-amber-200 bg-amber-50 p-3 text-xs leading-relaxed text-amber-900"><i class="fas fa-triangle-exclamation mr-1"><\/i> Este bloco foi descontinuado e seu conteúdo <strong>não é mais usado<\/strong>. A base de conhecimento agora fica somente no agente. Copie o texto abaixo para a base do agente em <em>Agentes IA<\/em> e exclua este bloco.<\/div>';
+	  html += field('Conteúdo antigo', '<textarea readonly rows="12" class="w-full rounded-lg border border-stone-200 bg-stone-50 px-3 py-2 text-xs text-gray-600">' + escapeHtml(d.content || '') + '<\/textarea>');
+	  html += '<button type="button" data-open-agent-knowledge class="rounded-lg bg-violet-100 px-3 py-2 text-xs font-semibold text-violet-700 hover:bg-violet-200"><i class="fas fa-arrow-up-right-from-square mr-1"><\/i> Abrir base do agente<\/button>';
+	  html += '<span class="hidden" data-legacy-parent="' + escapeAttr(parent ? parent.id : '') + '"><\/span>';
 	  break;
+	}
 	case 'aiTools':
 	  html += '<div class="rounded-xl border border-violet-200 bg-violet-50 p-3 text-xs leading-relaxed text-violet-800"><i class="fas fa-circle-info mr-1"><\/i> Conecte este bloco ao conector <strong>Ações<\/strong> de um Agente IA. A IA decide sozinha quando usar cada ação, com base no campo <em>Quando usar<\/em>.<\/div>';
 	  html += aiActionsHTML(d);
@@ -2354,7 +2383,10 @@ function renderFieldsFor(node) {
   });
 
   if (node.type === 'aiTools') bindAIActions(node, box);
-  if (node.type === 'aiKnowledge') bindAIKnowledgePDF(node, box);
+  box.querySelectorAll('[data-open-agent-knowledge]').forEach(button => button.onclick = () => {
+	const parentId = box.querySelector('[data-legacy-parent]')?.dataset.legacyParent;
+	openAgentKnowledge(state.flowData.nodes.find(n => n.id === parentId));
+  });
   box.querySelectorAll('[data-open-sub-port]').forEach(button => button.onclick = () => openSubPort(node.id, button.dataset.openSubPort));
   if (node.type === 'switch') renderSwitchCases(node);
   if (node.type === 'sendMenu') renderMenuSections(node);
@@ -2871,6 +2903,13 @@ function aiActionsHTML(d) {
 		case 'close':
 			body += field('Mensagem automática (opcional)', textArea(action.message, p + 'message', 2), 'Enviada depois da despedida da IA, antes de encerrar o atendimento.');
 			break;
+		case 'pause':
+			body += field('Pausar por (minutos)', '<input type="number" min="0" max="43200" data-field="' + p + 'pauseMinutes" value="' + Number(action.pauseMinutes || 0) + '" class="w-full px-3 py-2 bg-stone-50 border border-stone-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-purple-400">', '0 mantém a IA pausada até um atendente transferir, aceitar ou encerrar a conversa. Até 43200 (30 dias); depois disso a IA volta a responder. Durante a pausa, nenhum fluxo é iniciado nessa conversa.');
+			body += field('Mensagem automática (opcional)', textArea(action.message, p + 'message', 2), 'Enviada depois da resposta da IA, quando a pausa começa. A IA registra o motivo no histórico.');
+			break;
+		case 'summary':
+			body += '<p class="rounded-lg border border-violet-100 bg-white p-2.5 text-[11px] leading-relaxed text-gray-600"><i class="fas fa-note-sticky mr-1 text-violet-600"><\/i> A IA escreve um resumo da conversa e o publica como <strong>nota interna<\/strong> no chat. Só a equipe vê; o cliente não recebe nada.<\/p>';
+			break;
 		case 'tag':
 			body += field('Etiqueta', textInput(action.tag, p + 'tag'));
 			break;
@@ -2912,41 +2951,6 @@ function bindAIActions(node, box) {
 	box.querySelectorAll('[data-ai-param-remove]').forEach(button => button.onclick = () => { const [i, j] = pair(button.dataset.aiParamRemove); actions[i].parameters.splice(j, 1); rerender(); });
 	box.querySelectorAll('[data-ai-header-add]').forEach(button => button.onclick = () => { actions[Number(button.dataset.aiHeaderAdd)].headers.push({ key: '', value: '' }); rerender(); });
 	box.querySelectorAll('[data-ai-header-remove]').forEach(button => button.onclick = () => { const [i, j] = pair(button.dataset.aiHeaderRemove); actions[i].headers.splice(j, 1); rerender(); });
-}
-
-// The PDF text is extracted by the same endpoint the AI agent settings use.
-function bindAIKnowledgePDF(node, box) {
-	const input = box.querySelector('[data-ai-knowledge-pdf]');
-	const status = box.querySelector('[data-ai-knowledge-status]');
-	if (!input || !status) return;
-	input.onchange = async () => {
-		const file = input.files && input.files[0];
-		if (!file) return;
-		status.textContent = 'Lendo PDF...';
-		status.className = 'text-[11px] text-purple-700';
-		try {
-			const form = new FormData();
-			form.append('file', file);
-			const response = await fetch('/management/api/ai-agents/knowledge/pdf', { method: 'POST', body: form });
-			const payload = await response.json().catch(() => ({}));
-			if (!response.ok) throw new Error(payload.error || ('Erro ' + response.status));
-			if (state.selectedNodeId !== node.id || !state.flowData.nodes.includes(node)) return;
-			const text = String((payload.data && payload.data.text) || '').trim();
-			if (!text) throw new Error('o PDF não possui texto legível');
-			const merged = [String(node.data.content || '').trim(), '# ' + payload.data.fileName + '\n' + text].filter(Boolean).join('\n\n');
-			if (merged.length > 500000) throw new Error('o conteúdo passaria do limite de 500.000 caracteres');
-			node.data.content = merged;
-			renderCanvas();
-			renderInspector();
-			const done = document.querySelector('[data-ai-knowledge-status]');
-			if (done) { done.textContent = 'Texto de "' + payload.data.fileName + '" adicionado (' + text.length + ' caracteres).'; done.className = 'text-[11px] text-emerald-700'; }
-		} catch (error) {
-			status.textContent = 'Não foi possível importar: ' + error.message;
-			status.className = 'text-[11px] text-red-600';
-		} finally {
-			input.value = '';
-		}
-	};
 }
 
 function setPath(obj, path, val) {

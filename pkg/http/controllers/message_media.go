@@ -59,6 +59,10 @@ func UploadConversationMedia(ctx iris.Context) {
 		ctx.StopWithJSON(iris.StatusBadRequest, iris.Map{"error": "a legenda deve ter até 1000 caracteres"})
 		return
 	}
+	quote, ok := resolveMediaQuote(ctx, operation, ctx.FormValue("quotedId"))
+	if !ok {
+		return
+	}
 	file, header, err := ctx.FormFile("file")
 	if err != nil || header == nil || header.Size <= 0 {
 		ctx.StopWithJSON(iris.StatusBadRequest, iris.Map{"error": "selecione um arquivo válido"})
@@ -98,7 +102,7 @@ func UploadConversationMedia(ctx iris.Context) {
 	// Preserve the validated upload type; an audio WebM container must never be
 	// sent as video merely because the operating system associates its suffix.
 	item.Kind, item.MimeType = kind, stored.MimeType
-	if !sendConversationMedia(ctx, operation, item, caption, stored.Name) {
+	if !sendConversationMedia(ctx, operation, item, caption, stored.Name, quote) {
 		return
 	}
 }
@@ -111,7 +115,8 @@ func SendConversationGalleryMedia(ctx iris.Context) {
 	var body struct {
 		Scope   string `json:"scope"`
 		File    string `json:"file"`
-		Caption string `json:"caption"`
+		Caption  string `json:"caption"`
+		QuotedID string `json:"quotedId"`
 	}
 	if err := ctx.ReadJSON(&body); err != nil {
 		ctx.StopWithJSON(iris.StatusBadRequest, iris.Map{"error": "dados da mídia inválidos"})
@@ -120,6 +125,10 @@ func SendConversationGalleryMedia(ctx iris.Context) {
 	body.Caption = strings.TrimSpace(body.Caption)
 	if len([]rune(body.Caption)) > 1000 {
 		ctx.StopWithJSON(iris.StatusBadRequest, iris.Map{"error": "a legenda deve ter até 1000 caracteres"})
+		return
+	}
+	quote, ok := resolveMediaQuote(ctx, operation, body.QuotedID)
+	if !ok {
 		return
 	}
 	item, err := media.Inspect(operation.Agent.CompanyId, body.Scope, body.File)
@@ -131,7 +140,7 @@ func SendConversationGalleryMedia(ctx iris.Context) {
 		ctx.StopWithJSON(iris.StatusForbidden, iris.Map{"error": "esta mídia não atende à política de anexos da empresa"})
 		return
 	}
-	if !sendConversationMedia(ctx, operation, item, body.Caption, item.Name) {
+	if !sendConversationMedia(ctx, operation, item, body.Caption, item.Name, quote) {
 		return
 	}
 }
@@ -182,14 +191,34 @@ func operatorMediaAllowed(kind string, size int64, settings repo.CompanyOperatio
 	return false
 }
 
-func sendConversationMedia(ctx iris.Context, operation operatorMediaContext, item media.Item, caption, fileName string) bool {
+// resolveMediaQuote turns the replied message ID into the WhatsApp quote,
+// mirroring the text composer. An empty ID means a plain (non-reply) send.
+func resolveMediaQuote(ctx iris.Context, operation operatorMediaContext, quotedID string) (repo.QuotedEVO, bool) {
+	quotedID = strings.TrimSpace(quotedID)
+	if quotedID == "" {
+		return repo.QuotedEVO{}, true
+	}
+	quoted, err := repo.GetMessageForConversation(quotedID, operation.Conversation.Id, operation.Agent.CompanyId)
+	if err != nil {
+		ctx.StopWithJSON(iris.StatusBadRequest, iris.Map{"error": "a mensagem respondida não foi encontrada nesta conversa"})
+		return repo.QuotedEVO{}, false
+	}
+	participant := quotedMessageParticipant(quoted, operation.Conversation.Contact, operation.Connection)
+	if participant == "" {
+		ctx.StopWithJSON(iris.StatusBadRequest, iris.Map{"error": "não foi possível identificar o autor da mensagem respondida"})
+		return repo.QuotedEVO{}, false
+	}
+	return repo.QuotedEVO{MessageID: quoted.MessageId, Participant: participant}, true
+}
+
+func sendConversationMedia(ctx iris.Context, operation operatorMediaContext, item media.Item, caption, fileName string, quote repo.QuotedEVO) bool {
 	mediaURL, err := media.ScopedSignedURL(operation.Agent.CompanyId, item.Scope, item.Name, 15*time.Minute)
 	if err != nil {
 		ctx.StopWithJSON(iris.StatusInternalServerError, iris.Map{"error": "não foi possível preparar a mídia para envio"})
 		return false
 	}
-	messageID, err := flowengine.NewChatMessenger(operation.Connection, operation.Settings).SendStoredMediaMessage(
-		operation.Conversation, item.Kind, mediaURL, caption, fileName, item.Scope, item.Name)
+	messageID, err := flowengine.NewChatMessenger(operation.Connection, operation.Settings).SendStoredMediaReply(
+		operation.Conversation, quote, item.Kind, mediaURL, caption, fileName, item.Scope, item.Name)
 	if err != nil {
 		log.Printf("conversation media send failed: company=%d conversation=%d kind=%s file=%s error=%v", operation.Agent.CompanyId, operation.Conversation.Id, item.Kind, item.Name, err)
 		ctx.StopWithJSON(iris.StatusBadGateway, iris.Map{"error": "não foi possível enviar a mídia; o arquivo permanece disponível na galeria"})

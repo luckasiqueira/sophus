@@ -97,6 +97,17 @@ func UpdateConnectionStatus(id int, status string) error {
 	return err
 }
 
+// MarkConnectionLoggedOut records a manual logout. A disconnected status also
+// keeps the automatic reconnect loop from pairing the instance again.
+func MarkConnectionLoggedOut(companyID, id int) (bool, error) {
+	result, err := db.Exec(`UPDATE connections SET status = 'disconnected', qrcode = '' WHERE id = $1 AND "companyId" = $2`, id, companyID)
+	if err != nil {
+		return false, err
+	}
+	rows, err := result.RowsAffected()
+	return rows == 1, err
+}
+
 func RenameConnection(companyID, id int, name string) (bool, error) {
 	result, err := db.Exec(`UPDATE connections SET name = $1 WHERE id = $2 AND "companyId" = $3`, name, id, companyID)
 	if err != nil {

@@ -4,6 +4,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"errors"
+	"strconv"
 	"strings"
 
 	"github.com/lib/pq"
@@ -145,6 +146,100 @@ func CloseAIAgentConversation(sessionID int64, conversationID, companyID int, su
 	}
 	invalidateConversationEventHistory(companyID, conversationID)
 	return nil
+}
+
+// PauseAIAgentConversation silences the AI agent without changing who owns the
+// conversation. minutes <= 0 pauses until a person transfers, accepts or
+// closes it; otherwise the agent answers again after that time.
+func PauseAIAgentConversation(sessionID int64, conversationID, companyID, minutes int, reason string) error {
+	tx, err := db.Begin()
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+	if err := lockAIAgentSession(tx, sessionID, conversationID, companyID); err != nil {
+		return err
+	}
+	if _, err := tx.Exec(`UPDATE ai_agent_sessions SET status = 'paused',
+		"pausedUntil" = CASE WHEN $2 > 0 THEN now() + make_interval(mins => $2) ELSE NULL END, "updatedAt" = now()
+		WHERE id = $1`, sessionID, minutes); err != nil {
+		return err
+	}
+	history := "Agente de IA pausado até um atendente assumir."
+	if minutes > 0 {
+		history = "Agente de IA pausado por " + pauseDurationLabel(minutes) + "."
+	}
+	if reason = strings.TrimSpace(reason); reason != "" {
+		history += " Motivo: " + reason
+	}
+	if err := addAIAgentHistory(tx, conversationID, companyID, history); err != nil {
+		return err
+	}
+	if err := tx.Commit(); err != nil {
+		return err
+	}
+	invalidateConversationEventHistory(companyID, conversationID)
+	return nil
+}
+
+func pauseDurationLabel(minutes int) string {
+	switch {
+	case minutes%1440 == 0:
+		return strconv.Itoa(minutes/1440) + plural(minutes/1440, " dia", " dias")
+	case minutes%60 == 0:
+		return strconv.Itoa(minutes/60) + plural(minutes/60, " hora", " horas")
+	}
+	return strconv.Itoa(minutes) + plural(minutes, " minuto", " minutos")
+}
+
+func plural(count int, one, many string) string {
+	if count == 1 {
+		return one
+	}
+	return many
+}
+
+// AIAgentSessionPaused reports whether the conversation's AI agent is paused,
+// first reactivating a pause whose time is over. While it is paused, incoming
+// messages start neither the agent nor a flow.
+func AIAgentSessionPaused(conversationID, companyID int) (bool, error) {
+	if _, err := db.Exec(`UPDATE ai_agent_sessions SET status = 'active', "pausedUntil" = NULL, "updatedAt" = now()
+		WHERE "conversationId" = $1 AND "companyId" = $2 AND status = 'paused' AND "pausedUntil" <= now()`, conversationID, companyID); err != nil {
+		return false, err
+	}
+	var paused bool
+	err := db.QueryRow(`SELECT EXISTS(SELECT 1 FROM ai_agent_sessions WHERE "conversationId" = $1 AND "companyId" = $2 AND status = 'paused')`,
+		conversationID, companyID).Scan(&paused)
+	return paused, err
+}
+
+// AddAIAgentNote posts an internal note, visible only to the team, written by
+// the AI agent in the conversation.
+func AddAIAgentNote(sessionID int64, conversationID, companyID int, agentName, content string) (ConversationEvent, error) {
+	var event ConversationEvent
+	content = strings.ToValidUTF8(strings.TrimSpace(content), "")
+	if content == "" || len(content) > 10000 {
+		return event, errors.New("a nota deve possuir entre 1 e 10000 caracteres")
+	}
+	metadata, err := json.Marshal(map[string]any{"authorName": "Agente de IA · " + agentName, "aiAgentSessionId": sessionID})
+	if err != nil {
+		return event, err
+	}
+	err = db.QueryRow(`INSERT INTO conversation_events ("companyId", "conversationId", "eventType", content, metadata)
+		SELECT $3, conversation.id, 'note', $4, $5::jsonb FROM conversations conversation
+		JOIN connections connection ON connection.id = conversation."connectionId" AND connection."companyId" = $3
+		WHERE conversation.id = $2 AND EXISTS (`+aiSessionGuard+`)
+		RETURNING id, "companyId", "conversationId", "executionId", "nodeId", "eventType", content, metadata, "createdAt"`,
+		sessionID, conversationID, companyID, content, string(metadata)).Scan(
+		&event.ID, &event.CompanyID, &event.ConversationID, &event.ExecutionID, &event.NodeID,
+		&event.EventType, &event.Content, &event.Metadata, &event.CreatedAt)
+	if errors.Is(err, sql.ErrNoRows) {
+		return event, ErrAIAgentSessionInactive
+	}
+	if err == nil {
+		invalidateConversationEventHistory(companyID, conversationID)
+	}
+	return event, err
 }
 
 // AddAIAgentConversationTag tags the conversation's contact and returns the

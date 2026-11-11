@@ -62,7 +62,7 @@ func MessageExists(messageID string, companyID int, connectionIDs ...int) (bool,
 	return exists, err
 }
 
-func SaveOutgoingMediaMessage(conversationID int, messageID, text, mediaType, mediaScope, mediaPath string, companyIDs ...int) (string, error) {
+func SaveOutgoingMediaMessage(conversationID int, messageID, text, mediaType, mediaScope, mediaPath, quotedID string, companyIDs ...int) (string, error) {
 	if messageID == "" {
 		messageID = "media-" + uuid.NewString()
 	}
@@ -70,12 +70,12 @@ func SaveOutgoingMediaMessage(conversationID int, messageID, text, mediaType, me
 	_, err := db.Exec(`INSERT INTO public.messages
 		("messageId", text, "conversationId", "quotedId", "mediaType", "mediaPath", "mediaScope",
 		 "createdAt", "updatedAt", "isFromMe", "isGroup", "isRead", "isDeleted")
-		SELECT $1, $2, conversation.id, '', $4, $5, $6, $7, $7, true,
+		SELECT $1, $2, conversation.id, $8, $4, $5, $6, $7, $7, true,
 			COALESCE(contact."isGroup", false), true, false
 		FROM conversations conversation
 		JOIN contacts contact ON contact.id = conversation."contactId"
 		WHERE conversation.id = $3`,
-		messageID, text, conversationID, mediaType, mediaPath, mediaScope, now)
+		messageID, text, conversationID, mediaType, mediaPath, mediaScope, now, quotedID)
 	if err == nil {
 		scheduleConversationHistoryUpdate(conversationID, messageID, companyIDs...)
 		if len(companyIDs) > 0 {
@@ -382,6 +382,11 @@ func saveMessageEvo(msg EventMessageEVO, fullJson []byte, contact Contact, conne
 		scheduleConversationHistoryUpdate(conversationId, msg.Data.Info.ID, connection.CompanyID)
 		if msg.Data.Info.IsFromMe {
 			markOutgoingConversationRead(conversationId, connection.CompanyID)
+		}
+		// Incoming messages already looked the name up synchronously; outgoing
+		// ones never do, so their contact is enriched in the background.
+		if msg.Data.Info.IsFromMe && !contact.IsGroup && isPlaceholderContactName(contact.Name) {
+			scheduleConversationContactNameRefresh(conversationId, connection)
 		}
 	}
 	return err

@@ -75,10 +75,10 @@ const assert=require('node:assert/strict'),{chromium}=require(process.env.ZUBLY_
    return route.fulfill({status:204});
   });
   await page.goto('http://ui.test/messages');
-  await page.locator('#conversation-protocol-input').fill('#1002');await page.getByRole('button',{name:'Pesquisar protocolo',exact:true}).click();
+  await page.locator('#contact-global-search').fill('#1002');await page.getByRole('button',{name:'Pesquisar contato ou protocolo',exact:true}).click();
   await page.locator('#protocol-found').waitFor();assert.equal(await page.locator('#protocol-found').textContent(),'#1002');
   assert.equal(new URL(page.url()).pathname,'/messages/'+uuid,'navigation must keep the globally unique UUID, not the local protocol');
-  await page.locator('#conversation-protocol-input').fill('640');await page.getByRole('button',{name:'Pesquisar protocolo',exact:true}).click();
+  await page.locator('#contact-global-search').fill('#640');await page.getByRole('button',{name:'Pesquisar contato ou protocolo',exact:true}).click();
   await page.waitForFunction(()=>Boolean(window.protocolNotice));assert.ok((await page.evaluate(()=>window.protocolNotice.message)).includes('nesta empresa'));
   assert.equal(new URL(page.url()).pathname,'/messages/'+uuid,'failed lookup must preserve the current conversation');assert.deepEqual(errors,[]);
   console.log('PASS: protocol form, UUID navigation, history URL and inline failed-search notice');

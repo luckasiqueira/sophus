@@ -180,7 +180,7 @@ func ApplyConversationInactivityPolicy(companyID, minutes int, now time.Time) (i
 		if _, err := tx.Exec(`UPDATE flow_executions SET status = 'failed', "errorMessage" = 'execução cancelada por inatividade', "completedAt" = now(), "updatedAt" = now() WHERE "conversationId" = $1 AND status IN ('running','waiting')`, id); err != nil {
 			return 0, err
 		}
-		if _, err := tx.Exec(`UPDATE ai_agent_sessions SET status = 'ended', "endedAt" = now(), "updatedAt" = now() WHERE "conversationId" = $1 AND status = 'active'`, id); err != nil {
+		if _, err := tx.Exec(`UPDATE ai_agent_sessions SET status = 'ended', "endedAt" = now(), "updatedAt" = now() WHERE "conversationId" = $1 AND status IN ('active', 'paused')`, id); err != nil {
 			return 0, err
 		}
 		if _, err := tx.Exec(`UPDATE conversations SET status = 'closed', "updatedAt" = now() WHERE id = $1`, id); err != nil {

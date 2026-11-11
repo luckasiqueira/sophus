@@ -5,11 +5,14 @@ import (
 	"errors"
 	"fmt"
 	"log"
+	"net/http"
+	"os"
 	"slices"
 	"strings"
 	"time"
 
 	"sophus/internal/llm"
+	"sophus/internal/media"
 	"sophus/internal/repo"
 )
 
@@ -59,7 +62,8 @@ func processAIAgentMessage(session repo.AIAgentSession, conversation repo.Conver
 		responseErr = err
 		return
 	}
-	messages := normalizeAIHistory(history, messageText)
+	images := loadAIHistoryImages(history, connection.CompanyID, session.Agent, strings.TrimPrefix(incomingKey, "message:"))
+	messages := buildAIMessages(history, messageText, images)
 	extensions := parseAIAgentExtensions(session.Extensions)
 	tools, actions := aiActionTools(extensions.Actions)
 	runner := newAIToolRunner(session, conversation, connection, actions)
@@ -102,10 +106,47 @@ func processAIAgentMessage(session repo.AIAgentSession, conversation repo.Conver
 	}
 }
 
+// normalizeAIHistory turns the chat history into alternating user and
+// assistant messages ending with currentMessage, without images.
 func normalizeAIHistory(history []repo.AIHistoryMessage, currentMessage string) []llm.Message {
+	return buildAIMessages(history, currentMessage, nil)
+}
+
+var aiMediaLabels = map[string]string{"image": "uma imagem", "video": "um vídeo", "audio": "um áudio", "document": "um documento", "sticker": "uma figurinha"}
+
+// aiHistoryText is what one history message says to the model: its text, or
+// a note about its attachment. attached means its image goes along with it.
+func aiHistoryText(item repo.AIHistoryMessage, attached bool) string {
+	text := strings.TrimSpace(item.Content)
+	label := aiMediaLabels[item.MediaType]
+	switch {
+	case label == "":
+		return text
+	case item.Role == "assistant" && text != "":
+		return "[A empresa enviou " + label + "] " + text
+	case item.Role == "assistant":
+		return "[A empresa enviou " + label + ".]"
+	case attached || text == "":
+		return aiAgentInput(text, item.MediaType)
+	}
+	return "[O cliente enviou " + label + "] " + text
+}
+
+// buildAIMessages turns the chat history into alternating user and assistant
+// messages ending with the customer's current message. images, indexed by
+// history position, are attached to their message.
+func buildAIMessages(history []repo.AIHistoryMessage, currentMessage string, images map[int]llm.Image) []llm.Message {
+	currentMessage = strings.TrimSpace(currentMessage)
 	messages := make([]llm.Message, 0, len(history)+1)
-	for _, item := range history {
-		role, content := item.Role, strings.TrimSpace(item.Content)
+	// The message being answered is usually already the last one stored.
+	currentStored := false
+	if last := len(history) - 1; last >= 0 && history[last].Role == "user" {
+		item := history[last]
+		currentStored = strings.TrimSpace(item.Content) == currentMessage || aiAgentInput(item.Content, item.MediaType) == currentMessage
+	}
+	for index, item := range history {
+		image, attached := images[index]
+		role, content := item.Role, aiHistoryText(item, attached)
 		if content == "" || (role != "user" && role != "assistant") {
 			continue
 		}
@@ -113,12 +154,20 @@ func normalizeAIHistory(history []repo.AIHistoryMessage, currentMessage string) 
 			continue
 		}
 		if len(messages) > 0 && messages[len(messages)-1].Role == role {
-			messages[len(messages)-1].Content += "\n" + content
+			previous := &messages[len(messages)-1]
+			previous.Content += "\n" + content
+			if attached {
+				previous.Images = append(previous.Images, image)
+			}
 			continue
 		}
-		messages = append(messages, llm.Message{Role: role, Content: content})
+		message := llm.Message{Role: role, Content: content}
+		if attached {
+			message.Images = []llm.Image{image}
+		}
+		messages = append(messages, message)
 	}
-	if len(messages) == 0 || messages[len(messages)-1].Role != "user" || strings.TrimSpace(messages[len(messages)-1].Content) != currentMessage {
+	if !currentStored || len(messages) == 0 || messages[len(messages)-1].Role != "user" {
 		if len(messages) > 0 && messages[len(messages)-1].Role == "user" {
 			messages[len(messages)-1].Content += "\n" + currentMessage
 		} else {
@@ -126,6 +175,67 @@ func normalizeAIHistory(history []repo.AIHistoryMessage, currentMessage string) 
 		}
 	}
 	return messages
+}
+
+// The webhook stores a message before its attachment finishes downloading,
+// so the image the customer just sent may still be on its way.
+var aiIncomingImageWait = 20 * time.Second
+
+// loadAIHistoryImages reads the customer's latest images in the history, up
+// to the agent's limit and the provider's size limits, newest first.
+// Unreadable or oversized images stay as text notes.
+func loadAIHistoryImages(history []repo.AIHistoryMessage, companyID int, agent repo.AIAgent, incomingMessageID string) map[int]llm.Image {
+	if agent.HistoryImageLimit <= 0 || !llm.SupportsChatImages(agent.Provider, agent.Model) {
+		return nil
+	}
+	maxCount, perImage, budget := llm.ChatImageLimits(agent.Provider)
+	limit := min(agent.HistoryImageLimit, maxCount)
+	images := map[int]llm.Image{}
+	for index := len(history) - 1; index >= 0 && len(images) < limit; index-- {
+		item := history[index]
+		if item.Role != "user" || item.MediaType != "image" {
+			continue
+		}
+		mediaPath := strings.TrimSpace(item.MediaPath)
+		if mediaPath == "" && item.MessageID != "" && item.MessageID == incomingMessageID {
+			attachment, reason := awaitIncomingMedia(func() (repo.MessageData, error) {
+				return repo.GetIncomingMediaByMessage(item.MessageID, companyID)
+			}, aiIncomingImageWait, incomingMediaPoll)
+			if reason == "" {
+				mediaPath = strings.TrimSpace(attachment.MediaPath)
+			}
+		}
+		if mediaPath == "" {
+			continue
+		}
+		image, ok := readAIHistoryImage(companyID, mediaPath, perImage)
+		if !ok || len(image.Data) > budget {
+			continue
+		}
+		budget -= len(image.Data)
+		images[index] = image
+	}
+	return images
+}
+
+func readAIHistoryImage(companyID int, mediaPath string, maxBytes int) (llm.Image, bool) {
+	filePath, err := media.FilePath(companyID, mediaPath)
+	if err != nil {
+		return llm.Image{}, false
+	}
+	info, err := os.Stat(filePath)
+	if err != nil || info.Size() <= 0 || info.Size() > int64(maxBytes) {
+		return llm.Image{}, false
+	}
+	data, err := os.ReadFile(filePath)
+	if err != nil {
+		return llm.Image{}, false
+	}
+	mimeType := strings.SplitN(http.DetectContentType(data), ";", 2)[0]
+	if !llm.ChatImageType(mimeType) {
+		return llm.Image{}, false
+	}
+	return llm.Image{MIME: mimeType, Data: data}, true
 }
 
 func buildAIAgentSystemPrompt(agent repo.AIAgent, extensions AIAgentExtensions, query string) string {
@@ -145,8 +255,7 @@ func buildAIAgentSystemPrompt(agent repo.AIAgent, extensions AIAgentExtensions, 
 	if agent.SystemPrompt != "" {
 		parts = append(parts, "INSTRUÇÕES ESPECÍFICAS:\n"+agent.SystemPrompt)
 	}
-	knowledge := strings.TrimSpace(agent.KnowledgeBase + "\n\n" + extensions.KnowledgeBase)
-	if knowledge != "" {
+	if knowledge := strings.TrimSpace(agent.KnowledgeBase); knowledge != "" {
 		parts = append(parts, "BASE DE CONHECIMENTO (fonte prioritária):\n"+relevantKnowledge(knowledge, query, 30000))
 	}
 	if len(extensions.Actions) > 0 {

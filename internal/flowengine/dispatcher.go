@@ -215,6 +215,13 @@ func handleIncomingMessage(conversation repo.Conversation, connection repo.Conne
 			return
 		}
 	}
+	if paused, pausedErr := repo.AIAgentSessionPaused(conversation.Id, connection.CompanyID); pausedErr != nil {
+		log.Printf("AI agent pause lookup failed: conversation=%d connection=%d error=%v", conversation.Id, connection.Id, pausedErr)
+	} else if paused {
+		// The AI paused itself for the team: neither it nor a flow answers.
+		log.Printf("AI agent dispatch skipped: conversation=%d connection=%d reason=paused", conversation.Id, connection.Id)
+		return
+	}
 	if session, sessionErr := repo.GetActiveAIAgentSession(conversation.Id, connection.CompanyID); sessionErr == nil && session.Id > 0 {
 		log.Printf("AI agent session dispatch: conversation=%d connection=%d agent=%d", conversation.Id, connection.Id, session.Agent.Id)
 		go processAIAgentMessage(session, conversation, connection, aiAgentInput(messageText, messageType), incomingKey)

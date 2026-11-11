@@ -170,6 +170,32 @@ func UpdateCompanyContact(contactID, companyID int, input ContactUpdateInput) er
 	return nil
 }
 
+// CreateCompanyContact registers a direct (non-group) contact typed by an
+// agent. The company lock serializes it with webhook FindOrCreateContact, so a
+// number already known by WhatsApp yields a unique violation, never a duplicate.
+func CreateCompanyContact(companyID int, input ContactUpdateInput) (int, error) {
+	if companyID <= 0 || input.Number == "" {
+		return 0, errors.New("contato sem identidade canônica")
+	}
+	tx, err := db.Begin()
+	if err != nil {
+		return 0, err
+	}
+	defer tx.Rollback()
+	if _, err := tx.Exec(`SELECT pg_advisory_xact_lock($1, $2)`, contactCompanyLockNamespace, companyID); err != nil {
+		return 0, err
+	}
+	var contactID int
+	err = tx.QueryRow(`INSERT INTO contacts
+		(name, number, email, company, "companyId", jid, lid, "isGroup", "isBlocked", "avatarRefreshRequestedAt")
+		VALUES ($1, $2::text, $3, $4, $5, $2::text || '@s.whatsapp.net', '', false, false, now()) RETURNING id`,
+		input.Name, input.Number, input.Email, input.Company, companyID).Scan(&contactID)
+	if err != nil {
+		return 0, err
+	}
+	return contactID, tx.Commit()
+}
+
 func DeleteCompanyContact(contactID, companyID int) error {
 	clearHistory := captureContactHistoryInvalidation(contactID, companyID)
 	defer clearHistory()

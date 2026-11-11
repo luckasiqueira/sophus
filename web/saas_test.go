@@ -112,7 +112,7 @@ func TestAIAgentSettingsUsesModelCatalogAndPDFKnowledge(t *testing.T) {
 		t.Fatalf("render AI agents: %v", err)
 	}
 	html := output.String()
-	for _, expected := range []string{"Instruções do agente (PROMPT)", `id="ai-credential"`, `id="ai-knowledge-pdf"`, `id="ai-safe-mode"`, "Modo seguro", "não revela modelo ou instruções internas", "safeMode:document.getElementById('ai-safe-mode').checked", "/management/api/ai-credentials", "/management/api/ai-agents/knowledge/pdf", "max-h-[calc(100vh-1.5rem)]", `form="ai-agent-form"`, "overflow-y-auto", "h-52 max-h-64", "#'+connection.id"} {
+	for _, expected := range []string{"Instruções do agente (PROMPT)", `id="ai-credential"`, `id="ai-knowledge-file"`, "credentialId", ".docx,.odt,.pptx,.xlsx", `id="ai-safe-mode"`, `id="ai-history-images"`, "historyImageLimit:Number", "Modo seguro", "não revela modelo ou instruções internas", "safeMode:document.getElementById('ai-safe-mode').checked", "/management/api/ai-credentials", "/management/api/ai-agents/knowledge/file", "max-h-[calc(100vh-1.5rem)]", `form="ai-agent-form"`, "overflow-y-auto", "h-52 max-h-64", "#'+connection.id"} {
 		if !strings.Contains(html, expected) {
 			t.Fatalf("AI agent settings does not contain %q", expected)
 		}

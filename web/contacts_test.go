@@ -57,6 +57,48 @@ const tick = () => new Promise(resolve => setTimeout(resolve, 0));
 `)
 }
 
+func TestContactCreateFromContactsPage(t *testing.T) {
+	runControlDOMTest(t, Contacts(), `
+const assert = require('node:assert/strict');
+const { JSDOM } = require(process.env.ZUBLY_TEST_JSDOM);
+const dom = new JSDOM(require('node:fs').readFileSync(0, 'utf8'), {runScripts: 'outside-only', url: 'https://zubly.test/contacts'});
+const w = dom.window, d = w.document; w.HTMLElement.prototype.scrollIntoView = function () {};
+let requests = [], conflict = true;
+const response = (status, payload) => ({ok: status >= 200 && status < 300, status, text: async () => payload === undefined ? '' : JSON.stringify(payload)});
+w.fetch = async (url, options = {}) => {
+ requests.push({url, method: options.method || 'GET', body: options.body ? JSON.parse(options.body) : null});
+ if (options.method === 'POST' && url.endsWith('/management/api/contacts')) return conflict ? response(409, {error: 'já existe um contato com este telefone nesta empresa'}) : response(201, {data: {id: 9}});
+ if (options.method === 'PUT' && url.endsWith('/contacts/9/tags')) return response(204);
+ if (url.includes('/contacts?')) return response(200, {data: [], page: 1, total: 0});
+ if (url.endsWith('/contact-tags')) return response(200, {data: [{id: 4, name: 'Cliente', contactCount: 0}]});
+ return response(200, {data: []});
+};
+for (const script of d.querySelectorAll('script')) if (script.textContent.includes('window.contactRequest =') || script.textContent.includes('const contactsState =')) w.eval(script.textContent);
+const tick = () => new Promise(resolve => setTimeout(resolve, 0));
+(async () => {
+ await tick(); d.getElementById('contacts-create').click();
+ const modal = d.getElementById('contact-edit-modal'), form = d.getElementById('contact-edit-form');
+ assert.equal(modal.classList.contains('hidden'), false);
+ assert.equal(d.getElementById('contact-edit-title').textContent, 'Novo contato');
+ assert.equal(d.getElementById('contact-edit-name').value, '');
+ assert.ok(Array.from(form.querySelectorAll('button')).some(b => b.textContent.includes('Excluir contato') && b.classList.contains('hidden')), 'delete is hidden while creating');
+ d.getElementById('contact-edit-name').value = 'Pessoa Teste'; d.getElementById('contact-edit-number').value = '+55 11 90000-0000';
+ d.querySelector('#contact-edit-tags input').checked = true;
+ form.requestSubmit(); await tick();
+ assert.equal(d.getElementById('contact-edit-error').classList.contains('hidden'), false, 'conflict stays in the modal');
+ assert.equal(modal.classList.contains('hidden'), false);
+ conflict = false; requests = []; form.requestSubmit(); await tick(); await tick();
+ const create = requests.find(r => r.method === 'POST');
+ assert.deepEqual(create.body, {name: 'Pessoa Teste', company: '', email: '', number: '+55 11 90000-0000'});
+ assert.ok(requests.some(r => r.method === 'PUT' && r.url.endsWith('/contacts/9/tags') && r.body.tagIds[0] === 4));
+ assert.equal(modal.classList.contains('hidden'), true);
+ w.openContactEditor({id: 3, name: 'Outro', number: '5511900000001', tagIds: []});
+ assert.equal(d.getElementById('contact-edit-title').textContent, 'Editar contato');
+ dom.window.close();
+})().catch(error => { console.error(error); process.exitCode = 1; dom.window.close(); });
+`)
+}
+
 func TestConversationContactEditDisplaysEmptyResponseErrors(t *testing.T) {
 	agentID := 7
 	conversation := repo.Conversation{URL: uuid.New(), Status: repo.ConversationStatusOpen, AgentID: &agentID, Contact: repo.Contact{Id: 1, Name: "João", Number: "5511999999999"}}

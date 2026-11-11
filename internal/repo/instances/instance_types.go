@@ -205,6 +205,22 @@ func evolutionRequestError(operation string, request *requests.Request, err erro
 	return fmt.Errorf("Evolution GO %s: %w: %s", operation, err, body)
 }
 
+// Logout unlinks the WhatsApp device and makes the engine delete the stored
+// session keys. The instance itself is kept, so it can be paired again by QR.
+func (i *InstanceEVO) Logout() error {
+	r := requests.Request{
+		URL:              repo.ApiBaseURL + "/instance/logout",
+		Headers:          map[string]string{"apikey": i.APIToken},
+		Method:           http.MethodDelete,
+		Timeout:          15 * time.Second,
+		MaxResponseBytes: 64 << 10,
+	}
+	if err := r.Do(); err != nil {
+		return evolutionRequestError("logout instance", &r, err)
+	}
+	return nil
+}
+
 func (i *InstanceEVO) Connect() error {
 	payload := map[string]any{
 		"subscribe": []string{"QRCODE", "CONNECTION", "MESSAGE", "BUTTON_CLICK", "PICTURE"},

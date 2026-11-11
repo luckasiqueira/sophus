@@ -41,7 +41,65 @@ func ListCompanyMedia(ctx iris.Context) {
 		writeJSONError(ctx, iris.StatusInternalServerError, "não foi possível consultar o armazenamento")
 		return
 	}
-	ctx.JSON(iris.Map{"data": iris.Map{"items": items, "usage": usage}})
+	filter := mediaListFilter{
+		Kind:  strings.TrimSpace(ctx.URLParam("kind")),
+		Query: strings.ToLower(strings.TrimSpace(ctx.URLParam("q"))),
+		From:  strings.TrimSpace(ctx.URLParam("from")),
+		To:    strings.TrimSpace(ctx.URLParam("to")),
+	}
+	page, _ := strconv.Atoi(ctx.URLParamDefault("page", "1"))
+	pageItems, total, page, pages := paginateMedia(filterMedia(items, filter), page, mediaPageSize)
+	ctx.JSON(iris.Map{"data": iris.Map{"items": pageItems, "usage": usage, "total": total, "page": page, "pages": pages, "pageSize": mediaPageSize}})
+}
+
+const mediaPageSize = 150
+
+type mediaListFilter struct {
+	Kind  string
+	Query string
+	From  string
+	To    string
+}
+
+func filterMedia(items []media.Item, filter mediaListFilter) []media.Item {
+	filtered := make([]media.Item, 0, len(items))
+	for _, item := range items {
+		if filter.Kind != "" && filter.Kind != "all" && item.Kind != filter.Kind {
+			continue
+		}
+		if filter.Query != "" && !strings.Contains(strings.ToLower(item.Name), filter.Query) {
+			continue
+		}
+		day := item.CreatedAt.UTC().Format("2006-01-02")
+		if filter.From != "" && day < filter.From {
+			continue
+		}
+		if filter.To != "" && day > filter.To {
+			continue
+		}
+		filtered = append(filtered, item)
+	}
+	return filtered
+}
+
+func paginateMedia(items []media.Item, page, size int) ([]media.Item, int, int, int) {
+	total := len(items)
+	pages := (total + size - 1) / size
+	if pages < 1 {
+		pages = 1
+	}
+	if page < 1 {
+		page = 1
+	}
+	if page > pages {
+		page = pages
+	}
+	start := (page - 1) * size
+	end := start + size
+	if end > total {
+		end = total
+	}
+	return items[start:end], total, page, pages
 }
 
 func CleanupCompanyMedia(ctx iris.Context) {

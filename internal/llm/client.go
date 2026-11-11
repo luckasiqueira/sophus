@@ -27,6 +27,9 @@ const maxResponseBytes = 2 << 20
 type Message struct {
 	Role    string `json:"role"`
 	Content string `json:"content"`
+	// Images go with user messages to models that see them
+	// (SupportsChatImages); each provider encodes them in its own format.
+	Images []Image `json:"-"`
 }
 
 type Request struct {
@@ -322,11 +325,7 @@ func prepareRequest(request Request) Request {
 }
 
 func completeOpenAICompatible(ctx context.Context, client *http.Client, endpoint string, request Request) (Response, error) {
-	messages := make([]Message, 0, len(request.Messages)+1)
-	if request.System != "" {
-		messages = append(messages, Message{Role: "system", Content: request.System})
-	}
-	messages = append(messages, request.Messages...)
+	messages := openAIMessages(request.System, request.Messages)
 	payload := map[string]interface{}{"model": request.Model, "messages": messages, "max_tokens": request.MaxOutputTokens, "temperature": request.Temperature}
 	var result struct {
 		Choices []struct {
@@ -347,7 +346,7 @@ func completeOpenAICompatible(ctx context.Context, client *http.Client, endpoint
 }
 
 func completeClaude(ctx context.Context, client *http.Client, request Request) (Response, error) {
-	payload := claudePayload(request.Model, request.MaxOutputTokens, request.Temperature, request.System, request.Messages)
+	payload := claudePayload(request.Model, request.MaxOutputTokens, request.Temperature, request.System, claudeMessages(request.Messages))
 	var result struct {
 		Content []struct {
 			Type string `json:"type"`
@@ -378,16 +377,8 @@ func completeClaude(ctx context.Context, client *http.Client, request Request) (
 }
 
 func completeGemini(ctx context.Context, client *http.Client, request Request) (Response, error) {
-	contents := make([]map[string]interface{}, 0, len(request.Messages))
-	for _, message := range request.Messages {
-		role := "user"
-		if message.Role == "assistant" {
-			role = "model"
-		}
-		contents = append(contents, map[string]interface{}{"role": role, "parts": []map[string]string{{"text": message.Content}}})
-	}
 	payload := map[string]interface{}{
-		"contents":          contents,
+		"contents":          geminiContents(request.Messages),
 		"systemInstruction": map[string]interface{}{"parts": []map[string]string{{"text": request.System}}},
 		"generationConfig":  map[string]interface{}{"maxOutputTokens": request.MaxOutputTokens, "temperature": request.Temperature},
 	}

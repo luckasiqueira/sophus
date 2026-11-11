@@ -197,6 +197,36 @@ func DeleteInstance(ctx iris.Context) {
 	ctx.StatusCode(iris.StatusNoContent)
 }
 
+func DisconnectInstance(ctx iris.Context) {
+	agent, err := middlewares.AgentIdentifier(ctx)
+	if err != nil {
+		ctx.StopWithStatus(iris.StatusUnauthorized)
+		return
+	}
+	id, err := ctx.Params().GetInt("id")
+	if err != nil || id <= 0 {
+		ctx.StopWithStatus(iris.StatusBadRequest)
+		return
+	}
+	connection, err := repo.GetConnectionByID(agent.CompanyId, id)
+	if err != nil {
+		ctx.StopWithStatus(iris.StatusNotFound)
+		return
+	}
+	remote := instances.InstanceEVO{InstanceID: connection.InstanceID, APIToken: connection.EvolutionAPIKey()}
+	if err := remote.Logout(); err != nil {
+		log.Printf("WhatsApp instance logout failed: connection=%d instance=%s error=%v", connection.Id, connection.InstanceID, err)
+		ctx.StopWithJSON(iris.StatusBadGateway, iris.Map{"error": "não foi possível encerrar a sessão no WhatsApp; verifique se a instância está conectada e tente novamente"})
+		return
+	}
+	if _, err := repo.MarkConnectionLoggedOut(agent.CompanyId, id); err != nil {
+		ctx.StopWithStatus(iris.StatusInternalServerError)
+		return
+	}
+	sse.NotifyInstances(agent.CompanyId)
+	ctx.JSON(iris.Map{"data": iris.Map{"status": repo.ConnectionStatusDisconnected}})
+}
+
 func NewInstance(ctx iris.Context) {
 	agent, err := middlewares.AgentIdentifier(ctx)
 	if err != nil {

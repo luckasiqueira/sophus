@@ -291,7 +291,8 @@ func processMessageWebhook(connection repo.ConnectionEVO, body []byte) error {
 		if renderErr != nil {
 			return renderErr
 		}
-		sse.Global.Send(conversation.URL.String(), html)
+		// Reactions are in-place updates: "message-update" keeps the chat scroll.
+		sse.Global.SendEvent(conversation.URL.String(), "message-update", html)
 		return nil
 	}
 	exists, err := repo.MessageExists(msg.Data.Info.ID, connection.CompanyID, connection.Id)
