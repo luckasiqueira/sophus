@@ -12,6 +12,7 @@ import (
 )
 
 func Router(r *iris.Application) {
+	r.UseRouter(middlewares.RealClientIP)
 	r.Use(middlewares.SecurityHeaders)
 	brandAssets := iris.FromStd(http.StripPrefix("/logos/", http.FileServer(http.FS(logos.Files))))
 	r.Get("/logos/{file:string}", brandAssets)
