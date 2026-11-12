@@ -295,11 +295,20 @@ func processMessageWebhook(connection repo.ConnectionEVO, body []byte) error {
 		sse.Global.SendEvent(conversation.URL.String(), "message-update", html)
 		return nil
 	}
+	// Hold the per-message lock from the existence check until the row is
+	// stored, so a concurrent delivery of the same message waits and then takes
+	// the "already stored" path instead of inserting a duplicate.
+	release, err := repo.LockMessageIngestion(context.Background(), connection.Id, msg.Data.Info.ID)
+	if err != nil {
+		return err
+	}
+	defer release()
 	exists, err := repo.MessageExists(msg.Data.Info.ID, connection.CompanyID, connection.Id)
 	if err != nil {
 		return err
 	}
 	if exists {
+		release()
 		return completeExistingWebhookMedia(msg, connection)
 	}
 	settings, err := repo.GetCompanyOperationSettings(connection.CompanyID)
@@ -341,6 +350,9 @@ func processMessageWebhook(connection repo.ConnectionEVO, body []byte) error {
 		}
 		return err
 	}
+	// The row is stored: later deliveries now see it, so flows, notifications
+	// and the media download below run without holding the lock.
+	release()
 	if !msg.Data.Info.IsFromMe && !msg.Data.Info.IsGroup {
 		conversation, err := repo.GetConversationByMessage(msg.Data.Info.ID, connection.CompanyID, connection.Id)
 		if err != nil {

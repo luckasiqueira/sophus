@@ -367,7 +367,7 @@ templ MessageSent(msg repo.MessageData, companyId int, conversationURL string, o
 	<div id={"message-"+messageDOMID(msg.MessageId)} if len(oob)>0 && oob[0] { hx-swap-oob="outerHTML" } class="group/message flex gap-2 justify-end transition" data-from-me="true" data-message-quoted-id={msg.QuotedId} data-message-conversation={fmt.Sprint(msg.ConversationId)} data-message-id={ msg.MessageId } data-message-search={ messageSearchText(msg) } data-message-date={ MessageDateKey(msg) } data-message-date-label={ MessageDateLabel(msg) }>
 		@messageActions(msg, conversationURL)
 		<div class="flex min-w-0 flex-1 flex-col items-end">
-			<div class="max-w-full rounded-2xl rounded-tr-none p-3 shadow-sm sm:max-w-2xl sm:p-4" style="background: linear-gradient(to right, #3b82f6, #9333ea);">
+			<div class="message-bubble max-w-full rounded-2xl rounded-tr-none p-3 shadow-sm sm:max-w-2xl sm:p-4" style="background: linear-gradient(to right, #3b82f6, #9333ea);">
 				@quotedMessage(msg, true)
                 if strings.TrimSpace(msg.Text) != "" && !structuredMessage(msg) {
 					@messageText(msg.Text, "whitespace-pre-wrap break-words text-base font-semibold text-white", "font-bold text-white underline decoration-white/60 underline-offset-2 hover:decoration-2")
@@ -391,7 +391,7 @@ templ MessageReceived(msg repo.MessageData, companyId, contactId int, conversati
             <img src={ fmt.Sprintf("/management/api/contacts/%d/avatar", contactId) } alt="Foto do contato" loading="lazy" decoding="async" class="w-8 h-8 rounded-full flex-shrink-0 object-cover"/>
         }
 		<div class="min-w-0 flex-1">
-			<div class="max-w-full rounded-2xl rounded-tl-none bg-white p-3 shadow-sm sm:max-w-2xl sm:p-4">
+			<div class="message-bubble max-w-full rounded-2xl rounded-tl-none bg-white p-3 shadow-sm sm:max-w-2xl sm:p-4">
 				if msg.IsGroup {
 					<div class="mb-1.5 flex items-center justify-between gap-3 text-xs"><span class="min-w-0 truncate font-bold text-purple-700">{ groupSenderLabel(msg) }</span><time data-message-time class="shrink-0 font-semibold text-gray-500" datetime={ messageTimestamp(msg).Format(time.RFC3339) }><i class="far fa-clock mr-1 text-[9px]" aria-hidden="true"></i>{ messageTimeLabel(messageTimestamp(msg), msg.Timezone, "15:04") }</time></div>
 				}
@@ -454,7 +454,7 @@ templ MessageReceivedGallery(messages []repo.MessageData, companyId, contactId i
 				<img src={ fmt.Sprintf("/management/api/contacts/%d/avatar", contactId) } alt="Foto do contato" class="h-8 w-8 shrink-0 rounded-full object-cover"/>
 			}
 			<div class="min-w-0 flex-1">
-				<div class="max-w-full rounded-2xl rounded-tl-none bg-white p-3 shadow-sm sm:max-w-2xl sm:p-4">
+				<div class="message-bubble max-w-full rounded-2xl rounded-tl-none bg-white p-3 shadow-sm sm:max-w-2xl sm:p-4">
 					if messages[0].IsGroup {
 						<div class="mb-1.5 flex items-center justify-between gap-3 text-xs"><span class="min-w-0 truncate font-bold text-purple-700">{ groupSenderLabel(messages[0]) }</span><time data-message-time class="shrink-0 font-semibold text-gray-500" datetime={ messageTimestamp(messages[len(messages)-1]).Format(time.RFC3339) }><i class="far fa-clock mr-1 text-[9px]" aria-hidden="true"></i>{ messageTimeLabel(messageTimestamp(messages[len(messages)-1]), messages[len(messages)-1].Timezone, "15:04") }</time></div>
 					}

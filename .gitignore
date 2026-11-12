@@ -92,3 +92,6 @@ logos/
 !logos/DoveChat_simbolo_branco.svg
 !logos/DoveChat_simbolo_preto.svg
 !logos/DoveChat_icone_aplicativo.svg
+
+local.env
+homolog-local.yaml

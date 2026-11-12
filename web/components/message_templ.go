@@ -2026,7 +2026,7 @@ func MessageSent(msg repo.MessageData, companyId int, conversationURL string, oo
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 139, "<div class=\"flex min-w-0 flex-1 flex-col items-end\"><div class=\"max-w-full rounded-2xl rounded-tr-none p-3 shadow-sm sm:max-w-2xl sm:p-4\" style=\"background: linear-gradient(to right, #3b82f6, #9333ea);\">")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 139, "<div class=\"flex min-w-0 flex-1 flex-col items-end\"><div class=\"message-bubble max-w-full rounded-2xl rounded-tr-none p-3 shadow-sm sm:max-w-2xl sm:p-4\" style=\"background: linear-gradient(to right, #3b82f6, #9333ea);\">")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -2287,7 +2287,7 @@ func MessageReceived(msg repo.MessageData, companyId, contactId int, conversatio
 				return templ_7745c5c3_Err
 			}
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 162, "<div class=\"min-w-0 flex-1\"><div class=\"max-w-full rounded-2xl rounded-tl-none bg-white p-3 shadow-sm sm:max-w-2xl sm:p-4\">")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 162, "<div class=\"min-w-0 flex-1\"><div class=\"message-bubble max-w-full rounded-2xl rounded-tl-none bg-white p-3 shadow-sm sm:max-w-2xl sm:p-4\">")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -2823,7 +2823,7 @@ func MessageReceivedGallery(messages []repo.MessageData, companyId, contactId in
 					return templ_7745c5c3_Err
 				}
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 208, "<div class=\"min-w-0 flex-1\"><div class=\"max-w-full rounded-2xl rounded-tl-none bg-white p-3 shadow-sm sm:max-w-2xl sm:p-4\">")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 208, "<div class=\"min-w-0 flex-1\"><div class=\"message-bubble max-w-full rounded-2xl rounded-tl-none bg-white p-3 shadow-sm sm:max-w-2xl sm:p-4\">")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}

@@ -187,3 +187,31 @@ func TestCommonAgentsCanEditContactFromConversation(t *testing.T) {
 		t.Error("common agents edit contacts from the conversation")
 	}
 }
+
+func TestContactsMobileCardsUseActionMenu(t *testing.T) {
+	runControlDOMTest(t, Contacts(), `
+const assert = require('node:assert/strict');
+const { JSDOM } = require(process.env.ZUBLY_TEST_JSDOM);
+const dom = new JSDOM(require('node:fs').readFileSync(0, 'utf8'), {runScripts: 'outside-only', url: 'https://zubly.test/contacts'});
+const w = dom.window, d = w.document; w.HTMLElement.prototype.scrollIntoView = function () {};
+const contact = {id: 1, name: 'Pessoa Teste', number: '5511900000000', tagIds: [], tags: []};
+const response = (status, payload) => ({ok: true, status, text: async () => JSON.stringify(payload)});
+w.fetch = async url => url.includes('/contacts?') ? response(200, {data: [contact], page: 1, total: 1}) : response(200, {data: []});
+for (const script of d.querySelectorAll('script')) if (script.textContent.includes('window.contactRequest =') || script.textContent.includes('const contactsState =')) w.eval(script.textContent);
+const tick = () => new Promise(resolve => setTimeout(resolve, 0));
+(async () => {
+ await tick(); await tick();
+ const card = d.querySelector('#contacts-cards article');
+ assert.ok(card.textContent.includes('5511900000000'), 'mobile card shows the phone');
+ const toggle = card.querySelector('[data-contact-menu-toggle]'), menu = card.querySelector('[data-contact-menu]');
+ assert.equal(card.querySelectorAll('button').length, 4, 'one toggle plus three menu items');
+ assert.ok(menu.classList.contains('hidden'));
+ toggle.click();
+ assert.equal(menu.classList.contains('hidden'), false); assert.equal(toggle.getAttribute('aria-expanded'), 'true');
+ assert.deepEqual(Array.from(menu.querySelectorAll('[role=menuitem]')).map(b => b.textContent.trim()), ['Editar', 'Conversar', 'Excluir']);
+ d.body.click();
+ assert.ok(menu.classList.contains('hidden'), 'clicking outside closes the menu');
+ dom.window.close();
+})().catch(error => { console.error(error); process.exitCode = 1; dom.window.close(); });
+`)
+}

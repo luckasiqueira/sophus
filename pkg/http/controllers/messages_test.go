@@ -48,3 +48,13 @@ func TestQuotedMessageParticipant(t *testing.T) {
 		})
 	}
 }
+
+func TestSidebarConversationsUseCompanyTimezone(t *testing.T) {
+	conversations := []repo.Conversation{{Id: 1}, {Id: 2}}
+	withConversationTimezone(conversations, "America/Sao_Paulo")
+	for _, conversation := range conversations {
+		if conversation.Timezone != "America/Sao_Paulo" {
+			t.Fatalf("conversation %d has timezone %q", conversation.Id, conversation.Timezone)
+		}
+	}
+}

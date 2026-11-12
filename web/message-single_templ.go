@@ -512,11 +512,11 @@ func ConversationPanel(activeConversation repo.Conversation, agent repo.Agent, m
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = ConversationHeaderMenuRuntime().Render(ctx, templ_7745c5c3_Buffer)
+		templ_7745c5c3_Err = ConversationHistorySwitch(activeConversation).Render(ctx, templ_7745c5c3_Buffer)
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = ConversationHistorySwitch(activeConversation).Render(ctx, templ_7745c5c3_Buffer)
+		templ_7745c5c3_Err = ConversationHeaderMenuRuntime().Render(ctx, templ_7745c5c3_Buffer)
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}

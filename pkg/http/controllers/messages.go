@@ -75,9 +75,7 @@ func conversationListData(ctx iris.Context) (conversationListView, bool) {
 		ctx.StopWithStatus(iris.StatusInternalServerError)
 		return conversationListView{}, false
 	}
-	for index := range conversations {
-		conversations[index].Timezone = settings.Timezone
-	}
+	withConversationTimezone(conversations, settings.Timezone)
 	middlewares.ServerTiming(ctx, "conversations", listStarted)
 	countsStarted := time.Now()
 	counts, err := repo.GetConversationScopeCounts(agent, scope == "group")
@@ -158,12 +156,23 @@ func MessageOpen(ctx iris.Context) {
 		ctx.StopWithStatus(iris.StatusInternalServerError)
 		return
 	}
+	// The sidebar of a full page load must use the company clock too;
+	// without it the preview times fall back to the server's UTC.
+	withConversationTimezone(conversations, settings.Timezone)
 	counts, err := repo.GetConversationScopeCounts(agent, scope == "group")
 	if err != nil {
 		ctx.StopWithStatus(iris.StatusInternalServerError)
 		return
 	}
 	ctx.RenderComponent(web.MessageSingle(activeConversation, agent, conversations, messages, events, counts, page))
+}
+
+// withConversationTimezone sets the company timezone used to label each
+// conversation's last-message time in the sidebar.
+func withConversationTimezone(conversations []repo.Conversation, timezone string) {
+	for index := range conversations {
+		conversations[index].Timezone = timezone
+	}
 }
 
 func isConversationFragment(ctx iris.Context) bool {

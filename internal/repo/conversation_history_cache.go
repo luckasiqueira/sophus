@@ -17,7 +17,8 @@ import (
 )
 
 const conversationHistoryTTL = 6 * time.Hour
-const conversationHistoryKey = "snapshot-v4"
+// v5 drops snapshots taken before duplicate messages were removed (migration 98).
+const conversationHistoryKey = "snapshot-v5"
 
 type conversationHistorySnapshot struct {
 	Messages []MessageData `json:"messages"`

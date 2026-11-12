@@ -62,20 +62,37 @@ templ FlowBuilder() {
 	.variable-accordion > summary::-webkit-details-marker { display: none; }
   ::-webkit-scrollbar { width: 10px; height: 10px; }
   ::-webkit-scrollbar-thumb { background: #d6d3d1; border-radius: 8px; }
+	/* Phones: the free canvas becomes a step list; palette and inspector open as bottom sheets. */
+	#mobile-steps, #mobile-flow-actions, #palette-mobile-header, #btn-editor-more, #mobile-sheet-backdrop, .mobile-only { display: none; }
+	#editor-topbar-more { display: contents; }
 	@media (max-width: 767px) {
 		#view-editor { flex-direction: column; }
-		#palette { display: flex; width: max-content; gap: 1rem; }
-		#palette > div { margin-bottom: 0; width: 13rem; flex-shrink: 0; }
+		:scope.editor-open #flow-topbar-title { display: none; }
+		#inp-name { flex: 1 1 auto; width: auto; min-width: 0; }
+		#btn-editor-more, .mobile-only { display: grid; }
+		#editor-topbar-more { display: none; }
+		#editor-topbar-more.open { order: 10; display: flex; width: 100%; flex-wrap: wrap; align-items: center; gap: .5rem; padding: .5rem; border-radius: .75rem; background: rgba(255,255,255,.12); }
+		#editor-topbar-more #btn-test, #editor-topbar-more #btn-save { display: none; }
+		#canvas-wrap, #zoom-controls { display: none; }
+		#mobile-steps { display: block; }
+		#mobile-flow-actions { display: flex; }
+		#palette-panel { display: none; }
+		#view-editor.mobile-palette-open #palette-panel { display: block; position: absolute; left: 0; right: 0; bottom: 0; z-index: 46; max-height: 80%; width: 100%; overflow-y: auto; border: 0; border-radius: 1.25rem 1.25rem 0 0; padding: .75rem 1rem 1rem; box-shadow: 0 -16px 40px rgba(0,0,0,.18); }
+		#view-editor.mobile-palette-open #palette-mobile-header { display: flex; }
+		#view-editor.mobile-palette-open #mobile-sheet-backdrop, #view-editor.mobile-inspector-open #mobile-sheet-backdrop { display: block; position: absolute; inset: 0; z-index: 44; background: rgba(28,25,23,.45); }
+		#palette { display: block; width: auto; }
+		#palette > div { width: auto; margin-bottom: 1rem; }
+		.palette-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+		.palette-item { aspect-ratio: auto; min-height: 5rem; }
 		.node-card { touch-action: none; }
-		#inspector:not(.hidden) { inset: auto 0 0; height: min(60%, 25rem); width: 100%; max-width: none; border-radius: 1rem 1rem 0 0; }
-		#zoom-controls { bottom: auto; top: .5rem; left: .5rem; }
+		#inspector:not(.hidden) { inset: auto 0 0; z-index: 45; height: min(82%, 44rem); width: 100%; max-width: none; border-radius: 1.25rem 1.25rem 0 0; border: 0; box-shadow: 0 -16px 40px rgba(0,0,0,.18); }
 	}
 	}
 </style>
 
   <!-- Top bar -->
   <div class="z-40 flex max-h-[40dvh] shrink-0 flex-wrap items-center justify-between gap-2 overflow-y-auto px-3 py-2 shadow-sm sm:px-5 sm:py-3" style="background: linear-gradient(to right, #3b82f6, #6123cc);">
-    <div class="flex items-center gap-3 text-white">
+    <div id="flow-topbar-title" class="flex items-center gap-3 text-white">
       <i class="fas fa-diagram-project text-lg"></i>
       <span class="font-bold text-lg">Automações</span>
     </div>
@@ -113,6 +130,7 @@ templ FlowBuilder() {
     <!-- Palette -->
     <div id="palette-panel" class="max-h-[22dvh] w-full shrink-0 overflow-auto border-b border-stone-200 bg-white p-2 md:max-h-none md:w-52 md:overflow-y-auto md:border-b-0 md:border-r md:p-2">
       <button id="palette-toggle" type="button" class="mb-2 hidden w-full items-center justify-between gap-2 rounded-lg px-2 py-1.5 text-xs font-semibold text-gray-500 hover:bg-stone-100 md:flex" aria-expanded="true" aria-controls="palette" title="Recolher blocos"><span class="palette-toggle-label">Blocos</span><i class="fas fa-angles-left"></i></button>
+      <div id="palette-mobile-header" class="mb-3 items-center justify-between gap-3"><div><p class="text-[10px] font-bold uppercase tracking-[.16em] text-purple-600">Novo bloco</p><p class="text-base font-black text-gray-900">Adicionar bloco</p></div><button id="palette-mobile-close" type="button" class="grid h-10 w-10 place-items-center rounded-xl bg-stone-100 text-gray-500" aria-label="Fechar lista de blocos"><i class="fas fa-xmark"></i></button></div>
       <div id="palette"></div>
     </div>
 
@@ -145,9 +163,16 @@ templ FlowBuilder() {
         <button type="button" data-zoom="fit" class="grid h-8 w-8 place-items-center rounded-lg text-gray-600 hover:bg-stone-100" title="Ajustar o fluxo à tela" aria-label="Ajustar o fluxo à tela"><i class="fas fa-expand text-xs"></i></button>
       </div>
 
+      <div id="mobile-steps" class="absolute inset-0 overflow-y-auto bg-stone-50 px-3 pb-6 pt-3" aria-label="Etapas do fluxo"></div>
+
       <!-- Inspector: floats over the canvas instead of shrinking it -->
       <div id="inspector" class="hidden absolute bottom-3 right-3 top-3 z-30 w-[22rem] max-w-[calc(100%-1.5rem)] overflow-y-auto rounded-2xl border border-stone-200 bg-white p-4 shadow-2xl"></div>
     </div>
+    <div id="mobile-flow-actions" class="shrink-0 gap-2 border-t border-stone-200 bg-white px-3 py-2.5">
+      <button id="mobile-btn-test" type="button" class="flex min-h-[46px] flex-1 items-center justify-center gap-2 rounded-xl border border-stone-200 bg-white text-sm font-bold text-gray-700"><i class="fas fa-vial"></i>Testar</button>
+      <button id="mobile-btn-save" type="button" class="min-h-[46px] flex-[2] rounded-xl bg-[#6123cc] text-sm font-black text-white"><i class="fas fa-save mr-1"></i>Salvar flow</button>
+    </div>
+    <div id="mobile-sheet-backdrop" aria-hidden="true"></div>
   </div>
 
   <div id="templates-modal" class="hidden fixed inset-0 z-50 bg-black bg-opacity-40 p-4 items-center justify-center">
@@ -616,6 +641,8 @@ function closeEditor() {
 function showView(name) {
   document.getElementById('view-list').classList.toggle('hidden', name !== 'list');
   document.getElementById('view-editor').classList.toggle('hidden', name !== 'editor');
+  document.getElementById('flowbuilder-page').classList.toggle('editor-open', name === 'editor');
+  if (name !== 'editor') closeMobilePalette();
 }
 
 async function saveFlow() {
@@ -684,11 +711,13 @@ async function saveFlow() {
 }
 
 function flashSaved() {
-  const btn = document.getElementById('btn-save');
-  if (!btn) return;
-  const original = btn.innerHTML;
-  btn.innerHTML = '<i class="fas fa-check"><\/i> Salvo';
-  setTimeout(() => { btn.innerHTML = original; }, 1200);
+  ['btn-save', 'mobile-btn-save'].forEach(id => {
+    const btn = document.getElementById(id);
+    if (!btn) return;
+    const original = btn.innerHTML;
+    btn.innerHTML = '<i class="fas fa-check"><\/i> Salvo';
+    setTimeout(() => { btn.innerHTML = original; }, 1200);
+  });
 }
 
 async function testFlow() {
@@ -721,8 +750,10 @@ function renderTopbarExtra() {
   ];
 
   el.innerHTML = `
-    <input id="inp-name" value="${escapeAttr(f.name)}" placeholder="Nome da automação"
+    <input id="inp-name" value="${escapeAttr(f.name)}" placeholder="Nome da automação" aria-label="Nome da automação"
       class="px-3 py-2 rounded-xl text-sm bg-white bg-opacity-90 text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-white w-48 shadow-sm">
+    <button id="btn-editor-more" type="button" class="h-10 w-10 shrink-0 place-items-center rounded-xl bg-white bg-opacity-20 text-white" aria-expanded="false" aria-controls="editor-topbar-more" aria-label="Mais opções da automação"><i class="fas fa-ellipsis-vertical"><\/i><\/button>
+    <div id="editor-topbar-more">
     ${customSelectHTML('connection', connOptions, f.connectionId || '', 'Selecione a conexão')}
     ${customSelectHTML('trigger-type', triggerOptions, f.triggerType || 'keyword', 'Tipo de gatilho')}
 	<input id="inp-trigger-value" value="${escapeAttr(f.triggerValue||'')}" placeholder="ex: orçamento"
@@ -746,7 +777,8 @@ function renderTopbarExtra() {
     <button id="btn-save" class="px-4 py-1.5 rounded-lg text-sm font-bold text-purple-700 bg-white hover:bg-purple-50 transition-colors shadow-sm">
       <i class="fas fa-save mr-1"><\/i>Salvar
     <\/button>
-    <button id="btn-close-editor" class="p-2 hover:bg-white hover:bg-opacity-20 rounded-lg text-white transition-colors">
+    <\/div>
+    <button id="btn-close-editor" aria-label="Fechar editor" class="p-2 hover:bg-white hover:bg-opacity-20 rounded-lg text-white transition-colors">
       <i class="fas fa-times"><\/i>
     <\/button>
   `;
@@ -778,6 +810,9 @@ function renderTopbarExtra() {
   document.getElementById('btn-export-flow').onclick = () => openFlowExport(f, state.flowData);
   document.getElementById('btn-save').onclick = saveFlow;
   document.getElementById('btn-close-editor').onclick = closeEditor;
+  const more = document.getElementById('editor-topbar-more'), moreToggle = document.getElementById('btn-editor-more');
+  if (state.topbarMoreOpen) { more.classList.add('open'); moreToggle.setAttribute('aria-expanded', 'true'); }
+  moreToggle.onclick = () => { state.topbarMoreOpen = !more.classList.contains('open'); more.classList.toggle('open', state.topbarMoreOpen); moreToggle.setAttribute('aria-expanded', String(state.topbarMoreOpen)); };
 }
 
 function closeDropdown(radio) {
@@ -1216,6 +1251,7 @@ function renderCanvas() {
     layer.appendChild(card);
   }
   renderEdges();
+  renderMobileSteps();
 }
 
 function selectNode(id) {
@@ -1482,11 +1518,123 @@ function addNode(type) {
 		openSubPort(selected.id, port.handle);
 		return;
 	}
-  const node = { id: uid('n'), type, position: freeNodePosition(type), data: defaultDataFor(type) };
+  // From the phone step list, the new block is chained to the output it was added from.
+  const insert = state.mobileInsert;
+  closeMobilePalette();
+  const source = insert && state.flowData.nodes.find(n => n.id === insert.source);
+  const node = { id: uid('n'), type, position: source ? positionNear(source, insert.handle, type) : freeNodePosition(type), data: defaultDataFor(type) };
   state.flowData.nodes.push(node);
+  if (source && canConnect(source.id, insert.handle, node)) {
+    state.flowData.edges = state.flowData.edges.filter(e => !(e.source === source.id && (e.sourceHandle || '') === (insert.handle || '')));
+    state.flowData.edges.push({ id: uid('e'), source: source.id, target: node.id, sourceHandle: insert.handle });
+  }
   state.selectedNodeId = node.id;
   renderCanvas();
   renderInspector();
+}
+
+// positionNear keeps blocks added from the phone readable on the desktop
+// canvas: right of their source, on the row of the output they hang from.
+function positionNear(source, handle, type) {
+  const outs = outputsFor(source);
+  const index = Math.max(0, outs.findIndex(out => (out.handle || '') === (handle || '')));
+  const height = nodeHeight({ type, data: defaultDataFor(type) }), gap = 32;
+  const x = source.position.x + NODE_W + 110;
+  let y = source.position.y + index * (height + gap);
+  const overlaps = py => state.flowData.nodes.some(node => x < node.position.x + NODE_W + gap && x + NODE_W + gap > node.position.x
+    && py < node.position.y + nodeHeight(node) + gap && py + height + gap > node.position.y);
+  for (let tries = 0; tries < 40 && overlaps(y); tries++) y += height + gap;
+  return { x, y };
+}
+
+// ---- Phone layout: the flow as a vertical list of steps ----
+const mobileFlowQuery = window.matchMedia ? window.matchMedia('(max-width: 767px)') : { matches: false, addEventListener() {} };
+
+function openMobilePalette(source, handle) {
+  state.mobileInsert = source ? { source, handle: handle || '' } : null;
+  document.getElementById('view-editor').classList.add('mobile-palette-open');
+  document.getElementById('palette-mobile-close')?.focus();
+}
+
+function closeMobilePalette() {
+  state.mobileInsert = null;
+  document.getElementById('view-editor')?.classList.remove('mobile-palette-open');
+}
+
+function mobileStepOutputs(node) {
+  return outputsFor(node).concat(subPortsFor(node).filter(port => !port.link).map(port => ({ handle: port.handle, label: port.label, sub: true })));
+}
+
+function renderMobileSteps() {
+  const el = document.getElementById('mobile-steps');
+  if (!el || !mobileFlowQuery.matches || !state.flowData) return;
+  const nodes = state.flowData.nodes, edges = state.flowData.edges;
+  const byId = new Map(nodes.map(node => [node.id, node]));
+  const steps = new Map();
+  const parts = [];
+  const wrap = (depth, html) => {
+    const level = Math.min(depth, 4);
+    const style = level > 0 ? ' style="margin-left:' + ((level - 1) * 14) + 'px;border-left:2px solid #e7e5e4;padding-left:10px;"' : '';
+    parts.push('<div class="pb-2"' + style + '>' + html + '<\/div>');
+  };
+  const addButton = (node, out, depth) => wrap(depth, '<button type="button" data-mobile-add="' + escapeAttr(node.id) + '" data-mobile-handle="' + escapeAttr(out.handle || '') + '"' + (out.sub ? ' data-mobile-sub="1"' : '') + ' class="flex min-h-[44px] w-full items-center justify-center gap-1.5 rounded-xl border-[1.5px] border-dashed border-stone-300 bg-white/60 text-xs font-bold text-stone-500"><i class="fas fa-plus" aria-hidden="true"><\/i>' + (out.sub ? 'Adicionar ' + escapeHtml(out.label) : 'Adicionar bloco') + '<\/button>');
+  const visit = (node, depth) => {
+    const meta = NODE_TYPES[node.type] || { label: node.type, icon: 'fa-question', color: '#78716c' };
+    if (steps.has(node.id)) {
+      wrap(depth, '<button type="button" data-mobile-node="' + escapeAttr(node.id) + '" class="flex min-h-[40px] w-full items-center gap-2 rounded-xl bg-purple-50 px-3 text-left text-xs font-bold text-purple-700"><i class="fas fa-rotate-left" aria-hidden="true"><\/i>Volta para: ' + escapeHtml(meta.label) + ' · etapa ' + steps.get(node.id) + '<\/button>');
+      return;
+    }
+    steps.set(node.id, steps.size + 1);
+    const selected = state.selectedNodeId === node.id;
+    const summary = nodeSummary(node);
+    wrap(depth, '<button type="button" data-mobile-node="' + escapeAttr(node.id) + '" aria-label="Editar ' + escapeAttr(meta.label) + '" class="block w-full overflow-hidden rounded-xl border bg-white text-left shadow-sm ' + (selected ? 'border-purple-500 ring-2 ring-purple-200' : 'border-stone-200') + '">' +
+      '<span class="flex items-center gap-2 border-b border-stone-100 px-3 py-2" style="background:' + meta.color + '14;"><span class="grid h-6 w-6 shrink-0 place-items-center rounded-lg" style="background:' + meta.color + '22;"><i class="fas ' + meta.icon + ' text-xs" style="color:' + meta.color + ';" aria-hidden="true"><\/i><\/span>' +
+      '<span class="min-w-0 flex-1 truncate text-xs font-bold text-gray-700">' + escapeHtml(meta.label) + '<\/span><span class="text-[11px] font-bold text-gray-400">' + steps.get(node.id) + '<\/span><\/span>' +
+      '<span class="block px-3 py-2.5 text-[13px] leading-snug ' + (summary ? 'text-gray-600' : 'text-gray-400') + '">' + escapeHtml(summary || 'Toque para configurar') + '<\/span><\/button>');
+    const outs = mobileStepOutputs(node);
+    if (outs.length === 1 && !outs[0].label) {
+      const edge = edges.find(e => e.source === node.id && (e.sourceHandle || '') === (outs[0].handle || ''));
+      const next = edge && byId.get(edge.target);
+      if (next) visit(next, depth); else addButton(node, outs[0], depth);
+      return;
+    }
+    outs.forEach(out => {
+      wrap(depth + 1, '<p class="flex items-center gap-1.5 text-xs font-bold text-stone-600"><i class="fas fa-code-branch text-[10px] text-stone-400" aria-hidden="true"><\/i>' + escapeHtml(out.label) + '<\/p>');
+      const edge = edges.find(e => e.source === node.id && (e.sourceHandle || '') === (out.handle || ''));
+      const next = edge && byId.get(edge.target);
+      if (next) visit(next, depth + 1); else addButton(node, out, depth + 1);
+    });
+  };
+  const start = nodes.find(node => node.type === 'start') || nodes[0];
+  if (start) visit(start, 0);
+  const loose = nodes.filter(node => !steps.has(node.id) && !isSubNode(node));
+  if (loose.length) {
+    parts.push('<p class="mb-2 mt-4 text-[10px] font-bold uppercase tracking-[.16em] text-stone-500">Blocos sem conexão<\/p>');
+    loose.forEach(node => { if (!steps.has(node.id)) visit(node, 0); });
+  }
+  parts.push('<button type="button" data-mobile-add="" class="mt-2 flex min-h-[44px] w-full items-center justify-center gap-1.5 rounded-xl text-xs font-bold text-stone-500"><i class="fas fa-plus" aria-hidden="true"><\/i>Bloco sem conexão<\/button>');
+  const scroll = el.scrollTop;
+  el.innerHTML = parts.join('');
+  el.scrollTop = scroll;
+}
+
+function initMobileFlowLayout() {
+  document.getElementById('mobile-steps').addEventListener('click', event => {
+    const nodeButton = event.target.closest('[data-mobile-node]');
+    if (nodeButton) { selectNode(nodeButton.dataset.mobileNode); return; }
+    const add = event.target.closest('[data-mobile-add]');
+    if (!add) return;
+    if (add.dataset.mobileSub) { openSubPort(add.dataset.mobileAdd, add.dataset.mobileHandle); return; }
+    openMobilePalette(add.dataset.mobileAdd, add.dataset.mobileHandle);
+  });
+  document.getElementById('palette-mobile-close').onclick = closeMobilePalette;
+  document.getElementById('mobile-sheet-backdrop').onclick = () => {
+    if (document.getElementById('view-editor').classList.contains('mobile-palette-open')) { closeMobilePalette(); return; }
+    state.selectedNodeId = null; renderCanvas(); renderInspector();
+  };
+  document.getElementById('mobile-btn-test').onclick = testFlow;
+  document.getElementById('mobile-btn-save').onclick = saveFlow;
+  mobileFlowQuery.addEventListener('change', () => { closeMobilePalette(); if (state.flowData) renderCanvas(); });
 }
 
 // openSubPort selects the block attached to an AI agent port, or creates
@@ -1743,6 +1891,7 @@ function renderEdges() {
 function renderInspector() {
   const el = document.getElementById('inspector');
   const node = state.flowData.nodes.find(n => n.id === state.selectedNodeId);
+  document.getElementById('view-editor').classList.toggle('mobile-inspector-open', !!node);
   if (!node) { el.classList.add('hidden'); return; }
   el.classList.remove('hidden');
   const meta = NODE_TYPES[node.type];
@@ -1752,11 +1901,14 @@ function renderInspector() {
         <i class="fas ${meta.icon}" style="color:${meta.color};"><\/i>
       <\/span>
       <h3 class="min-w-0 flex-1 font-bold text-gray-800">${meta.label}<\/h3>
+      ${meta.singleton ? '' : '<button type="button" id="inspector-delete" class="mobile-only h-9 w-9 place-items-center rounded-lg text-red-600 hover:bg-red-50" aria-label="Remover bloco"><i class="fas fa-trash"><\/i><\/button>'}
       <button type="button" id="inspector-close" class="rounded-lg p-2 text-gray-500 hover:bg-stone-100" title="Fechar (Esc)" aria-label="Fechar propriedades"><i class="fas fa-xmark"><\/i><\/button>
     <\/div>
     <div id="inspector-fields" class="flex flex-col gap-3"><\/div>
   `;
   el.querySelector('#inspector-close').onclick = () => { state.selectedNodeId = null; renderCanvas(); renderInspector(); };
+  const removeButton = el.querySelector('#inspector-delete');
+  if (removeButton) removeButton.onclick = () => deleteNode(node.id);
   renderFieldsFor(node);
 }
 
@@ -3351,6 +3503,7 @@ async function importFlowFile(file) {
 
 async function boot() {
 	initCanvasNavigation();
+	initMobileFlowLayout();
 	document.getElementById('btn-new-flow').onclick = openNewFlowModal;
 	const newFlowModal=document.getElementById('new-flow-modal');
 	document.getElementById('new-flow-close').onclick=()=>newFlowModal.close();
