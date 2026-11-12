@@ -327,6 +327,11 @@ const AI_ACTION_TYPES = [
 	{ value: 'close', label: 'Encerrar atendimento' },
 	{ value: 'pause', label: 'Pausar a IA' },
 	{ value: 'summary', label: 'Resumo para o operador' },
+	{ value: 'smartTransfer', label: 'Transferência inteligente' },
+	{ value: 'file', label: 'Enviar arquivo' },
+	{ value: 'schedule', label: 'Agendar mensagem' },
+	{ value: 'pix', label: 'Enviar Pix' },
+	{ value: 'calendar', label: 'Google Agenda' },
 	{ value: 'tag', label: 'Adicionar etiqueta' },
 	{ value: 'contactField', label: 'Salvar dado do cliente' },
 	{ value: 'http', label: 'Chamar API / Webhook' },
@@ -353,6 +358,11 @@ function defaultAIAction(type) {
 	case 'close': return Object.assign(action, { name: 'Encerrar atendimento', description: 'Quando o cliente confirmar que não precisa de mais nada.', message: '' });
 	case 'pause': return Object.assign(action, { name: 'Pausar a IA', description: 'Quando o cliente pedir para falar com uma pessoa e a equipe deve assumir a conversa sem transferir.', pauseMinutes: 0, message: '' });
 	case 'summary': return Object.assign(action, { name: 'Resumo para o operador', description: 'Quando o cliente já tiver explicado o que precisa, ou antes de transferir ou pausar o atendimento.' });
+	case 'smartTransfer': return Object.assign(action, { name: 'Transferir para atendente disponível', description: 'Quando o cliente pedir para falar com uma pessoa.', strategy: 'balanced', message: '' });
+	case 'file': return Object.assign(action, { name: 'Enviar catálogo', description: 'Quando o cliente pedir o catálogo, a tabela de preços ou mais detalhes dos produtos.', mediaKind: 'document', caption: '' });
+	case 'schedule': return Object.assign(action, { name: 'Agendar lembrete', description: 'Quando o cliente pedir para ser lembrado ou combinar um retorno em outro dia ou horário.', maxDays: 30 });
+	case 'pix': return Object.assign(action, { name: 'Enviar Pix', description: 'Quando o cliente quiser pagar e o valor já estiver combinado.', pixKeyType: 'cnpj', pixKey: '', pixName: '', pixCity: '', amountMode: 'ai', maxAmount: 0, sendQrCode: true, message: '' });
+	case 'calendar': return Object.assign(action, { name: 'Agendar reunião', description: 'Quando o cliente quiser marcar uma reunião ou visita. Consulte os horários livres antes de oferecer.', calendarId: '', serviceAccount: '', duration: 30, workStart: '09:00', workEnd: '18:00', workDays: [1, 2, 3, 4, 5] });
 	case 'tag': return Object.assign(action, { name: 'Marcar interesse', description: 'Quando o cliente demonstrar interesse em contratar.', tag: '' });
 	case 'contactField': return Object.assign(action, { name: 'Salvar email', description: 'Quando o cliente informar o email dele.', field: 'email', fieldKey: '' });
 	case 'http': return Object.assign(action, { name: 'Agendar reunião', description: 'Quando o cliente quiser agendar uma reunião e já tiver informado data e horário.', method: 'POST', url: '', headers: [], parameters: [{ name: 'dataHora', description: 'Data e horário desejados, no formato AAAA-MM-DD HH:MM', required: true }], timeout: 15000 });
@@ -2478,6 +2488,7 @@ function renderFieldsFor(node) {
         const index = Number(path.split('.')[1]), action = d.actions[index];
         if (path.endsWith('.type')) d.actions[index] = Object.assign(defaultAIAction(val), { id: action.id });
         if (path.endsWith('.assignType')) delete action.assignId;
+        if (path.endsWith('.mediaKind')) ['mediaPath', 'mediaMimeType', 'mediaPreviewUrl', 'mediaName'].forEach(key => delete action[key]);
       }
       if (node.type === 'httpRequest' && path === 'bodyMode') {
         d.bodyFields = d.bodyFields || [];
@@ -3061,6 +3072,49 @@ function aiActionsHTML(d) {
 		case 'summary':
 			body += '<p class="rounded-lg border border-violet-100 bg-white p-2.5 text-[11px] leading-relaxed text-gray-600"><i class="fas fa-note-sticky mr-1 text-violet-600"><\/i> A IA escreve um resumo da conversa e o publica como <strong>nota interna<\/strong> no chat. Só a equipe vê; o cliente não recebe nada.<\/p>';
 			break;
+		case 'smartTransfer':
+			body += field('Setor (opcional)', inspectorSelect(p + 'departmentId', [{ value: '', label: 'Qualquer atendente' }].concat(state.departments.map(option => ({ value: String(option.id), label: option.name }))), action.departmentId || '', 'Qualquer atendente'), 'Sem atendente disponível no setor, a conversa vai para a fila dele.');
+			body += field('Distribuição', inspectorSelect(p + 'strategy', [{ value: 'balanced', label: 'Quem tem menos conversas abertas' }, { value: 'random', label: 'Aleatória' }], action.strategy || 'balanced', 'Selecione'));
+			body += field('Mensagem automática (opcional)', textArea(action.message, p + 'message', 2), 'Enviada depois da resposta da IA, antes da transferência.');
+			break;
+		case 'file': {
+			const kinds = [{ value: 'document', label: 'Documento' }, { value: 'image', label: 'Imagem' }, { value: 'video', label: 'Vídeo' }, { value: 'audio', label: 'Áudio' }];
+			body += field('Tipo do arquivo', inspectorSelect(p + 'mediaKind', kinds, action.mediaKind || 'document', 'Selecione'));
+			body += aiActionMediaHTML(action, i);
+			if (!action.mediaPath) body += field('Ou use uma URL pública', textInput(action.mediaUrl, p + 'mediaUrl'));
+			if (action.mediaKind !== 'audio') body += field('Legenda (opcional)', textArea(action.caption, p + 'caption', 2));
+			break;
+		}
+		case 'schedule':
+			body += field('Prazo máximo (dias)', '<input type="number" min="1" max="30" data-field="' + p + 'maxDays" value="' + Number(action.maxDays || 30) + '" class="w-full px-3 py-2 bg-stone-50 border border-stone-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-purple-400">', 'A IA escreve a mensagem e escolhe a data com o cliente, até este prazo. O envio usa o fuso horário da empresa.');
+			break;
+		case 'pix': {
+			const keyTypes = [{ value: 'cnpj', label: 'CNPJ' }, { value: 'cpf', label: 'CPF' }, { value: 'phone', label: 'Telefone' }, { value: 'email', label: 'E-mail' }, { value: 'random', label: 'Chave aleatória' }];
+			body += field('Tipo da chave', inspectorSelect(p + 'pixKeyType', keyTypes, action.pixKeyType || 'cnpj', 'Selecione'));
+			body += field('Chave Pix', textInput(action.pixKey, p + 'pixKey'));
+			body += field('Nome do recebedor', textInput(action.pixName, p + 'pixName'), 'Como aparece no banco. Até 25 caracteres, sem acentos no código.');
+			body += field('Cidade do recebedor', textInput(action.pixCity, p + 'pixCity'), 'Até 15 caracteres.');
+			body += field('Valor', inspectorSelect(p + 'amountMode', [{ value: 'ai', label: 'Definido pela IA na conversa' }, { value: 'fixed', label: 'Valor fixo' }, { value: 'none', label: 'Sem valor (cliente digita)' }], action.amountMode || 'ai', 'Selecione'));
+			if (action.amountMode === 'fixed') body += field('Valor fixo (R$)', '<input type="number" min="0.01" step="0.01" data-field="' + p + 'amount" value="' + (action.amount || '') + '" class="w-full px-3 py-2 bg-stone-50 border border-stone-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-purple-400">');
+			if ((action.amountMode || 'ai') === 'ai') body += field('Valor máximo (R$, opcional)', '<input type="number" min="0" step="0.01" data-field="' + p + 'maxAmount" value="' + (action.maxAmount || '') + '" class="w-full px-3 py-2 bg-stone-50 border border-stone-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-purple-400">', 'Trava de segurança: a IA não gera Pix acima deste valor. Vazio ou 0 sem limite.');
+			body += '<label class="flex items-center gap-2 text-xs text-gray-700"><input type="checkbox" data-field="' + p + 'sendQrCode" ' + (action.sendQrCode ? 'checked' : '') + '> Enviar também a imagem do QR Code<\/label>';
+			body += field('Mensagem antes do Pix (opcional)', textArea(action.message, p + 'message', 2));
+			body += '<p class="text-[11px] leading-relaxed text-gray-500">Pix estático: o sistema não confirma o pagamento sozinho.<\/p>';
+			break;
+		}
+		case 'calendar': {
+			const days = Array.isArray(action.workDays) ? action.workDays : [1, 2, 3, 4, 5];
+			body += '<p class="rounded-lg border border-violet-100 bg-white p-2.5 text-[11px] leading-relaxed text-gray-600">Crie uma <strong>conta de serviço<\/strong> no Google Cloud com a API Google Calendar ativa, baixe a chave JSON e compartilhe a agenda com o e-mail da conta, com permissão para <em>fazer alterações nos eventos<\/em>.<\/p>';
+			body += field('ID da agenda', textInput(action.calendarId, p + 'calendarId'), 'Em Configurações da agenda > Integrar agenda. Para a agenda principal, é o e-mail dela.');
+			body += field('Chave JSON da conta de serviço', '<textarea data-field="' + p + 'serviceAccount" rows="3" autocomplete="off" spellcheck="false" placeholder="{ &quot;type&quot;: &quot;service_account&quot;, ... }" class="w-full px-3 py-2 bg-stone-50 border border-stone-200 rounded-lg font-mono text-[11px] focus:outline-none focus:ring-2 focus:ring-purple-400">' + escapeHtml(action.serviceAccount || '') + '<\/textarea>' +
+				'<label class="mt-1 inline-block cursor-pointer text-xs font-semibold text-violet-700 hover:underline"><i class="fas fa-file-import mr-1"><\/i>Carregar arquivo .json<input type="file" accept=".json,application/json" class="hidden" data-ai-service-account="' + i + '"><\/label>', 'Fica salva no fluxo e é removida ao exportar.');
+			body += field('Duração (minutos)', numberInput(action.duration || 30, p + 'duration'));
+			body += '<div class="grid grid-cols-2 gap-2">' + field('Início do atendimento', '<input type="time" data-field="' + p + 'workStart" value="' + escapeAttr(action.workStart || '09:00') + '" class="w-full px-3 py-2 bg-stone-50 border border-stone-200 rounded-lg text-sm">') +
+				field('Fim do atendimento', '<input type="time" data-field="' + p + 'workEnd" value="' + escapeAttr(action.workEnd || '18:00') + '" class="w-full px-3 py-2 bg-stone-50 border border-stone-200 rounded-lg text-sm">') + '<\/div>';
+			body += field('Dias de atendimento', '<div class="flex flex-wrap gap-1.5">' + ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'].map((label, day) =>
+				'<label class="flex items-center gap-1 rounded-lg border border-stone-200 bg-white px-2 py-1 text-[11px]"><input type="checkbox" data-ai-workday="' + i + ':' + day + '" ' + (days.includes(day) ? 'checked' : '') + '>' + label + '<\/label>').join('') + '<\/div>');
+			break;
+		}
 		case 'tag':
 			body += field('Etiqueta', textInput(action.tag, p + 'tag'));
 			break;
@@ -3092,6 +3146,13 @@ function aiActionsHTML(d) {
 		'<button type="button" data-ai-action-add class="rounded-lg border border-dashed border-violet-300 px-3 py-2 text-sm font-semibold text-violet-700 hover:bg-violet-50"><i class="fas fa-plus mr-1"><\/i>Adicionar ação<\/button><\/div>';
 }
 
+// aiActionMediaHTML is the upload area of an "Enviar arquivo" action.
+function aiActionMediaHTML(action, index) {
+	const config = { image: 'image/jpeg,image/png,image/gif,image/webp', video: 'video/mp4,video/webm,video/quicktime', audio: 'audio/webm,audio/ogg,audio/mpeg,audio/mp4,audio/wav', document: '.pdf,.txt,.csv,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.zip' }[action.mediaKind || 'document'];
+	const uploaded = action.mediaPath ? '<div class="mt-2 flex items-center justify-between gap-2 rounded-lg border border-stone-200 bg-white px-2.5 py-1.5 text-xs"><span class="truncate"><i class="fas fa-paperclip mr-1 text-violet-600"><\/i>' + escapeHtml(action.mediaName || 'Arquivo enviado') + '<\/span><button type="button" data-ai-media-remove="' + index + '" class="text-red-600 hover:underline">Remover<\/button><\/div>' : '';
+	return '<div><label class="block cursor-pointer rounded-xl border-2 border-dashed border-stone-300 p-3 text-center text-xs font-medium text-gray-700 hover:border-purple-400"><input type="file" accept="' + config + '" class="hidden" data-ai-media-file="' + index + '"><i class="fas fa-cloud-arrow-up mr-1 text-purple-500"><\/i>' + (action.mediaPath ? 'Trocar arquivo' : 'Enviar arquivo') + '<\/label><p data-ai-media-status="' + index + '" class="mt-1 text-[11px] text-gray-500"><\/p>' + uploaded + '<\/div>';
+}
+
 function bindAIActions(node, box) {
 	const actions = node.data.actions;
 	const rerender = () => { renderCanvas(); renderInspector(); };
@@ -3102,6 +3163,43 @@ function bindAIActions(node, box) {
 	box.querySelectorAll('[data-ai-param-remove]').forEach(button => button.onclick = () => { const [i, j] = pair(button.dataset.aiParamRemove); actions[i].parameters.splice(j, 1); rerender(); });
 	box.querySelectorAll('[data-ai-header-add]').forEach(button => button.onclick = () => { actions[Number(button.dataset.aiHeaderAdd)].headers.push({ key: '', value: '' }); rerender(); });
 	box.querySelectorAll('[data-ai-header-remove]').forEach(button => button.onclick = () => { const [i, j] = pair(button.dataset.aiHeaderRemove); actions[i].headers.splice(j, 1); rerender(); });
+	box.querySelectorAll('[data-ai-workday]').forEach(input => input.onchange = () => {
+		const [i, day] = pair(input.dataset.aiWorkday);
+		const days = new Set(Array.isArray(actions[i].workDays) ? actions[i].workDays : [1, 2, 3, 4, 5]);
+		if (input.checked) days.add(day); else days.delete(day);
+		actions[i].workDays = Array.from(days).sort();
+	});
+	box.querySelectorAll('[data-ai-media-remove]').forEach(button => button.onclick = () => {
+		const action = actions[Number(button.dataset.aiMediaRemove)];
+		['mediaPath', 'mediaMimeType', 'mediaPreviewUrl', 'mediaName'].forEach(key => delete action[key]);
+		rerender();
+	});
+	box.querySelectorAll('[data-ai-media-file]').forEach(input => input.onchange = async () => {
+		const index = Number(input.dataset.aiMediaFile), action = actions[index], file = input.files && input.files[0];
+		const status = box.querySelector('[data-ai-media-status="' + index + '"]');
+		if (!file) return;
+		status.textContent = 'Enviando arquivo...';
+		try {
+			const form = new FormData();
+			form.append('kind', action.mediaKind || 'document');
+			form.append('file', file, file.name);
+			const response = await fetch('/flows/api/media', { method: 'POST', body: form });
+			const payload = await response.json().catch(() => ({}));
+			if (!response.ok) throw new Error(payload.error || ('Erro ' + response.status));
+			delete action.mediaUrl;
+			Object.assign(action, { mediaPath: payload.data.path, mediaMimeType: payload.data.mimeType, mediaPreviewUrl: payload.data.url, mediaName: payload.data.name });
+			rerender();
+		} catch (error) {
+			status.textContent = 'Não foi possível enviar: ' + error.message;
+			status.className = 'mt-1 text-[11px] text-red-600';
+		}
+	});
+	box.querySelectorAll('[data-ai-service-account]').forEach(input => input.onchange = async () => {
+		const file = input.files && input.files[0];
+		if (!file) return;
+		actions[Number(input.dataset.aiServiceAccount)].serviceAccount = (await file.text()).trim();
+		rerender();
+	});
 }
 
 function setPath(obj, path, val) {
@@ -3224,6 +3322,7 @@ function flowReferenceCatalog(flow, flowData) {
 		if (node.type === 'smartAssign' && d.departmentId) remember('departments', state.departments, d.departmentId);
 		if (node.type === 'aiTools') (d.actions || []).forEach(action => {
 			if (action.type === 'transfer') remember(action.assignType === 'agent' ? 'agents' : 'departments', action.assignType === 'agent' ? state.agents : state.departments, action.assignId);
+			if (action.type === 'smartTransfer' && action.departmentId) remember('departments', state.departments, action.departmentId);
 		});
 	});
 	const noResponse = flowData.settings && flowData.settings.noResponse;
@@ -3243,6 +3342,7 @@ function flowSecrets(flowData) {
 		if (node.type === 'aiTools') (d.actions || []).forEach(action => (action.headers || []).forEach(header => {
 			if (header.value && SENSITIVE_HEADER.test(header.key || '')) found.push(nodeLabel(node) + ' "' + (action.name || 'ação') + '": header ' + header.key);
 		}));
+		if (node.type === 'aiTools') (d.actions || []).forEach(action => { if (action.serviceAccount) found.push(nodeLabel(node) + ' "' + (action.name || 'ação') + '": chave da conta de serviço do Google'); });
 		if (node.type !== 'httpRequest') return;
 		(d.headerFields || []).forEach(header => { if (header.value && SENSITIVE_HEADER.test(header.key || '')) found.push(nodeLabel(node) + ': header ' + header.key); });
 		let raw = d.headers && typeof d.headers === 'object' ? d.headers : null;
@@ -3256,7 +3356,10 @@ function removeFlowSecrets(flowData) {
 	(flowData.nodes || []).forEach(node => {
 		const d = node.data || {};
 		if (node.type === 'callback') delete d.token;
-		if (node.type === 'aiTools') (d.actions || []).forEach(action => (action.headers || []).forEach(header => { if (SENSITIVE_HEADER.test(header.key || '')) header.value = ''; }));
+		if (node.type === 'aiTools') (d.actions || []).forEach(action => {
+			(action.headers || []).forEach(header => { if (SENSITIVE_HEADER.test(header.key || '')) header.value = ''; });
+			if (action.serviceAccount) action.serviceAccount = '';
+		});
 		if (node.type !== 'httpRequest') return;
 		(d.headerFields || []).forEach(header => { if (SENSITIVE_HEADER.test(header.key || '')) header.value = ''; });
 		const clean = headers => { Object.keys(headers).forEach(key => { if (SENSITIVE_HEADER.test(key)) headers[key] = ''; }); return headers; };
@@ -3419,6 +3522,11 @@ function rebindFlowReferences(flowData, references) {
 		}
 		if (node.type === 'smartAssign') bind(node, 'departmentId', state.departments, 'departments', 'setor');
 		if (node.type === 'aiTools' && Array.isArray(node.data.actions)) node.data.actions.forEach(action => {
+			if (action && action.type === 'smartTransfer' && action.departmentId) {
+				const result = resolve(state.departments, 'departments', action.departmentId);
+				if (result.id === undefined) delete action.departmentId; else action.departmentId = result.id;
+				if (result.missing) warnings.push('Ação "' + (action.name || 'Transferência') + '": setor "' + result.name + '" não existe nesta empresa; a transferência vai para qualquer atendente até você escolher outro.');
+			}
 			if (!action || action.type !== 'transfer') return;
 			const agent = action.assignType === 'agent';
 			const result = resolve(agent ? state.agents : state.departments, agent ? 'agents' : 'departments', action.assignId);

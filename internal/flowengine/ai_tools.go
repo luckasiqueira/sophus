@@ -49,8 +49,8 @@ type AIAgentExtensions struct {
 }
 
 // AIAction is one action of the "Ações da IA" block. Type is transfer, close,
-// pause, summary, tag, contactField or http; the other fields apply to the
-// matching type.
+// pause, summary, tag, contactField, http, file, schedule, smartTransfer, pix
+// or calendar; the other fields apply to the matching type.
 type AIAction struct {
 	ID          string              `json:"id"`
 	Type        string              `json:"type"`
@@ -69,6 +69,37 @@ type AIAction struct {
 	Timeout     int                 `json:"timeout,omitempty"`
 	// PauseMinutes is how long a pause lasts; 0 waits for a person.
 	PauseMinutes int `json:"pauseMinutes,omitempty"`
+
+	// file: a stored upload (MediaPath) or an external URL.
+	MediaKind string `json:"mediaKind,omitempty"`
+	MediaPath string `json:"mediaPath,omitempty"`
+	MediaURL  string `json:"mediaUrl,omitempty"`
+	MediaName string `json:"mediaName,omitempty"`
+	Caption   string `json:"caption,omitempty"`
+	// schedule: how far ahead the AI may schedule (0 = 30 days).
+	MaxDays int `json:"maxDays,omitempty"`
+	// smartTransfer: optional department and balanced or random choice.
+	DepartmentID int    `json:"departmentId,omitempty"`
+	Strategy     string `json:"strategy,omitempty"`
+	// pix: key, receiver and amount (none, fixed or chosen by the AI).
+	PixKeyType string  `json:"pixKeyType,omitempty"`
+	PixKey     string  `json:"pixKey,omitempty"`
+	PixName    string  `json:"pixName,omitempty"`
+	PixCity    string  `json:"pixCity,omitempty"`
+	AmountMode string  `json:"amountMode,omitempty"`
+	Amount     float64 `json:"amount,omitempty"`
+	MaxAmount  float64 `json:"maxAmount,omitempty"`
+	SendQRCode bool    `json:"sendQrCode,omitempty"`
+	// calendar: Google Calendar shared with a service account.
+	CalendarID     string `json:"calendarId,omitempty"`
+	ServiceAccount string `json:"serviceAccount,omitempty"`
+	Duration       int    `json:"duration,omitempty"`
+	WorkStart      string `json:"workStart,omitempty"`
+	WorkEnd        string `json:"workEnd,omitempty"`
+	WorkDays       []int  `json:"workDays,omitempty"`
+
+	// operation tells which tool of a calendar action was called.
+	operation string
 }
 
 type AIActionHeader struct {
@@ -205,6 +236,9 @@ func validateAIAction(action AIAction) error {
 			}
 		}
 	default:
+		if aiExtraActionTypes[action.Type] {
+			return validateAIExtraAction(action)
+		}
 		return errors.New("tipo de ação inválido")
 	}
 	return nil
@@ -260,6 +294,8 @@ func collectAIAgentExtensions(node FlowNode, flowData FlowData, ctx ExecutionCon
 				}
 				action.Message = ReplaceVariables(action.Message, actionContext)
 				action.URL = ReplaceVariables(action.URL, actionContext)
+				action.MediaURL = ReplaceVariables(action.MediaURL, actionContext)
+				action.Caption = ReplaceVariables(action.Caption, actionContext)
 				for index := range action.Headers {
 					action.Headers[index].Value = ReplaceVariables(action.Headers[index].Value, actionContext)
 				}
@@ -364,6 +400,12 @@ func aiActionTools(actions []AIAction) ([]llm.ToolDefinition, map[string]AIActio
 			description += "\nConsulta um sistema externo e retorna a resposta dele."
 			parameters = objectSchema(properties, required)
 		default:
+			for _, tool := range aiExtraTools(index, action, description) {
+				operation := action
+				operation.operation = strings.TrimPrefix(tool.Name, strings.TrimSuffix(strings.TrimSuffix(tool.Name, aiCalendarBookTool), aiCalendarSlotsTool))
+				tools = append(tools, tool)
+				byName[tool.Name] = operation
+			}
 			continue
 		}
 		tools = append(tools, llm.ToolDefinition{Name: name, Description: description, Parameters: parameters})
@@ -384,6 +426,8 @@ type aiToolRunner struct {
 	pending      *pendingAIAction
 	// remembered holds this answer's API results, saved for later messages.
 	remembered []aiActionMemoryEntry
+	// timezone is the company's, loaded on first use.
+	timezone *time.Location
 }
 
 type pendingAIAction struct {
@@ -419,7 +463,7 @@ func (runner *aiToolRunner) Execute(_ context.Context, call llm.ToolCall) string
 		return "Erro ao executar a ação: " + err.Error()
 	}
 	log.Printf("ai agent action executed: conversation=%d company=%d agent=%d action=%s type=%s", runner.conversation.Id, companyID, runner.session.Agent.Id, action.ID, action.Type)
-	if action.Type == "http" {
+	if action.Type == "http" || action.Type == "calendar" {
 		runner.remembered = append(runner.remembered, newAIActionMemoryEntry(action, call.Arguments, result, time.Now()))
 	}
 	return result
@@ -492,7 +536,7 @@ func (runner *aiToolRunner) run(action AIAction, arguments map[string]interface{
 	case "http":
 		return runner.runHTTP(action, arguments)
 	}
-	return "", errors.New("tipo de ação inválido")
+	return runner.runExtra(action, arguments)
 }
 
 func (runner *aiToolRunner) actionContext(arguments map[string]interface{}) ExecutionContext {
@@ -614,6 +658,12 @@ func (runner *aiToolRunner) finish() error {
 		err = repo.TransferAIAgentConversation(runner.session.Id, runner.conversation.Id, companyID, action.AssignType, action.AssignID, runner.pending.summary)
 	case "pause":
 		err = repo.PauseAIAgentConversation(runner.session.Id, runner.conversation.Id, companyID, action.PauseMinutes, runner.pending.summary)
+	case "smartTransfer":
+		var department *int
+		if action.DepartmentID > 0 {
+			department = &action.DepartmentID
+		}
+		_, err = repo.SmartTransferAIAgentConversation(runner.session.Id, runner.conversation.Id, companyID, department, action.Strategy, runner.pending.summary)
 	default:
 		err = repo.CloseAIAgentConversation(runner.session.Id, runner.conversation.Id, companyID, runner.pending.summary)
 	}

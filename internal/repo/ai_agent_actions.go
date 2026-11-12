@@ -6,6 +6,7 @@ import (
 	"errors"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/lib/pq"
 )
@@ -324,4 +325,108 @@ func expectOneRow(result sql.Result, err error) error {
 		return ErrAIAgentSessionInactive
 	}
 	return nil
+}
+
+// ScheduleAIAgentMessage queues a message the AI agent promised to send
+// later, delivered by the scheduled flow messages worker.
+func ScheduleAIAgentMessage(sessionID int64, conversationID, companyID int, actionID, message string, dueAt time.Time) error {
+	message = strings.TrimSpace(message)
+	if message == "" || len([]rune(message)) > 10000 {
+		return errors.New("a mensagem agendada deve possuir entre 1 e 10000 caracteres")
+	}
+	nodeID := "ai:" + strconv.FormatInt(sessionID, 10) + ":" + actionID + ":" + strconv.FormatInt(time.Now().UnixNano(), 36)
+	if len(nodeID) > 100 {
+		nodeID = nodeID[:100]
+	}
+	return expectOneRow(db.Exec(`INSERT INTO scheduled_flow_messages
+		("companyId", "conversationId", "connectionId", "nodeId", message, "dueAt")
+		SELECT $3, conversation.id, conversation."connectionId", $4, $5, $6
+		FROM conversations conversation
+		JOIN connections connection ON connection.id = conversation."connectionId" AND connection."companyId" = $3
+		WHERE conversation.id = $2 AND EXISTS (`+aiSessionGuard+`)`, sessionID, conversationID, companyID, nodeID, message, dueAt))
+}
+
+// AIAgentSmartTransferAvailable reports whether an active agent (of the
+// department, when given) can receive the conversation.
+func AIAgentSmartTransferAvailable(companyID int, departmentID *int) (bool, error) {
+	var available bool
+	err := db.QueryRow(`SELECT EXISTS(SELECT 1 FROM agents agent WHERE agent."companyId" = $1 AND agent."isActive" = true
+		AND ($2::integer IS NULL OR EXISTS (SELECT 1 FROM agent_departments membership
+			WHERE membership."agentId" = agent.id AND membership."departmentId" = $2)))`, companyID, departmentID).Scan(&available)
+	return available, err
+}
+
+// SmartTransferAIAgentConversation hands the conversation to the active agent
+// with the fewest open conversations (or a random one), within the department
+// when given, and ends the AI session. Without an available agent it falls
+// back to the department queue; without a department it fails.
+func SmartTransferAIAgentConversation(sessionID int64, conversationID, companyID int, departmentID *int, strategy, summary string) (string, error) {
+	tx, err := db.Begin()
+	if err != nil {
+		return "", err
+	}
+	defer tx.Rollback()
+	if err := lockAIAgentSession(tx, sessionID, conversationID, companyID); err != nil {
+		return "", err
+	}
+	lockKey := 0
+	if departmentID != nil {
+		lockKey = *departmentID
+	}
+	if _, err := tx.Exec(`SELECT pg_advisory_xact_lock($1, $2)`, companyID, lockKey); err != nil {
+		return "", err
+	}
+	orderBy := `count(workload.id), agent.id`
+	if strategy == "random" {
+		orderBy = `random()`
+	}
+	var agentID int
+	var agentName string
+	err = tx.QueryRow(`SELECT agent.id, agent.name FROM agents agent
+		LEFT JOIN conversations workload ON workload."agentId" = agent.id AND workload.status = 'open'
+		WHERE agent."companyId" = $1 AND agent."isActive" = true
+		AND ($2::integer IS NULL OR EXISTS (SELECT 1 FROM agent_departments membership
+			WHERE membership."agentId" = agent.id AND membership."departmentId" = $2))
+		GROUP BY agent.id, agent.name ORDER BY `+orderBy+` LIMIT 1`, companyID, departmentID).Scan(&agentID, &agentName)
+	var result sql.Result
+	switch {
+	case err == nil:
+		result, err = tx.Exec(`UPDATE conversations cv SET "agentId" = $1, "departmentId" = COALESCE($2, cv."departmentId"),
+			status = $3, "updatedAt" = now()
+			FROM connections co WHERE cv.id = $4 AND co.id = cv."connectionId" AND co."companyId" = $5`,
+			agentID, departmentID, ConversationStatusOpen, conversationID, companyID)
+	case errors.Is(err, sql.ErrNoRows) && departmentID != nil:
+		agentName = ""
+		result, err = tx.Exec(`UPDATE conversations cv SET "departmentId" = $1, "agentId" = NULL, status = $2, "updatedAt" = now()
+			FROM connections co WHERE cv.id = $3 AND co.id = cv."connectionId" AND co."companyId" = $4`,
+			*departmentID, ConversationStatusPending, conversationID, companyID)
+	case errors.Is(err, sql.ErrNoRows):
+		return "", errors.New("nenhum atendente ativo disponível")
+	}
+	if err != nil {
+		return "", err
+	}
+	if rows, err := result.RowsAffected(); err != nil {
+		return "", err
+	} else if rows != 1 {
+		return "", errors.New("conversa não encontrada")
+	}
+	if _, err := tx.Exec(`UPDATE ai_agent_sessions SET status = 'ended', "endedAt" = now(), "updatedAt" = now() WHERE id = $1`, sessionID); err != nil {
+		return "", err
+	}
+	history := "Agente de IA transferiu o atendimento para a fila do setor."
+	if agentName != "" {
+		history = "Agente de IA transferiu o atendimento para " + agentName + " (distribuição automática)."
+	}
+	if summary = strings.TrimSpace(summary); summary != "" {
+		history += " Resumo: " + summary
+	}
+	if err := addAIAgentHistory(tx, conversationID, companyID, history); err != nil {
+		return "", err
+	}
+	if err := tx.Commit(); err != nil {
+		return "", err
+	}
+	invalidateConversationEventHistory(companyID, conversationID)
+	return agentName, nil
 }

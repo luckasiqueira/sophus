@@ -27,6 +27,8 @@ type flowDependencyData struct {
 				Name       string `json:"name"`
 				AssignType string `json:"assignType"`
 				AssignID   int    `json:"assignId"`
+				// DepartmentID limits a smart transfer to a department.
+				DepartmentID int `json:"departmentId"`
 			} `json:"actions"`
 		} `json:"data"`
 	} `json:"nodes"`
@@ -92,10 +94,14 @@ func validateFlowDependencies(raw json.RawMessage, companyID int, ancestors map[
 			}
 		case "aiTools":
 			for _, action := range node.Data.Actions {
-				if action.Type != "transfer" {
-					continue
+				var err error
+				switch {
+				case action.Type == "transfer":
+					err = ValidateAIAgentTransferTarget(companyID, action.AssignType, action.AssignID)
+				case action.Type == "smartTransfer" && action.DepartmentID > 0:
+					err = ValidateAIAgentTransferTarget(companyID, "department", action.DepartmentID)
 				}
-				if err := ValidateAIAgentTransferTarget(companyID, action.AssignType, action.AssignID); err != nil {
+				if err != nil {
 					return fmt.Errorf("ação de IA %q: %v", action.Name, err)
 				}
 			}

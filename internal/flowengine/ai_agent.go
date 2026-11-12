@@ -74,6 +74,9 @@ func processAIAgentMessage(session repo.AIAgentSession, conversation repo.Conver
 		timeout = 150 * time.Second
 	}
 	system := buildAIAgentSystemPrompt(session.Agent, extensions, messageText)
+	if aiActionsNeedClock(extensions.Actions) {
+		system += "\n\n" + aiClockPrompt(time.Now().In(runner.location()))
+	}
 	var memory []aiActionMemoryEntry
 	if len(tools) > 0 {
 		// Read under the conversation lock: the previous answer has saved.
