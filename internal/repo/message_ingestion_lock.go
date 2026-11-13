@@ -5,7 +5,12 @@ import (
 	"fmt"
 	"strings"
 	"sync"
+	"time"
 )
+
+// messageIngestionLockWait bounds how long a delivery waits for the lock, so
+// a stuck holder turns into a retryable error instead of a hung webhook.
+const messageIngestionLockWait = 30 * time.Second
 
 // LockMessageIngestion serializes the ingestion of one WhatsApp message
 // across goroutines and app instances. Two deliveries of the same message
@@ -21,16 +26,20 @@ func LockMessageIngestion(ctx context.Context, connectionID int, messageID strin
 	if messageID == "" {
 		return func() {}, nil
 	}
-	conn, err := db.Conn(ctx)
+	ctx, cancel := context.WithTimeout(ctx, messageIngestionLockWait)
+	defer cancel()
+	// The lock connection comes from its own pool, never from db: the holder
+	// still needs db connections to check and store the message.
+	conn, err := ingestionLockDB.Conn(ctx)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("message ingestion lock: %w", err)
 	}
 	key := fmt.Sprintf("message-ingestion:%d:%s", connectionID, messageID)
 	// The single-bigint advisory key space never overlaps the two-int locks
 	// used for companies and conversations.
 	if _, err := conn.ExecContext(ctx, `SELECT pg_advisory_lock(hashtextextended($1, 0))`, key); err != nil {
 		_ = conn.Close()
-		return nil, err
+		return nil, fmt.Errorf("message ingestion lock: %w", err)
 	}
 	var once sync.Once
 	return func() {
