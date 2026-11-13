@@ -8,7 +8,7 @@ frontend/frontend.yaml
 builds/
 docs/
 logos/
-
+.git-rewrite/
 
 *.svg
 *.iml
